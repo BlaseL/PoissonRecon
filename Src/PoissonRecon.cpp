@@ -37,6 +37,7 @@ DAMAGE.
 #define DEFAULT_FEM_DEGREE 1					// The default finite-element degree
 #define DEFAULT_FEM_BOUNDARY BOUNDARY_NEUMANN	// The default finite-element boundary type
 #define DIMENSION 3								// The dimension of the system
+#define USE_DEEP_TREE_NODES 1
 
 #include <stdio.h>
 #include <stdlib.h>
