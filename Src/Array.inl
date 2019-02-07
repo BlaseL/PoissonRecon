@@ -26,6 +26,7 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 #define FULL_ARRAY_DEBUG    0	// Note that this is not thread-safe
+#define ARRAY_NEW_CODE
 
 #include <string.h>
 #include <stdio.h>
@@ -35,6 +36,9 @@ DAMAGE.
 #include <windows.h>
 #endif // _WIN32
 #include <stddef.h>
+#ifdef ARRAY_NEW_CODE
+#include <type_traits>
+#endif // ARRAY_NEW_CODE
 
 inline bool isfinitef( float fp ){ float f=fp; return ((*(unsigned *)&f)&0x7f800000)!=0x7f800000; }
 
@@ -227,6 +231,47 @@ public:
 		_assertBounds( 0 );
 		return data;
 	}
+#ifdef ARRAY_NEW_CODE
+	template< typename Int >
+	inline C& operator[]( Int idx )
+	{
+		static_assert( std::is_integral< Int >::value , "Integral type expected" );
+		_assertBounds( idx );
+		return data[idx];
+	}
+
+	template< typename Int >
+	inline const C& operator[]( Int idx ) const
+	{
+		static_assert( std::is_integral< Int >::value , "Integral type expected" );
+		_assertBounds( idx );
+		return data[idx];
+	}
+
+	template< typename Int >
+	inline Array operator + ( Int idx ) const
+	{
+		static_assert( std::is_integral< Int >::value , "Integral type expected" );
+		Array a;
+		a._data = _data;
+		a.data = data+idx;
+		a.min = min-idx;
+		a.max = max-idx;
+		return a;
+	}
+	template< typename Int >
+	inline Array& operator += ( Int idx  )
+	{
+		static_assert( std::is_integral< Int >::value , "Integral type expected" );
+		min -= idx;
+		max -= idx;
+		data += idx;
+		return (*this);
+	}
+	template< typename Int > Array  operator -  ( Int idx ) const { return (*this) +  (-idx); }
+	template< typename Int > Array& operator -= ( Int idx )       { return (*this) += (-idx); }
+
+#else // !ARRAY_NEW_CODE
 	inline C& operator[]( long long idx )
 	{
 		_assertBounds( idx );
@@ -301,8 +346,6 @@ public:
 		data += idx;
 		return (*this);
 	}
-	inline Array& operator ++ ( void  ) { return (*this) += 1; }
-	inline Array operator++( int ){ Array< C > temp = (*this) ; (*this) +=1 ; return temp; }
 	Array  operator -  ( int idx ) const { return (*this) +  (-idx); }
 	Array  operator -  ( long long idx ) const { return (*this) +  (-idx); }
 	Array  operator -  ( unsigned int idx ) const { return (*this) +  (-idx); }
@@ -312,6 +355,9 @@ public:
 	Array& operator -= ( unsigned int idx )    { return (*this) += (-idx); }
 	Array& operator -= ( unsigned long long idx )    { return (*this) += (-idx); }
 	Array& operator -- ( void ) { return (*this) -= 1; }
+#endif // ARRAY_NEW_CODE
+	inline Array& operator ++ ( void  ) { return (*this) += 1; }
+	inline Array operator++( int ){ Array< C > temp = (*this) ; (*this) +=1 ; return temp; }
 	inline Array operator--( int ){ Array< C > temp = (*this) ; (*this) -=1 ; return temp; }
 	long long operator - ( const Array& a ) const { return ( long long )( data - a.data ); }
 
@@ -418,6 +464,36 @@ public:
 		_assertBounds( 0 );
 		return data;
 	}
+#ifdef ARRAY_NEW_CODE
+	template< typename Int >
+	inline const C& operator[]( Int idx ) const
+	{
+		static_assert( std::is_integral< Int >::value , "Integral type expected" );
+		_assertBounds( idx );
+		return data[idx];
+	}
+	template< typename Int >
+	inline ConstArray operator + ( Int idx ) const
+	{
+		static_assert( std::is_integral< Int >::value , "Integral type expected" );
+		ConstArray a;
+		a.data = data+idx;
+		a.min = min-idx;
+		a.max = max-idx;
+		return a;
+	}
+	template< typename  Int >
+	inline ConstArray& operator += ( Int idx  )
+	{
+		static_assert( std::is_integral< Int >::value , "Integral type expected" );
+		min -= idx;
+		max -= idx;
+		data += idx;
+		return (*this);
+	}
+	template< typename Int > ConstArray  operator -  ( Int idx ) const { return (*this) +  (-idx); }
+	template< typename Int > ConstArray& operator -= ( Int idx )       { return (*this) += (-idx); }
+#else // !ARRAY_NEW_CODE
 	inline const C& operator[]( long long idx ) const
 	{
 		_assertBounds( idx );
@@ -483,8 +559,6 @@ public:
 		data += idx;
 		return (*this);
 	}
-	inline ConstArray& operator ++ ( void ) { return (*this) += 1; }
-	inline ConstArray operator++( int ){ ConstArray< C > temp = (*this) ; (*this) +=1 ; return temp; }
 	ConstArray  operator -  ( int idx ) const { return (*this) +  (-idx); }
 	ConstArray  operator -  ( long long idx ) const { return (*this) +  (-idx); }
 	ConstArray  operator -  ( unsigned int idx ) const { return (*this) +  (-idx); }
@@ -494,6 +568,9 @@ public:
 	ConstArray& operator -= ( unsigned int idx )    { return (*this) += (-idx); }
 	ConstArray& operator -= ( unsigned long long idx )    { return (*this) += (-idx); }
 	ConstArray& operator -- ( void ) { return (*this) -= 1; }
+#endif // ARRAY_NEW_CODE
+	inline ConstArray& operator ++ ( void ) { return (*this) += 1; }
+	inline ConstArray operator++( int ){ ConstArray< C > temp = (*this) ; (*this) +=1 ; return temp; }
 	inline ConstArray operator--( int ){ ConstArray< C > temp = (*this) ; (*this) -=1 ; return temp; }
 	long long operator - ( const ConstArray& a ) const { return ( long long )( data - a.data ); }
 	long long operator - ( const Array< C >& a ) const { return ( long long )( data - a.pointer() ); }

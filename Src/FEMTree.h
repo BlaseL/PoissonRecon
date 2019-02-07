@@ -205,7 +205,11 @@ struct BlockedVector
 	{
 		_reservedBlocks = InitialBlocks;
 		_blocks = NewPointer< Pointer( T ) >( _reservedBlocks );
+#ifdef NEW_CODE
+		for( size_t i=0 ; i<_reservedBlocks ; i++ ) _blocks[i] = NullPointer( T );
+#else // !NEW_CODE
 		for( size_t i=0 ; i<_reservedBlocks ; i++ ) _blocks[i] = NullPointer( Pointer( T ) );
+#endif // NEW_CODE
 		_allocatedBlocks = _size = 0;
 	}
 	~BlockedVector( void )
@@ -235,7 +239,11 @@ struct BlockedVector
 			_blocks[i] = NewPointer< T >( _BlockSize );
 			memcpy( _blocks[i] , v._blocks[i] , sizeof(T)*_BlockSize );
 		}
+#ifdef NEW_CODE
+		for( size_t i=_allocatedBlocks ; i<_reservedBlocks ; i++ ) _blocks[i] = NullPointer( T );
+#else // !NEW_CODE
 		for( size_t i=_allocatedBlocks ; i<_reservedBlocks ; i++ ) _blocks[i] = NullPointer( Pointer ( T ) );
+#endif // NEW_CODE
 		return *this;
 	}
 	BlockedVector( BlockedVector&& v )
@@ -278,7 +286,11 @@ struct BlockedVector
 			size_t newReservedSize = std::max< size_t >( _reservedBlocks * AllocationMultiplier , block+1 );
 			Pointer( Pointer( T ) ) __blocks = NewPointer< Pointer( T ) >( newReservedSize );
 			memcpy( __blocks , _blocks , sizeof( Pointer( T ) ) * _reservedBlocks );
+#ifdef NEW_CODE
+			for( size_t i=_reservedBlocks ; i<newReservedSize ; i++ ) __blocks[i] = NullPointer( T );
+#else // !NEW_CODE
 			for( size_t i=_reservedBlocks ; i<newReservedSize ; i++ ) __blocks[i] = NullPointer( Pointer( T )  );
+#endif // NEW_CODE
 			Pointer( Pointer( T ) ) _oldBlocks = _blocks;
 			_blocks = __blocks;
 			_reservedBlocks = newReservedSize;

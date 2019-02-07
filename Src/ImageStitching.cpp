@@ -526,7 +526,11 @@ int main( int argc , char* argv[] )
 
 #ifdef FAST_COMPILE
 	static const int Degree = DEFAULT_FEM_DEGREE;
+#ifdef NEW_CODE
+	WARN( "Compiled for degree-%d, %s-precision _only_" , Degree , sizeof(Real)==4 ? "single" : "double" );
+#else // !NEW_CODE
 	WARN( "Compiled for degree-%d, %s-precision _only_" , Degree , sizeof(DefaultFloatType)==4 ? "single" : "double" );
+#endif // NEW_CODE
 	_Execute< Real , Degree >();
 #else // !FAST_COMPILE
 	_Execute< Real >();

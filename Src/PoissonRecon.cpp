@@ -799,9 +799,17 @@ int main( int argc , char* argv[] )
 	static const int Degree = DEFAULT_FEM_DEGREE;
 	static const BoundaryType BType = DEFAULT_FEM_BOUNDARY;
 	typedef IsotropicUIntPack< DIMENSION , FEMDegreeAndBType< Degree , BType >::Signature > FEMSigs;
+#ifdef NEW_CODE
+	WARN( "Compiled for degree-%d, boundary-%s, %s-precision _only_" , Degree , BoundaryNames[ BType ] , sizeof(Real)==4 ? "single" : "double" );
+#else // !NEW_CODE
 	WARN( "Compiled for degree-%d, boundary-%s, %s-precision _only_" , Degree , BoundaryNames[ BType ] , sizeof(DefaultFloatType)==4 ? "single" : "double" );
+#endif // NEW_CODE
 	if( !PointWeight.set ) PointWeight.value = DefaultPointWeightMultiplier*Degree;
+#ifdef NEW_CODE
+	if( Colors.set ) Execute< Real , PointStreamColor< Real > >( argc , argv , FEMSigs() );
+#else // !NEW_CODE
 	if( Colors.set ) Execute< Real , PointStreamColor< DefaultFloatType > >( argc , argv , FEMSigs() );
+#endif // NEW_CODE
 	else             Execute< Real >( argc , argv , FEMSigs() );
 #else // !FAST_COMPILE
 	if( !PointWeight.set ) PointWeight.value = DefaultPointWeightMultiplier*Degree.value;
