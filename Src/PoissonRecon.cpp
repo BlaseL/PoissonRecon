@@ -1,4 +1,3 @@
-#define USE_DEEP_TREE_NODES
 /*
 Copyright (c) 2006, Michael Kazhdan and Matthew Bolitho
 All rights reserved.
@@ -39,7 +38,6 @@ DAMAGE.
 #define DEFAULT_FEM_BOUNDARY BOUNDARY_NEUMANN	// The default finite-element boundary type
 #define DIMENSION 3								// The dimension of the system
 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -50,6 +48,7 @@ DAMAGE.
 #include "FEMTree.h"
 #include "Ply.h"
 #include "PointStreamData.h"
+#include "Image.h"
 
 MessageWriter messageWriter;
 
@@ -59,7 +58,7 @@ cmdLineParameter< char* >
 	In( "in" ) ,
 	Out( "out" ) ,
 	TempDir( "tempDir" ) ,
-	VoxelGrid( "voxel" ) ,
+	Grid( "grid" ) ,
 	Tree( "tree" ) ,
 	Transform( "xForm" );
 
@@ -72,7 +71,7 @@ cmdLineReadable
 	ASCII( "ascii" ) ,
 	Density( "density" ) ,
 	LinearFit( "linearFit" ) ,
-	PrimalVoxel( "primalVoxel" ) ,
+	PrimalGrid( "primalGrid" ) ,
 	ExactInterpolation( "exact" ) ,
 	Normals( "normals" ) ,
 	Colors( "colors" ) ,
@@ -117,7 +116,7 @@ cmdLineReadable* params[] =
 	&ConfidenceBias ,
 	&BaseDepth , &BaseVCycles ,
 	&PointWeight ,
-	&VoxelGrid , &Threads ,
+	&Grid , &Threads ,
 	&Tree ,
 	&Density ,
 	&FullDepth ,
@@ -126,7 +125,7 @@ cmdLineReadable* params[] =
 	&Colors ,
 	&Normals ,
 	&LinearFit ,
-	&PrimalVoxel ,
+	&PrimalGrid ,
 	&TempDir ,
 	&ExactInterpolation ,
 	&Performance ,
@@ -140,7 +139,7 @@ void ShowUsage(char* ex)
 	printf( "Usage: %s\n" , ex );
 	printf( "\t --%s <input points>\n" , In.name );
 	printf( "\t[--%s <ouput triangle mesh>]\n" , Out.name );
-	printf( "\t[--%s <ouput voxel grid>]\n" , VoxelGrid.name );
+	printf( "\t[--%s <ouput grid>]\n" , Grid.name );
 	printf( "\t[--%s <ouput fem tree>]\n" , Tree.name );
 #ifndef FAST_COMPILE
 	printf( "\t[--%s <b-spline degree>=%d]\n" , Degree.name , Degree.value );
@@ -148,7 +147,7 @@ void ShowUsage(char* ex)
 	for( int i=0 ; i<BOUNDARY_COUNT ; i++ ) printf( "\t\t%d] %s\n" , i+1 , BoundaryNames[i] );
 #endif // !FAST_COMPILE
 	printf( "\t[--%s <maximum reconstruction depth>=%d]\n" , Depth.name , Depth.value );
-	printf( "\t[--%s <voxel width>]\n" , Width.name );
+	printf( "\t[--%s <grid width>]\n" , Width.name );
 	printf( "\t[--%s <full depth>=%d]\n" , FullDepth.name , FullDepth.value );
 	printf( "\t[--%s <coarse MG solver depth>=%d]\n" , BaseDepth.name , BaseDepth.value );
 	printf( "\t[--%s <coarse MG solver v-cycles>=%d]\n" , BaseVCycles.name , BaseVCycles.value );
@@ -172,7 +171,7 @@ void ShowUsage(char* ex)
 	printf( "\t[--%s]\n" , Performance.name );
 	printf( "\t[--%s]\n" , Density.name );
 	printf( "\t[--%s]\n" , LinearFit.name );
-	printf( "\t[--%s]\n" , PrimalVoxel.name );
+	printf( "\t[--%s]\n" , PrimalGrid.name );
 	printf( "\t[--%s]\n" , ASCII.name );
 	printf( "\t[--%s]\n" , NoComments.name );
 	printf( "\t[--%s]\n" , TempDir.name );
@@ -341,7 +340,8 @@ void ExtractMesh( UIntPack< FEMSigs ... > , std::tuple< SampleData ... > , FEMTr
 	else isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< TotalPointSampleData >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , density , NULL , solution , isoValue , *mesh , SetVertex , !LinearFit.set , !NonManifold.set , PolygonMesh.set , false );
 #endif // __GNUC__ || __GNUC__ < 4
 	messageWriter( "Vertices / Polygons: %d / %d\n" , mesh->outOfCorePointCount()+mesh->inCorePoints.size() , mesh->polygonCount() );
-	messageWriter( "Corners / Vertices / Edges / Surface / Set Table / Copy Finer: %.1f / %.1f / %.1f / %.1f / %.1f / %.1f (s)\n" , isoStats.cornersTime , isoStats.verticesTime , isoStats.edgesTime , isoStats.surfaceTime , isoStats.setTableTime , isoStats.copyFinerTime );
+	std::string isoStatsString = isoStats.toString() + std::string( "\n" );
+	messageWriter( isoStatsString.c_str() );
 	if( PolygonMesh.set ) profiler.dumpOutput2( comments , "#         Got polygons:" );
 	else                  profiler.dumpOutput2( comments , "#        Got triangles:" );
 
@@ -351,6 +351,63 @@ void ExtractMesh( UIntPack< FEMSigs ... > , std::tuple< SampleData ... > , FEMTr
 
 	delete mesh;
 }
+
+template< typename Real , unsigned int Dim >
+void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
+{
+	int resolution = 1;
+	for( int d=0 ; d<Dim ; d++ ) resolution *= res;
+
+	char *ext = GetFileExtension( fileName );
+
+	if( Dim==2 && ImageWriter::ValidExtension( ext ) )
+	{
+		Real avg = 0;
+#pragma omp parallel for reduction( + : avg )
+		for( int i=0 ; i<resolution ; i++ ) avg += values[i];
+		avg /= (Real)resolution;
+
+		Real std = 0;
+#pragma omp parallel for reduction( + : std )
+		for( int i=0 ; i<resolution ; i++ ) std += ( values[i] - avg ) * ( values[i] - avg );
+		std = (Real)sqrt( std / resolution );
+
+		if( Verbose.set ) printf( "Grid to image: [%.2f,%.2f] -> [0,255]\n" , avg - 2*std , avg + 2*std );
+
+		unsigned char *pixels = new unsigned char[ resolution*3 ];
+#pragma omp parallel for
+		for( int i=0 ; i<resolution ; i++ )
+		{
+			Real v = (Real)std::min< Real >( (Real)1. , std::max< Real >( (Real)-1. , ( values[i] - avg ) / (2*std ) ) );
+			v = (Real)( ( v + 1. ) / 2. * 256. );
+			unsigned char color = (unsigned char )std::min< Real >( (Real)255. , std::max< Real >( (Real)0. , v ) );
+			for( int c=0 ; c<3 ; c++ ) pixels[i*3+c ] = color;
+		}
+		ImageWriter::Write( fileName , pixels , res , res , 3 );
+		delete[] pixels;
+	}
+	else
+	{
+
+		FILE *fp = fopen( fileName , "wb" );
+		if( !fp ) ERROR_OUT( "Failed to open grid file for writing: %s" , fileName );
+		else
+		{
+			fwrite( &res , sizeof(int) , 1 , fp );
+			if( typeid(Real)==typeid(float) ) fwrite( values , sizeof(float) , resolution , fp );
+			else
+			{
+				float *fValues = new float[resolution];
+				for( int i=0 ; i<resolution ; i++ ) fValues[i] = float( values[i] );
+				fwrite( fValues , sizeof(float) , resolution , fp );
+				delete[] fValues;
+			}
+			fclose( fp );
+		}
+	}
+	delete[] ext;
+}
+
 
 template< class Real , typename ... SampleData , unsigned int ... FEMSigs >
 void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
@@ -601,29 +658,27 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 		fclose( fp );
 	}
 
-	if( VoxelGrid.set )
+	if( Grid.set )
 	{
-		FILE* fp = fopen( VoxelGrid.value , "wb" );
-		if( !fp ) WARN( "Failed to open voxel file for writing: %s" , VoxelGrid.value );
-		else
-		{
-			int res = 0;
-			profiler.start();
-			Pointer( Real ) values = tree.template regularGridEvaluate< true >( solution , res , -1 , PrimalVoxel.set );
+		int res = 0;
+		profiler.start();
+		Pointer( Real ) values = tree.template regularGridEvaluate< true >( solution , res , -1 , PrimalGrid.set );
+		int resolution = 1;
+		for( int d=0 ; d<Dim ; d++ ) resolution *= res;
 #pragma omp parallel for
-			for( int i=0 ; i<res*res*res ; i++ ) values[i] -= isoValue;
-			profiler.dumpOutput( "Got voxel grid:" );
-			fwrite( &res , sizeof(int) , 1 , fp );
-			if( typeid(Real)==typeid(float) ) fwrite( values , sizeof(float) , res*res*res , fp );
-			else
+		for( int i=0 ; i<resolution ; i++ ) values[i] -= isoValue;
+		profiler.dumpOutput( "Got grid:" );
+		WriteGrid< Real , DIMENSION >( values , res , Grid.value );
+		DeletePointer( values );
+		if( Verbose.set )
+		{
+			printf( "Transform:\n" );
+			for( int i=0 ; i<Dim+1 ; i++ )
 			{
-				float *fValues = new float[res*res*res];
-				for( int i=0 ; i<res*res*res ; i++ ) fValues[i] = float( values[i] );
-				fwrite( fValues , sizeof(float) , res*res*res , fp );
-				delete[] fValues;
+				printf( "\t" );
+				for( int j=0 ; j<Dim+1 ; j++ ) printf( " %f" , iXForm(j,i) );
+				printf( "\n" );
 			}
-			fclose( fp );
-			DeletePointer( values );
 		}
 	}
 

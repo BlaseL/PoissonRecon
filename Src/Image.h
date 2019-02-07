@@ -37,6 +37,7 @@ struct ImageReader
 		return pixels;
 	}
 
+	static bool ValidExtension( const char *ext );
 	static ImageReader* Get( const char* fileName );
 	static void GetInfo( const char* fileName , unsigned int& width , unsigned int& height , unsigned int& channels );
 	virtual ~ImageReader( void ){ }
@@ -64,14 +65,14 @@ struct ImageWriter
 {
 	virtual unsigned int nextRow( const unsigned char* row ) = 0;
 	virtual unsigned int nextRows( const unsigned char* rows , unsigned int rowNum ){ unsigned int row ; for( unsigned int r=0 ; r<rowNum ; r++ ) row = nextRow( rows + _width * _channels * r ) ; return row; }
-	static bool Write( const char* fileName , const unsigned char* pixels , unsigned int width , unsigned int height , unsigned int channels , ImageWriterParams params=ImageWriterParams() )
+	static void Write( const char* fileName , const unsigned char* pixels , unsigned int width , unsigned int height , unsigned int channels , ImageWriterParams params=ImageWriterParams() )
 	{
 		ImageWriter* writer = Get( fileName , width , height , channels , params );
-		if( !writer ) return false;
 		for( unsigned int j=0 ; j<height ; j++ ) writer->nextRow( pixels + j*width*channels );
 		delete writer;
-		return true;
 	}
+
+	static bool ValidExtension( const char *ext );
 	static ImageWriter* Get( const char* fileName , unsigned int width , unsigned int height , unsigned int channels , ImageWriterParams params=ImageWriterParams() );
 	virtual ~ImageWriter( void ){ }
 	unsigned int width( void ) const { return _width; }
@@ -162,6 +163,20 @@ protected:
 	}
 };
 
+inline bool ImageReader::ValidExtension( const char *ext )
+{
+#ifdef WIN32
+	if     ( !_stricmp( ext , "jpeg" ) || !_stricmp( ext , "jpg" ) ) return true;
+	else if( !_stricmp( ext , "png" )                              ) return true;
+	else if( !_stricmp( ext , "iGrid" )                            ) return true;
+#else // !WIN32
+	if( !strcasecmp( ext , "jpeg" ) || !strcasecmp( ext , "jpg" ) ) return true;
+	else if( !strcasecmp( ext , "png" )                           ) return true;
+	else if( !strcasecmp( ext , "iGrid" )                         ) return true;
+#endif // WIN32
+	return false;
+}
+
 inline ImageReader* ImageReader::Get( const char* fileName )
 {
 	unsigned int width , height , channels;
@@ -176,6 +191,11 @@ inline ImageReader* ImageReader::Get( const char* fileName )
 	else if( !strcasecmp( ext , "png" )                           ) reader = new        PNGReader( fileName , width , height , channels );
 	else if( !strcasecmp( ext , "iGrid" )                         ) reader = new TiledImageReader( fileName , width , height , channels );
 #endif // WIN32
+	else
+	{
+		delete[] ext;
+		THROW( "failed to get image reader for: %s" , fileName );
+	}
 	reader->_width = width;
 	reader->_height = height;
 	reader->_channels = channels;
@@ -197,6 +217,25 @@ inline void ImageReader::GetInfo( const char* fileName , unsigned int& width , u
 #endif // WIN32
 	delete[] ext;
 }
+
+inline bool ImageWriter::ValidExtension( const char *ext )
+{
+#ifdef WIN32
+	if( !_stricmp( ext , "jpeg" ) || !_stricmp( ext , "jpg" ) ) return true;
+	else if( !_stricmp( ext , "png" ) )                         return true;
+#ifdef SUPPORT_TILES
+	else if( !_stricmp( ext , "iGrid" ) )                       return true;
+#endif // SUPPORT_TILES
+#else // !WIN32
+	if( !strcasecmp( ext , "jpeg" ) || !strcasecmp( ext , "jpg" ) ) return true;
+	else if( !strcasecmp( ext , "png" ) )                           return true;
+#ifdef SUPPORT_TILES
+	else if( !strcasecmp( ext , "iGrid" ) )                         return true;
+#endif // SUPPORT_TILES
+#endif // WIN32
+	return false;
+}
+
 inline ImageWriter* ImageWriter::Get( const char* fileName , unsigned int width , unsigned int height , unsigned int channels , ImageWriterParams params )
 {
 	ImageWriter* writer = NULL;
@@ -214,7 +253,11 @@ inline ImageWriter* ImageWriter::Get( const char* fileName , unsigned int width 
 	else if( !strcasecmp( ext , "iGrid" ) ) writer = new TiledImageWriter( fileName , width , height , channels , params );
 #endif // SUPPORT_TILES
 #endif // WIN32
-	else ERROR_OUT( "Unrecognized file extension: %s" , ext );
+	else
+	{
+		delete[] ext;
+		THROW( "failed to get image writer for: %s" , fileName );
+	}
 	writer->_width = width;
 	writer->_height = height;
 	writer->_channels = channels;
