@@ -28,7 +28,7 @@ DAMAGE.
 
 #undef SHOW_WARNINGS							// Display compilation warnings
 #undef USE_DOUBLE								// If enabled, double-precesion is used
-#define FAST_COMPILE								// If enabled, only a single version of the reconstruction code is compiled
+#undef FAST_COMPILE								// If enabled, only a single version of the reconstruction code is compiled
 #define ARRAY_DEBUG								// If enabled, array access is tested for validity
 #define DATA_DEGREE 0							// The order of the B-Spline used to splat in data for color interpolation
 												// This can be changed to zero if more interpolatory performance is desired.
