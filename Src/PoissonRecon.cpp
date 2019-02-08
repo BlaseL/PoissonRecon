@@ -771,15 +771,10 @@ int main( int argc , char* argv[] )
 #ifdef ARRAY_DEBUG
 	WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
-printf( "1\n" );
 	cmdLineParse( argc-1 , &argv[1] , params );
-printf( "2\n" );
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
-printf( "3\n" );
 	omp_set_num_threads( Threads.value > 1 ? Threads.value : 1 );
-printf( "4\n" );
 	messageWriter.echoSTDOUT = Verbose.set;
-
 	if( !In.set )
 	{
 		ShowUsage( argv[0] );
@@ -803,7 +798,8 @@ printf( "4\n" );
 	static const BoundaryType BType = DEFAULT_FEM_BOUNDARY;
 	typedef IsotropicUIntPack< DIMENSION , FEMDegreeAndBType< Degree , BType >::Signature > FEMSigs;
 #ifdef NEW_CODE
-	WARN( "Compiled for degree-%d, boundary-%s, %s-precision _only_" , Degree , BoundaryNames[ BType ] , sizeof(Real)==4 ? "single" : "double" );
+//	WARN( "Compiled for degree-%d, boundary-%s, %s-precision _only_" , Degree , BoundaryNames[ DEFAULT_FEM_BOUNDARY ] , sizeof(Real)==4 ? "single" : "double" );
+	printf( "Compiled for degree-%d, boundary-%s, %s-precision _only_\n" , Degree , BoundaryNames[ DEFAULT_FEM_BOUNDARY ] , sizeof(Real)==4 ? "single" : "double" );
 #else // !NEW_CODE
 	WARN( "Compiled for degree-%d, boundary-%s, %s-precision _only_" , Degree , BoundaryNames[ BType ] , sizeof(DefaultFloatType)==4 ? "single" : "double" );
 #endif // NEW_CODE
