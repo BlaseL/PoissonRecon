@@ -565,9 +565,12 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 		// Transform the Hermite samples into a vector field
 		{
 			profiler.start();
+printf( "1\n" );
 			normalInfo = new SparseNodeData< Point< Real , Dim > , NormalSigs >();
+printf( "2\n" );
 			if( ConfidenceBias.value>0 ) *normalInfo = tree.setNormalField( NormalSigs() , *samples , *sampleData , density , pointWeightSum , [&]( Real conf ){ return (Real)( log( conf ) * ConfidenceBias.value / log( 1<<(Dim-1) ) ); } );
 			else                         *normalInfo = tree.setNormalField( NormalSigs() , *samples , *sampleData , density , pointWeightSum );
+printf( "3\n" );
 #pragma omp parallel for
 			for( int i=0 ; i<normalInfo->size() ; i++ ) (*normalInfo)[i] *= (Real)-1.;
 			profiler.dumpOutput2( comments , "#     Got normal field:" );

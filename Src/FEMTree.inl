@@ -316,6 +316,7 @@ template< unsigned int Dim , class Real >
 template< unsigned int ... NormalSigs , unsigned int DensityDegree , class Data >
 SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim , Real >::setNormalField( UIntPack< NormalSigs ... > , const std::vector< PointSample >& samples , const std::vector< Data >& normalData , const DensityEstimator< DensityDegree >* density , Real& pointWeightSum , std::function< Real ( Real ) > BiasFunction )
 {
+printf( "a\n" );
 	LocalDepth maxDepth = _spaceRoot->maxDepth();
 	typedef PointSupportKey< IsotropicUIntPack< Dim , DensityDegree > > DensityKey;
 	typedef UIntPack< FEMSignature< NormalSigs >::Degree ... > NormalDegrees;
@@ -325,12 +326,14 @@ SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim 
 	bool oneKey = DensityDegree==NormalDegrees::Min() && DensityDegree==NormalDegrees::Max();
 	for( int i=0 ; i<densityKeys.size() ; i++ ) densityKeys[i].set( _localToGlobal( maxDepth ) );
 	if( !oneKey ) for( int i=0 ; i<normalKeys.size() ; i++ ) normalKeys[i].set( _localToGlobal( maxDepth ) );
-
+printf( "b\n" );
 	Real weightSum = 0;
 	pointWeightSum = 0;
 	SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > normalField;
 	Real _pointWeightSum = 0;
-#pragma omp parallel for reduction( + : weightSum , _pointWeightSum )
+printf( "c\n" );
+#pragma message( "[WARNING] Uncomment me!!!!!!!" )
+//#pragma omp parallel for reduction( + : weightSum , _pointWeightSum )
 	for( int i=0 ; i<samples.size() ; i++ )
 	{
 		DensityKey& densityKey = densityKeys[ omp_get_thread_num() ];
@@ -342,6 +345,7 @@ SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim 
 			Real l = (Real)Length( n );
 			// It is possible that the samples have non-zero normals but there are two co-located samples with negative normals...
 			if( !l ) continue;
+if( l!=l ) printf( "uhoh\n" );
 			Real confidence = l / sample.weight;
 			n *= sample.weight / l;
 			Real depthBias = BiasFunction( confidence );
@@ -370,6 +374,7 @@ SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim 
 			}
 		}
 	}
+printf( "d\n" );
 	pointWeightSum = _pointWeightSum / weightSum;
 	MemoryUsage();
 	return normalField;
