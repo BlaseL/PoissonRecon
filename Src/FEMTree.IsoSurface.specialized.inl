@@ -1192,7 +1192,7 @@ protected:
 						fe.count = HyperCube::MarchingSquares::AddEdgeIndices( mcIndex , isoEdges );
 						for( int j=0 ; j<fe.count ; j++ ) for( int k=0 ; k<2 ; k++ )
 						{
-							if( !sValues.edgeSet[ eIndices[ isoEdges[2*j+k] ] ] ) ERROR_OUT( "Edge not set: %d / %d" , slice , 1<<depth );
+							if( !sValues.edgeSet[ eIndices[ isoEdges[2*j+k] ] ] ) ERROR_OUT( "Edge not set: " , slice , " / " , 1<<depth );
 							fe.edges[j][k] = sValues.edgeKeys[ eIndices[ isoEdges[2*j+k] ] ];
 						}
 						sValues.faceSet[ fIndices[0] ] = 1;
@@ -1258,14 +1258,14 @@ protected:
 								if( dir==HyperCube::CROSS ) // Cross-edge
 								{
 									int idx = cIndices[ coIndex ];
-									if( !xValues.edgeSet[ idx ] ) ERROR_OUT( "Edge not set: %d / %d" , slab , 1<<depth );
+									if( !xValues.edgeSet[ idx ] ) ERROR_OUT( "Edge not set: " , slab , " / " , 1<<depth );
 									fe.edges[j][k] = xValues.edgeKeys[ idx ];
 								}
 								else
 								{
 									const _SliceValues& sValues = dir==HyperCube::BACK ? bValues : fValues;
 									int idx = sValues.sliceData.edgeIndices(i)[ coIndex ];
-									if( !sValues.edgeSet[ idx ] ) ERROR_OUT( "Edge not set: %d / %d" , slab , 1<<depth );
+									if( !sValues.edgeSet[ idx ] ) ERROR_OUT( "Edge not set: " , slab , " / " , 1<<depth );
 									fe.edges[j][k] = sValues.edgeKeys[ idx ];
 								}
 							}
@@ -1334,7 +1334,7 @@ protected:
 									const std::vector< _IsoEdge >& _edges = iter->second;
 									for( size_t j=0 ; j<_edges.size() ; j++ ) edges.push_back( _IsoEdge( _edges[j][flip] , _edges[j][1-flip] ) );
 								}
-								else ERROR_OUT( "Invalid faces: %d  %d" , i , fDir==HyperCube::BACK ? "back" : ( fDir==HyperCube::FRONT ? "front" : ( fDir==HyperCube::CROSS ? "cross" : "unknown" ) ) );
+								else ERROR_OUT( "Invalid faces: " , i , "  " , fDir==HyperCube::BACK ? "back" : ( fDir==HyperCube::FRONT ? "front" : ( fDir==HyperCube::CROSS ? "cross" : "unknown" ) ) );
 							}
 						}
 						else
@@ -1354,7 +1354,7 @@ protected:
 									const std::vector< _IsoEdge >& _edges = iter->second;
 									for( size_t j=0 ; j<_edges.size() ; j++ ) edges.push_back( _IsoEdge( _edges[j][flip] , _edges[j][1-flip] ) );
 								}
-								else ERROR_OUT( "Invalid faces: %d  %s" , i , fDir==HyperCube::BACK ? "back" : ( fDir==HyperCube::FRONT ? "front" : ( fDir==HyperCube::CROSS ? "cross" : "unknown" ) ) );
+								else ERROR_OUT( "Invalid faces: " , i , "  " ,  fDir==HyperCube::BACK ? "back" : ( fDir==HyperCube::FRONT ? "front" : ( fDir==HyperCube::CROSS ? "cross" : "unknown" ) ) );
 							}
 						}
 					}
@@ -1380,7 +1380,7 @@ protected:
 								{
 									LocalDepth d ; LocalOffset off;
 									tree._localDepthAndOffset( leaf , d , off );
-									ERROR_OUT( "Failed to close loop [%d: %d %d %d] | (%d): %lld" , d-1 , off[0] , off[1] , off[2] , i , current );
+									ERROR_OUT( "Failed to close loop [" , d-1 , ": " , off[0] , " " , off[1] , " " , off[2] , "] | (" , i , "): " , current );
 								}
 							}
 							else
@@ -1468,12 +1468,12 @@ protected:
 			// We have a linear function L, with L(0) = x0 and L(1) = x1
 			// => L(t) = x0 + t * (x1-x0)
 			// => L(t) = isoValue <=> t = ( isoValue - x0 ) / ( x1 - x0 )
-			if( x0==x1 ) ERROR_OUT( "Not a zero-crossing root: %g %g" , x0 , x1 );
+			if( x0==x1 ) ERROR_OUT( "Not a zero-crossing root: " , x0 , " " , x1 );
 			averageRoot = ( isoValue - x0 ) / ( x1 - x0 );
 		}
 		if( averageRoot<=0 || averageRoot>=1 )
 		{
-			WARN( "Bad average root: %f\t(%f %f) (%f)" , averageRoot , x0 , x1 , isoValue );
+			WARN( "Bad average root: " , averageRoot , "\t(" , x0 ," " , x1 ,") (" , isoValue , ")" );
 			if( averageRoot<0 ) averageRoot = 0;
 			if( averageRoot>1 ) averageRoot = 1;
 		}
@@ -1548,12 +1548,12 @@ protected:
 			// We have a linear function L, with L(0) = x0 and L(1) = x1
 			// => L(t) = x0 + t * (x1-x0)
 			// => L(t) = isoValue <=> t = ( isoValue - x0 ) / ( x1 - x0 )
-			if( x0==x1 ) ERROR_OUT( "Not a zero-crossing root: %g %g" , x0 , x1 );
+			if( x0==x1 ) ERROR_OUT( "Not a zero-crossing root: " , x0 , " " , x1 );
 			averageRoot = ( isoValue - x0 ) / ( x1 - x0 );
 		}
 		if( averageRoot<=0 || averageRoot>=1 )
 		{
-			WARN( "Bad average root: %f\t(%f %f) (%f)" , averageRoot , x0 , x1 , isoValue );
+			WARN( "Bad average root: " , averageRoot , "\t(" , x0 ," " , x1 ,") (" , isoValue , ")" );
 			if( averageRoot<0 ) averageRoot = 0;
 			if( averageRoot>1 ) averageRoot = 1;
 		}
@@ -1626,7 +1626,7 @@ protected:
 				std::vector< Point< Real , Dim > > vertices( polygon.size() );
 				for( int i=0 ; i<(int)polygon.size() ; i++ ) vertices[i] = polygon[i].second.point;
 				std::vector< TriangleIndex > triangles = MinimalAreaTriangulation< Real , Dim >( ( ConstPointer( Point< Real , Dim > ) )GetPointer( vertices ) , vertices.size() );
-				if( triangles.size()!=polygon.size()-2 ) ERROR_OUT( "Minimal area triangulation failed: %d != %d" , (int)triangles.size() , (int)polygon.size()-2 );
+				if( triangles.size()!=polygon.size()-2 ) ERROR_OUT( "Minimal area triangulation failed:" , triangles.size() , " != " , polygon.size()-2 );
 				for( int i=0 ; i<(int)triangles.size() ; i++ )
 				{
 					for( int j=0 ; j<3 ; j++ ) triangle[2-j] = polygon[ triangles[i].idx[j] ].first;

@@ -372,7 +372,7 @@ void ExtractMesh( UIntPack< FEMSigs ... > , std::tuple< SampleData ... > , FEMTr
 
 	std::vector< std::string > noComments;
 	if( !PlyWritePolygons< Vertex , Real , Dim >( Out.value , mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NoComments.set ? noComments : comments , iXForm ) )
-		ERROR_OUT( "Could not write mesh to: %s" , Out.value );
+		ERROR_OUT( "Could not write mesh to: " , Out.value );
 	delete mesh;
 }
 
@@ -414,7 +414,7 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 	{
 
 		FILE *fp = fopen( fileName , "wb" );
-		if( !fp ) ERROR_OUT( "Failed to open grid file for writing: %s" , fileName );
+		if( !fp ) ERROR_OUT( "Failed to open grid file for writing: " , fileName );
 		else
 		{
 			fwrite( &res , sizeof(int) , 1 , fp );
@@ -461,7 +461,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 		FILE* fp = fopen( Transform.value , "r" );
 		if( !fp )
 		{
-			WARN( "Could not read x-form from: %s" , Transform.value );
+			WARN( "Could not read x-form from: " , Transform.value );
 			xForm = XForm< Real , Dim+1 >::Identity();
 		}
 		else
@@ -494,7 +494,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 
 	if( Depth.set && Width.value>0 )
 	{
-		WARN( "Both --%s and --%s set, ignoring --%s" , Depth.name , Width.name , Width.name );
+		WARN( "Both --" , Depth.name , " and --" , Width.name , " set, ignoring --" , Width.name );
 		Width.value = 0;
 	}
 
@@ -566,7 +566,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 	int kernelDepth = KernelDepth.set ? KernelDepth.value : Depth.value-2;
 	if( kernelDepth>Depth.value )
 	{
-		WARN( "%s can't be greater than %s: %d <= %d" , KernelDepth.name , Depth.name , KernelDepth.value , Depth.value );
+		WARN( KernelDepth.name , " can't be greater than " , Depth.name , ": " , KernelDepth.value , " <= " , Depth.value );
 		kernelDepth = Depth.value;
 	}
 
@@ -655,7 +655,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 	if( Tree.set )
 	{
 		FILE* fp = fopen( Tree.value , "wb" );
-		if( !fp ) ERROR_OUT( "Failed to open file for writing: %s" , Tree.value );
+		if( !fp ) ERROR_OUT( "Failed to open file for writing: " , Tree.value );
 		FEMTree< Dim , Real >::WriteParameter( fp );
 		DenseNodeData< Real , Sigs >::WriteSignatures( fp );
 		tree.write( fp );
@@ -761,7 +761,7 @@ void Execute( int argc , char* argv[] )
 			default: ERROR_OUT( "Only B-Splines of degree 2 - 3 are supported" );
 		}
 	}
-	default: ERROR_OUT( "Not a valid boundary type: %d" , BType.value );
+	default: ERROR_OUT( "Not a valid boundary type: " , BType.value );
 	}
 }
 #endif // !FAST_COMPILE
@@ -783,12 +783,12 @@ int main( int argc , char* argv[] )
 		ShowUsage( argv[0] );
 		return 0;
 	}
-	if( GradientWeight.value<=0 ) ERROR_OUT( "Gradient weight must be positive: %g>0" , GradientWeight.value );
-	if( BiLapWeight.value<=0 ) ERROR_OUT( "Bi-Laplacian weight must be positive: %g>0" , BiLapWeight.value );
+	if( GradientWeight.value<=0 ) ERROR_OUT( "Gradient weight must be positive: " , GradientWeight.value , "> 0" );
+	if( BiLapWeight.value<=0 ) ERROR_OUT( "Bi-Laplacian weight must be positive: " , BiLapWeight.value , " > 0" );
 	if( DataX.value<=0 ) Normals.set = Colors.set = false;
 	if( BaseDepth.value>FullDepth.value )
 	{
-		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: %d <= %d" , BaseDepth.value , FullDepth.value );
+		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
 		BaseDepth.value = FullDepth.value;
 	}
 	ValueWeight.value    *= (float)BaseSSDWeights[0];
@@ -806,10 +806,10 @@ int main( int argc , char* argv[] )
 	static const BoundaryType BType = DEFAULT_FEM_BOUNDARY;
 	typedef IsotropicUIntPack< DIMENSION , FEMDegreeAndBType< Degree , BType >::Signature > FEMSigs;
 #ifdef NEW_CODE
-	WARN( "Compiled for degree-%d, boundary-%s, %s-precision _only_" , Degree , BoundaryNames[ BType ] , sizeof(Real)==4 ? "single" : "double" );
+	WARN( "Compiled for degree-" , Degree , ", boundary-" , BoundaryNames[ BType ] , ", " , sizeof(Real)==4 ? "single" : "double" , "-precision _only_" );
 	if( Colors.set ) Execute< Real , PointStreamColor< Real > >( argc , argv , FEMSigs() );
 #else // !NEW_CODE
-	WARN( "Compiled for degree-%d, boundary-%s, %s-precision _only_" , Degree , BoundaryNames[ BType ] , sizeof(DefaultFloatType)==4 ? "single" : "double" );
+	WARN( "Compiled for degree-" , Degree , ", boundary-" , BoundaryNames[ BType ] , ", " , sizeof(DefaultFloatType)==4 ? "single" : "double" , "-precision _only_" );
 	if( Colors.set ) Execute< Real , PointStreamColor< DefaultFloatType > >( argc , argv , FEMSigs() );
 #endif // NEW_CODE
 	else             Execute< Real >( argc , argv , FEMSigs() );

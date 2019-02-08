@@ -207,7 +207,7 @@ template< class Real , int Dim , class Data >
 ASCIIInputPointStreamWithData< Real , Dim , Data >::ASCIIInputPointStreamWithData( const char* fileName , void (*ReadData)( FILE* , Data& ) ) : _ReadData( ReadData )
 {
 	_fp = fopen( fileName , "r" );
-	if( !_fp ) ERROR_OUT( "Failed to open file for reading: %s" , fileName );
+	if( !_fp ) ERROR_OUT( "Failed to open file for reading: " , fileName );
 }
 template< class Real , int Dim , class Data >
 ASCIIInputPointStreamWithData< Real , Dim , Data >::~ASCIIInputPointStreamWithData( void )
@@ -259,7 +259,7 @@ template< class Real , int Dim , class Data >
 BinaryInputPointStreamWithData< Real , Dim , Data >::BinaryInputPointStreamWithData( const char* fileName , void (*ReadData)( FILE* , Data& ) ) : _ReadData(ReadData)
 {
 	_fp = fopen( fileName , "rb" );
-	if( !_fp ) ERROR_OUT( "Failed to open file for reading: %s" , fileName );
+	if( !_fp ) ERROR_OUT( "Failed to open file for reading: " , fileName );
 }
 template< class Real , int Dim , class Data >
 bool BinaryInputPointStreamWithData< Real , Dim , Data >::nextPoint( Point< Real , Dim >& p , Data& d )
@@ -279,7 +279,7 @@ template< class Real , int Dim , class Data >
 BinaryOutputPointStreamWithData< Real , Dim , Data >::BinaryOutputPointStreamWithData( const char* fileName , void (*WriteData)( FILE* , const Data& ) ) : _WriteData(WriteData)
 {
 	_fp = fopen( fileName , "wb" );
-	if( !_fp ) ERROR_OUT( "Failed to open file for writing: %s" , fileName );
+	if( !_fp ) ERROR_OUT( "Failed to open file for writing: " , fileName );
 }
 template< class Real , int Dim , class Data >
 void BinaryOutputPointStreamWithData< Real , Dim , Data >::nextPoint( const Point< Real , Dim >& p , const Data& d )
@@ -310,7 +310,7 @@ void PLYInputPointStreamWithData< Real , Dim , Data >::reset( void )
 	std::vector< PlyProperty * > plist;
 	if( _ply ) _free();
 	_ply = PlyFile::Read( _fileName , _elist , fileType , version );
-	if( !_ply ) ERROR_OUT( "Failed to open ply file for reading: %s" , _fileName );
+	if( !_ply ) ERROR_OUT( "Failed to open ply file for reading: " , _fileName );
 
 	bool foundVertices = false;
 	for( int i=0 ; i<_elist.size() ; i++ )
@@ -318,7 +318,7 @@ void PLYInputPointStreamWithData< Real , Dim , Data >::reset( void )
 		int num_elems;
 		std::string &elem_name = _elist[i];
 		plist = _ply->get_element_description( elem_name , num_elems );
-		if( !plist.size() ) ERROR_OUT( "Failed to get element description: %s" , elem_name.c_str() );
+		if( !plist.size() ) ERROR_OUT( "Failed to get element description: " , elem_name );
 
 		if( elem_name=="vertex" )
 		{
@@ -326,7 +326,7 @@ void PLYInputPointStreamWithData< Real , Dim , Data >::reset( void )
 			_pCount = num_elems , _pIdx = 0;
 			const PlyProperty* PlyReadProperties = PlyVertex< Real , Dim >::PlyReadProperties();
 			for( int i=0 ; i<PlyVertex< Real , Dim >::PlyReadNum ; i++ ) 
-				if( !_ply->get_property( elem_name , &(PlyReadProperties[i]) ) ) ERROR_OUT( "Failed to find property in ply file: %s" , PlyReadProperties[i].name.c_str() );
+				if( !_ply->get_property( elem_name , &(PlyReadProperties[i]) ) ) ERROR_OUT( "Failed to find property in ply file: " , PlyReadProperties[i].name );
 
 			if( _validationFunction )
 			{
@@ -341,7 +341,7 @@ void PLYInputPointStreamWithData< Real , Dim , Data >::reset( void )
 			else
 			{
 				for( int i=0 ; i<_dataPropertiesCount ; i++ )
-					if( !_ply->get_property( elem_name , &(_dataProperties[i]) ) ) WARN( "Failed to find property in ply file: %s" , _dataProperties[i].name.c_str() );
+					if( !_ply->get_property( elem_name , &(_dataProperties[i]) ) ) WARN( "Failed to find property in ply file: " , _dataProperties[i].name );
 			}
 		}
 		for( int j=0 ; j<plist.size() ; j++ ) delete plist[j];
@@ -383,7 +383,7 @@ PLYOutputPointStream< Real , Dim >::PLYOutputPointStream( const char* fileName ,
 	float version;
 	std::vector< std::string > elem_names = { std::string( "vertex" ) };
 	_ply = PlyFile::Write( fileName , elem_names , fileType , version );
-	if( !_ply ) ERROR_OUT( "Failed to open ply file for writing: %s" , fileName );
+	if( !_ply ) ERROR_OUT( "Failed to open ply file for writing: " , fileName );
 
 	_pIdx = 0;
 	_pCount = count;
@@ -395,13 +395,13 @@ PLYOutputPointStream< Real , Dim >::PLYOutputPointStream( const char* fileName ,
 template< class Real , int Dim >
 PLYOutputPointStream< Real , Dim >::~PLYOutputPointStream( void )
 {
-	if( _pIdx!=_pCount ) ERROR_OUT( "Streamed points not equal to total count: %d!=%d" , _pIdx , _pCount );
+	if( _pIdx!=_pCount ) ERROR_OUT( "Streamed points not equal to total count: " , _pIdx , " != " , _pCount );
 	delete _ply;
 }
 template< class Real , int Dim >
 void PLYOutputPointStream< Real , Dim >::nextPoint( const Point< Real , Dim >& p )
 {
-	if( _pIdx==_pCount ) ERROR_OUT( "Trying to add more points than total: %d<%d" , _pIdx , _pCount );
+	if( _pIdx==_pCount ) ERROR_OUT( "Trying to add more points than total: " , _pIdx , " < " , _pCount );
 	PlyVertex< Real , Dim > op;
 	op.point = p;
 	_ply->put_element( (void *)&op );
@@ -417,7 +417,7 @@ PLYOutputPointStreamWithData< Real , Dim , Data >::PLYOutputPointStreamWithData(
 	float version;
 	std::vector< std::string > elem_names = { std::string( "vertex" ) };
 	_ply = PlyFile::Write( fileName , elem_names , fileType , version );
-	if( !_ply ) ERROR_OUT( "Failed to open ply file for writing: %s" , fileName );
+	if( !_ply ) ERROR_OUT( "Failed to open ply file for writing: " , fileName );
 
 	_pIdx = 0;
 	_pCount = (int)count;
@@ -436,13 +436,13 @@ PLYOutputPointStreamWithData< Real , Dim , Data >::PLYOutputPointStreamWithData(
 template< class Real , int Dim , class Data >
 PLYOutputPointStreamWithData< Real , Dim , Data >::~PLYOutputPointStreamWithData( void )
 {
-	if( _pIdx!=_pCount ) ERROR_OUT( "Streamed points not equal to total count: %d!=%d" , _pIdx , _pCount );
+	if( _pIdx!=_pCount ) ERROR_OUT( "Streamed points not equal to total count: " , _pIdx , " != " , _pCount );
 	delete _ply;
 }
 template< class Real , int Dim , class Data >
 void PLYOutputPointStreamWithData< Real , Dim , Data >::nextPoint( const Point< Real , Dim >& p , const Data& d )
 {
-	if( _pIdx==_pCount ) ERROR_OUT( "Trying to add more points than total: %d<%d" , _pIdx , _pCount );
+	if( _pIdx==_pCount ) ERROR_OUT( "Trying to add more points than total: " , _pIdx , " < " , _pCount );
 	_PlyVertexWithData op;
 	op.point = p;
 	op.data = d;

@@ -493,7 +493,7 @@ template< unsigned int ... FEMSigs , unsigned int PointD , typename T >
 template< unsigned int _PointD >
 CumulativeDerivativeValues< T , Dim , _PointD > FEMTree< Dim , Real >::_MultiThreadedEvaluator< UIntPack< FEMSigs ... > , PointD , T >::values( Point< Real , Dim > p , int thread , const FEMTreeNode* node )
 {
-	if( _PointD>PointD ) ERROR_OUT( "Evaluating more derivatives than available: %d <= %d" , _PointD , PointD );
+	if( _PointD>PointD ) ERROR_OUT( "Evaluating more derivatives than available: " , _PointD , " <= " , PointD );
 	if( !node ) node = _tree->leaf( p );
 	ConstPointSupportKey< FEMDegrees >& nKey = _pointNeighborKeys[thread];
 	nKey.getNeighbors( node );
@@ -504,7 +504,7 @@ template< unsigned int ... FEMSigs , unsigned int PointD , typename T >
 template< unsigned int _PointD >
 CumulativeDerivativeValues< T , Dim , _PointD > FEMTree< Dim , Real >::_MultiThreadedEvaluator< UIntPack< FEMSigs ... > , PointD , T >::centerValues( const FEMTreeNode* node , int thread )
 {
-	if( _PointD>PointD ) ERROR_OUT( "Evaluating more derivatives than available: %d <= %d" , _PointD , PointD );
+	if( _PointD>PointD ) ERROR_OUT( "Evaluating more derivatives than available: " , _PointD, " <= " , PointD );
 	ConstPointSupportKey< FEMDegrees >& nKey = _pointNeighborKeys[thread];
 	nKey.getNeighbors( node );
 	LocalDepth d ; LocalOffset off;
@@ -516,7 +516,7 @@ template< unsigned int ... FEMSigs , unsigned int PointD , typename T >
 template< unsigned int _PointD >
 CumulativeDerivativeValues< T , Dim , _PointD > FEMTree< Dim , Real >::_MultiThreadedEvaluator< UIntPack< FEMSigs ... > , PointD , T >::cornerValues( const FEMTreeNode* node , int corner , int thread )
 {
-	if( _PointD>PointD ) ERROR_OUT( "Evaluating more derivatives than available: %d <= %d" , _PointD , PointD );
+	if( _PointD>PointD ) ERROR_OUT( "Evaluating more derivatives than available: " , _PointD , " <= " , PointD );
 	ConstCornerSupportKey< FEMDegrees >& nKey = _cornerNeighborKeys[thread];
 	nKey.getNeighbors( node );
 	LocalDepth d ; LocalOffset off;

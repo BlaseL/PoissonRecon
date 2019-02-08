@@ -367,7 +367,7 @@ int Execute( void )
 	comments.push_back( comment );
 	if( Out.set )
 		if( !PlyWritePolygons< Vertex >( Out.value , vertices , gtPolygons , Vertex::PlyWriteProperties() , Vertex::PlyWriteNum , ft , comments ) )
-			ERROR_OUT( "Could not write mesh to: %s" , Out.value );
+			ERROR_OUT( "Could not write mesh to: " , Out.value );
 	
 	return EXIT_SUCCESS;
 }
@@ -384,7 +384,7 @@ int main( int argc , char* argv[] )
 	typedef MultiPointStreamData< float , PointStreamValue< float > , PointStreamNormal< float , DIMENSION > , PointStreamColor< float > > VertexData;
 	typedef PlyVertexWithData< float , DIMENSION , VertexData > Vertex;
 	bool readFlags[ Vertex::PlyReadNum ];
-	if( !PlyReadHeader( In.value , Vertex::PlyReadProperties() , Vertex::PlyReadNum , readFlags ) ) ERROR_OUT( "Failed to read ply header: %s" , In.value );
+	if( !PlyReadHeader( In.value , Vertex::PlyReadProperties() , Vertex::PlyReadNum , readFlags ) ) ERROR_OUT( "Failed to read ply header: " , In.value );
 
 	bool hasValue  = VertexData::ValidPlyReadProperties< 0 >( readFlags + DIMENSION );
 	bool hasNormal = VertexData::ValidPlyReadProperties< 1 >( readFlags + DIMENSION );

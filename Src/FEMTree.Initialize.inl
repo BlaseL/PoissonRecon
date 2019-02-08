@@ -92,7 +92,7 @@ int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPoint
 		}
 		pointStream.reset();
 	}
-	if( outOfBoundPoints  ) WARN( "Found out-of-bound points: %d" , outOfBoundPoints );
+	if( outOfBoundPoints  ) WARN( "Found out-of-bound points: " , outOfBoundPoints );
 	FEMTree< Dim , Real >::MemoryUsage();
 	return pointCount;
 }
@@ -163,8 +163,8 @@ int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPoint
 		}
 		pointStream.reset();
 	}
-	if( outOfBoundPoints  ) WARN( "Found out-of-bound points: %d" , outOfBoundPoints );
-	if( badData           ) WARN( "Found bad data: %d" , badData );
+	if( outOfBoundPoints  ) WARN( "Found out-of-bound points: " , outOfBoundPoints );
+	if( badData           ) WARN( "Found bad data: " , badData );
 	FEMTree< Dim , Real >::MemoryUsage();
 	return pointCount;
 }

@@ -188,81 +188,47 @@ struct MessageWriter
 /////////////////////////////////////
 #include <exception>
 #include <string>
+#include <iostream>
+#include <sstream>
 namespace MKExceptions
 {
-#ifdef VERBOSE_MESSAGING
-	inline char *_MakeMessageString( const char *header , const char *fileName , int line , const char *functionName , const char *format , ... )
+	template< typename ... Arguments > void _AddToMessageStream( std::stringstream &stream , Arguments ... arguments );
+	inline void _AddToMessageStream( std::stringstream &stream ){ return; }
+	template< typename Argument , typename ... Arguments > void _AddToMessageStream( std::stringstream &stream , Argument argument , Arguments ... arguments )
 	{
-		va_list args;
-		va_start( args , format );
-
-		// Formatting is:
-		// <header> <filename> (Line <line>)
-		// <header size> <function name>
-		// <header size> <format message>
-		char lineBuffer[25];
-		sprintf( lineBuffer , "(Line %d)" , line );
-		size_t _size , size=0;
-
-		// Line 1
-		size += strlen(header)+1;
-		size += strlen(fileName)+1;
-		size += strlen(lineBuffer)+1;
-
-		// Line 2
-		size += strlen(header)+1;
-		size += strlen(functionName)+1;
-
-		// Line 3
-		size += strlen(header)+1;
-		size += vsnprintf( NULL , 0 , format , args );
-
-		char *_buffer , *buffer = new char[ size+1 ];
-		_size = size , _buffer = buffer;
-
-		// Line 1
-		sprintf( _buffer , "%s " , header );
-		_buffer += strlen(header)+1;
-		_size -= strlen(header)+1;
-
-		sprintf( _buffer , "%s " , fileName );
-		_buffer += strlen(fileName)+1;
-		_size -= strlen(fileName)+1;
-
-		sprintf( _buffer , "%s\n" , lineBuffer );
-		_buffer += strlen(lineBuffer)+1;
-		_size -= strlen(lineBuffer)+1;
-
-		// Line 2
-		for( int i=0 ; i<strlen(header)+1 ; i++ ) _buffer[i] = ' ';
-		_buffer += strlen(header)+1;
-		_size -= strlen(header)+1;
-
-		sprintf( _buffer , "%s\n" , functionName );
-		_buffer += strlen(functionName)+1;
-		_size -= strlen(functionName)+1;
-
-		// Line 3
-		for( int i=0 ; i<strlen(header)+1 ; i++ ) _buffer[i] = ' ';
-		_buffer += strlen(header)+1;
-		_size -= strlen(header)+1;
-
-		vsnprintf( _buffer , _size+1 , format , args );
-
-		return buffer;
+		stream << argument;
+		_AddToMessageStream( stream , arguments ... );
 	}
 
+#ifdef VERBOSE_MESSAGING
+	template< typename ... Arguments >
+	std::string MakeMessageString( std::string header , std::string fileName , int line , std::string functionName , Arguments ... arguments )
+	{
+		size_t headerSize = header.size();
+		std::stringstream stream;
+
+		// The first line is the header, the file name , and the line number
+		stream << header << " " << fileName << " (Line " << line << ")" << std::endl;
+
+		// Inset the second line by the size of the header and write the function name
+		for( size_t i=0 ; i<=headerSize ; i++ ) stream << " ";
+		stream << functionName << std::endl;
+
+		// Inset the third line by the size of the header and write the rest
+		for( size_t i=0 ; i<=headerSize ; i++ ) stream << " ";
+		_AddToMessageStream( stream , arguments ... );
+
+		return stream.str();
+	}
 	struct Exception : public std::exception
 	{
 		const char *what( void ) const noexcept { return _message.c_str(); }
 		template< typename ... Args >
 		Exception( const char *fileName , int line , const char *functionName , const char *format , Args ... args )
 		{
-			char *buffer = _MakeMessageString( "[EXCEPTION]" , fileName , line , functionName , format , args ... );
-			_message = std::string( buffer );
-			delete[] buffer;
+			_message = MakeMessageString( "[EXCEPTION]" , fileName , line , functionName , format , args ... );
 		}
-	protected:
+	private:
 		std::string _message;
 	};
 
@@ -270,71 +236,50 @@ namespace MKExceptions
 	template< typename ... Args >
 	void Warn( const char *fileName , int line , const char *functionName , const char *format , Args ... args )
 	{
-		char *buffer = _MakeMessageString( "[WARNING]" , fileName , line , functionName , format , args ... );
-		fprintf( stderr , "%s\n" , buffer );
-		delete[] buffer;
+		std::cerr << MakeMessageString( "[WARNING]" , fileName , line , functionName , format , args ... ) << std::endl;
 	}
 	template< typename ... Args >
 	void ErrorOut( const char *fileName , int line , const char *functionName , const char *format , Args ... args )
 	{
-		char *buffer = _MakeMessageString( "[ERROR]" , fileName , line , functionName , format , args ... );
-		fprintf( stderr , "%s\n" , buffer );
-		delete[] buffer;
-		exit(0);
+		std::cerr << MakeMessageString( "[ERROR]" , fileName , line , functionName , format , args ... ) << std::endl;
+		exit( 0 );
 	}
 #else // !VERBOSE_MESSAGING
-	inline char *_MakeMessageString( const char *header , const char *functionName , const char *format , ... )
+	template< typename ... Arguments >
+	std::string MakeMessageString( std::string header , std::string functionName , Arguments ... arguments )
 	{
-		va_list args;
-		va_start( args , format );
+		std::stringstream stream;
 
-		size_t _size , size = vsnprintf( NULL , 0 , format , args );
-		size += strlen(header)+1;
-		size += strlen(functionName)+2;
+		// The first line is the header, the file name , and the line number
+		stream << header << " " << functionName << ": ";
 
-		char *_buffer , *buffer = new char[ size+1 ];
-		_size = size , _buffer = buffer;
+		_AddToMessageStream( stream , arguments ... );
 
-		sprintf( _buffer , "%s " , header );
-		_buffer += strlen(header)+1;
-		_size -= strlen(header)+1;
-
-		sprintf( _buffer , "%s: " , functionName );
-		_buffer += strlen(functionName)+2;
-		_size -= strlen(functionName)+2;
-
-		vsnprintf( _buffer , _size+1 , format , args );
-
-		return buffer;
+		return stream.str();
 	}
+
 	struct Exception : public std::exception
 	{
 		const char *what( void ) const noexcept { return _message.c_str(); }
 		template< typename ... Args >
 		Exception( const char *functionName , const char *format , Args ... args )
 		{
-			char *buffer = _MakeMessageString( "[EXCEPTION]" , functionName , format , args ... );
-			_message = std::string( buffer );
-			delete[] buffer;
-			exit(0);
+			_message = MakeMessageString( "[EXCEPTION]" , functionName , format , args ... );
 		}
-	protected:
+	private:
 		std::string _message;
 	};
 	template< typename ... Args > void Throw( const char *functionName , const char *format , Args ... args ){ throw Exception( functionName , format , args ... ); }
 	template< typename ... Args >
 	void Warn( const char *functionName , const char *format , Args ... args )
 	{
-		char *buffer = _MakeMessageString( "[WARNING]" , functionName , format , args ... );
-		fprintf( stderr , "%s\n" , buffer );
-		delete[] buffer;
+		std::cerr << MakeMessageString( "[WARNING]" , functionName , format , args ... ) << std::endl;
 	}
 	template< typename ... Args >
 	void ErrorOut( const char *functionName , const char *format , Args ... args )
 	{
-		char *buffer = _MakeMessageString( "[ERROR]" , functionName , format , args ... );
-		fprintf( stderr , "%s\n" , buffer );
-		delete[] buffer;
+		std::cerr << MakeMessageString( "[WARNING]" , functionName , format , args ... ) << std::endl;
+		exit( 0 );
 	}
 #endif // VERBOSE_MESSAGING
 }

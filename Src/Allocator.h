@@ -140,7 +140,7 @@ public:
 	{
 		T* mem;
 		if( !elements ) return NULL;
-		if( elements>blockSize ) ERROR_OUT( "elements bigger than block-size: %d>%d" , elements , blockSize );
+		if( elements>blockSize ) ERROR_OUT( "elements bigger than block-size: " , elements , " > " , blockSize );
 		if( remains<elements )
 		{
 			if( index==memory.size()-1 )

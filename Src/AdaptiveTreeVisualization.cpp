@@ -128,7 +128,7 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 	{
 
 		FILE *fp = fopen( fileName , "wb" );
-		if( !fp ) ERROR_OUT( "Failed to open grid file for writing: %s" , fileName );
+		if( !fp ) ERROR_OUT( "Failed to open grid file for writing: " , fileName );
 		else
 		{
 			fwrite( &res , sizeof(int) , 1 , fp );
@@ -185,7 +185,7 @@ void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 
 		std::vector< std::string > comments;
 		if( !PlyWritePolygons< Vertex , Real , Dim >( OutMesh.value , &mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , comments , XForm< Real , Dim+1 >::Identity() ) )
-			ERROR_OUT( "Could not write mesh to: %s" , OutMesh.value );
+			ERROR_OUT( "Could not write mesh to: " , OutMesh.value );
 	}
 }
 
@@ -235,7 +235,7 @@ void Execute( FILE* fp , int degree , BoundaryType bType )
 		}
 	}
 	break;
-	default: ERROR_OUT( "Not a valid boundary type: %d" , bType );
+	default: ERROR_OUT( "Not a valid boundary type: " , bType );
 	}
 }
 
@@ -261,14 +261,14 @@ int main( int argc , char* argv[] )
 		return EXIT_FAILURE;
 	}
 	FILE* fp = fopen( In.value , "rb" );
-	if( !fp ) ERROR_OUT( "Failed to open file for reading: %s" , In.value );
+	if( !fp ) ERROR_OUT( "Failed to open file for reading: " , In.value );
 	FEMTreeRealType realType ; int degree ; BoundaryType bType;
 	int dimension;
 	ReadFEMTreeParameter( fp , realType , dimension );
 	{
 		unsigned int dim = dimension;
 		unsigned int* sigs = ReadDenseNodeDataSignatures( fp , dim );
-		if( dimension!=dim ) ERROR_OUT( "Octree and node data dimensions don't math: %d != %d" , dimension , dim );
+		if( dimension!=dim ) ERROR_OUT( "Octree and node data dimensions don't math: " , dimension , " != " , dim );
 		for( unsigned int d=1 ; d<dim ; d++ ) if( sigs[0]!=sigs[d] ) ERROR_OUT( "Anisotropic signatures" );
 		degree = FEMSignatureDegree( sigs[0] );
 		bType = FEMSignatureBType( sigs[0] );
@@ -283,7 +283,7 @@ int main( int argc , char* argv[] )
 		{
 			case FEM_TREE_REAL_FLOAT:  Execute< 2 , float  >( fp , degree , bType ) ; break;
 			case FEM_TREE_REAL_DOUBLE: Execute< 2 , double >( fp , degree , bType ) ; break;
-			default: ERROR_OUT( "Unrecognized real type: %d" , realType );
+			default: ERROR_OUT( "Unrecognized real type: " , realType );
 		}
 		break;
 	case 3:
@@ -291,7 +291,7 @@ int main( int argc , char* argv[] )
 		{
 			case FEM_TREE_REAL_FLOAT:  Execute< 3 , float  >( fp , degree , bType ) ; break;
 			case FEM_TREE_REAL_DOUBLE: Execute< 3 , double >( fp , degree , bType ) ; break;
-			default: ERROR_OUT( "Unrecognized real type: %d" , realType );
+			default: ERROR_OUT( "Unrecognized real type: " , realType );
 		}
 		break;
 	default: ERROR_OUT( "Only dimensions 1-4 supported" );

@@ -221,7 +221,7 @@ void _Execute( int argc , char* argv[] )
 		FILE* fp = fopen( InXForm.value , "r" );
 		if( !fp )
 		{
-			WARN( "Could not open file for reading x-form: %s" , InXForm.value );
+			WARN( "Could not open file for reading x-form: " , InXForm.value );
 			xForm = XForm< Real , Dim+1 >::Identity();
 		}
 		else
@@ -272,7 +272,7 @@ void _Execute( int argc , char* argv[] )
 			std::vector< std::vector< int > > _polygons;
 			std::vector< std::string > comments;
 			if( !PlyReadPolygons( In.value , _vertices , _polygons , PlyVertex< float , Dim >::PlyReadProperties() , PlyVertex< float , Dim >::PlyReadNum , file_type , comments ) )
-				ERROR_OUT( "Failed to read ply file: %s\n" , In.value );
+				ERROR_OUT( "Failed to read ply file: " , In.value );
 			vertices.resize( _vertices.size() );
 			for( int i=0 ; i<vertices.size() ; i++ ) for( int d=0 ; d<Dim ; d++ ) vertices[i][d] = _vertices[i].point[d];
 			triangles.resize( _polygons.size() );
@@ -287,7 +287,7 @@ void _Execute( int argc , char* argv[] )
 		if( OutXForm.set )
 		{
 			FILE* fp = fopen( OutXForm.value , "w" );
-			if( !fp ) WARN( "Could not open file for writing x-form: %s" , OutXForm.value );
+			if( !fp ) WARN( "Could not open file for writing x-form: %s" );
 			else
 			{
 				for( int i=0 ; i<Dim+1 ; i++ )
@@ -522,7 +522,7 @@ void _Execute( int argc , char* argv[] )
 		if( Out.set )
 		{
 			FILE* fp = fopen( Out.value , "wb" );
-			if( !fp ) ERROR_OUT( "Failed to open file for writing: %s" , Out.value );
+			if( !fp ) ERROR_OUT( "Failed to open file for writing: " , Out.value );
 			FEMTree< Dim , Real >::WriteParameter( fp );
 			DenseNodeData< Real , IsotropicUIntPack< Dim , FEMSig > >::WriteSignatures( fp );
 			tree.write( fp );
@@ -567,10 +567,10 @@ int main( int argc , char* argv[] )
 	static const int Degree = DEFAULT_FEM_DEGREE;
 	static const BoundaryType BType = BOUNDARY_FREE;
 
-	WARN( "Compiled for degree-%d, boundary-%s, %s-precision _only_" , Degree , BoundaryNames[ BType ] , sizeof(Real)==4 ? "single" : "double" );
+	WARN( "Compiled for degree-" , Degree , ", boundary-" , BoundaryNames[ BType ] , ", " , sizeof(Real)==4 ? "single" : "double" , "-precision _only_" );
 	if( BaseDepth.value>FullDepth.value )
 	{
-		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: %d <= %d" , BaseDepth.value , FullDepth.value );
+		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
 		BaseDepth.value = FullDepth.value;
 	}
 	_Execute< DIMENSION , Real , FEMDegreeAndBType< Degree , BType >::Signature >( argc , argv );

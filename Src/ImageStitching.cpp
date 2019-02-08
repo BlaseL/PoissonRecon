@@ -182,8 +182,8 @@ struct BufferedImageDerivativeStream : public FEMTreeInitializer< DIMENSION , Re
 			_labelRows[i] = new RGBPixel[ _resolution[0] ];
 			_maskRows [i] = new      int[ _resolution[0] ];
 		}
-		if( pixels->channels()!=3 && pixels->channels()!=1 ) ERROR_OUT( "Pixel input must have 1 or 3 channels: %d" , pixels->channels() );
-		if( labels->channels()!=3 && labels->channels()!=1 ) ERROR_OUT( "Label input must have 1 or 3 channels: %d" , labels->channels() );
+		if( pixels->channels()!=3 && pixels->channels()!=1 ) ERROR_OUT( "Pixel input must have 1 or 3 channels: " , pixels->channels() );
+		if( labels->channels()!=3 && labels->channels()!=1 ) ERROR_OUT( "Label input must have 1 or 3 channels: " , labels->channels() );
 		__pixelRow = pixels->channels()==3 ? NULL : new unsigned char[ _resolution[0] ];
 		__labelRow = labels->channels()==3 ? NULL : new unsigned char[ _resolution[0] ];
 		_r = -2 ; prefetch();
@@ -277,7 +277,7 @@ void _Execute( void )
 		ImageReader::GetInfo( In.values[0] , _w , _h , _c );
 		w = _w , h = _h;
 		ImageReader::GetInfo( In.values[1] , _w , _h , _c );
-		if( w!=_w || h!=_h ) ERROR_OUT( "Pixel and label dimensions don't match: %d x %d != %d x %d" , _w , _h , w , h );
+		if( w!=_w || h!=_h ) ERROR_OUT( "Pixel and label dimensions don't match: " , _w , " x " , _h , " != " , w , " x " , h );
 	}
 	if( Verbose.set ) printf( "Resolution: %d x %d\n" , w , h );
 
@@ -514,7 +514,7 @@ int main( int argc , char* argv[] )
 	}
 	if( BaseDepth.value>FullDepth.value )
 	{
-		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: %d <= %d" , BaseDepth.value , FullDepth.value );
+		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
 		BaseDepth.value = FullDepth.value;
 	}
 
@@ -527,9 +527,9 @@ int main( int argc , char* argv[] )
 #ifdef FAST_COMPILE
 	static const int Degree = DEFAULT_FEM_DEGREE;
 #ifdef NEW_CODE
-	WARN( "Compiled for degree-%d, %s-precision _only_" , Degree , sizeof(Real)==4 ? "single" : "double" );
+	WARN( "Compiled for degree-" , Degree , ", " , sizeof(Real)==4 ? "single" : "double" , "-precision _only_" );
 #else // !NEW_CODE
-	WARN( "Compiled for degree-%d, %s-precision _only_" , Degree , sizeof(DefaultFloatType)==4 ? "single" : "double" );
+	WARN( "Compiled for degree-" , Degree , ", " , sizeof(DefaultFloatType)==4 ? "single" : "double" , "-precision _only_" );
 #endif // NEW_CODE
 	_Execute< Real , Degree >();
 #else // !FAST_COMPILE

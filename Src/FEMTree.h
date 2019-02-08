@@ -270,9 +270,9 @@ struct BlockedVector
 		if( size<=_size )
 		{
 #ifdef _MSC_VER
-			WARN( "BlockedVector::resize: new size must be greater than old size: %llu > %llu" , size , _size );
+			WARN( "BlockedVector::resize: new size must be greater than old size: " , size , " > " , _size );
 #else // !MSC_VER
-			WARN( "BlockedVector::resize: new size must be greater than old size: %lu > %lu" , size , _size );
+			WARN( "BlockedVector::resize: new size must be greater than old size: " , size , " > ", _size );
 #endif // _MSC_VER
 			return _size;
 		}
@@ -2580,7 +2580,7 @@ struct IsoSurfaceExtractor
 	)
 	{
 		// The unspecialized implementation is not supported
-		WARN( "Iso-surface extraction not supported for dimension %d" , Dim );
+		WARN( "Iso-surface extraction not supported for dimension " , Dim );
 		return IsoStats();
 	}
 };

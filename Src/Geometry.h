@@ -528,7 +528,7 @@ public:
 #endif // _WIN32
 			tempFile = true;
 		}
-		if( !_fp ) ERROR_OUT( "Failed to open file: %s" , _fileName );
+		if( !_fp ) ERROR_OUT( "Failed to open file: " , _fileName );
 		_buffer = (char*) malloc( _bufferSize );
 	}
 	~BufferedReadWriteFile( void )

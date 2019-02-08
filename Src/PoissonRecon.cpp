@@ -28,8 +28,8 @@ DAMAGE.
 
 #undef SHOW_WARNINGS							// Display compilation warnings
 #undef USE_DOUBLE								// If enabled, double-precesion is used
-#undef FAST_COMPILE								// If enabled, only a single version of the reconstruction code is compiled
-#undef ARRAY_DEBUG								// If enabled, array access is tested for validity
+#define FAST_COMPILE								// If enabled, only a single version of the reconstruction code is compiled
+#define ARRAY_DEBUG								// If enabled, array access is tested for validity
 #define DATA_DEGREE 0							// The order of the B-Spline used to splat in data for color interpolation
 												// This can be changed to zero if more interpolatory performance is desired.
 #define WEIGHT_DEGREE 2							// The order of the B-Spline used to splat in the weights for density estimation
@@ -348,11 +348,7 @@ void ExtractMesh( UIntPack< FEMSigs ... > , std::tuple< SampleData ... > , FEMTr
 
 	std::vector< std::string > noComments;
 	if( !PlyWritePolygons< Vertex , Real , Dim >( Out.value , mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NoComments.set ? noComments : comments , iXForm ) )
-#ifdef MISC_NEW_CODE
-		MK_ERROR_OUT( "Could not write mesh to: " , Out.value );
-#else // !MISC_NEW_CODE
-		ERROR_OUT( "Could not write mesh to: %s" , Out.value );
-#endif // MISC_NEW_CODE
+		ERROR_OUT( "Could not write mesh to: " , Out.value );
 
 	delete mesh;
 }
@@ -395,11 +391,7 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 	{
 
 		FILE *fp = fopen( fileName , "wb" );
-#ifdef MISC_NEW_CODE
-		if( !fp ) MK_ERROR_OUT( "Failed to open grid file for writing: " , fileName );
-#else // !MISC_NEW_CODE
-		if( !fp ) ERROR_OUT( "Failed to open grid file for writing: %s" , fileName );
-#endif // MISC_NEW_CODE
+		if( !fp ) ERROR_OUT( "Failed to open grid file for writing: " , fileName );
 		else
 		{
 			fwrite( &res , sizeof(int) , 1 , fp );
@@ -446,11 +438,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 		FILE* fp = fopen( Transform.value , "r" );
 		if( !fp )
 		{
-#ifdef MISC_NEW_CODE
-			MK_WARN( "Could not read x-form from: " , Transform.value );
-#else // !MISC_NEW_CODE
-			WARN( "Could not read x-form from: %s" , Transform.value );
-#endif // MISC_NEW_CODE
+			WARN( "Could not read x-form from: " , Transform.value );
 			xForm = XForm< Real , Dim+1 >::Identity();
 		}
 		else
@@ -458,11 +446,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 			for( int i=0 ; i<Dim+1 ; i++ ) for( int j=0 ; j<Dim+1 ; j++ )
 			{
 				float f;
-#ifdef MISC_NEW_CODE
-				if( fscanf( fp , " %f " , &f )!=1 ) MK_ERROR_OUT( "Failed to read xform" );
-#else // !MISC_NEW_CODE
 				if( fscanf( fp , " %f " , &f )!=1 ) ERROR_OUT( "Failed to read xform" );
-#endif // MISC_NEW_CODE
 				xForm(i,j) = (Real)f;
 			}
 			fclose( fp );
@@ -487,11 +471,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 
 	if( Depth.set && Width.value>0 )
 	{
-#ifdef MISC_NEW_CODE
-		MK_WARN( "Both --" , Depth.name  , " and --" , Width.name , " set, ignoring --" , Width.name );
-#else // !MISC_NEW_CODE
-		WARN( "Both --%s and --%s set, ignoring --%s" , Depth.name , Width.name , Width.name );
-#endif // MISC_NEW_CODE
+		WARN( "Both --" , Depth.name  , " and --" , Width.name , " set, ignoring --" , Width.name );
 		Width.value = 0;
 	}
 
@@ -563,11 +543,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 	int kernelDepth = KernelDepth.set ? KernelDepth.value : Depth.value-2;
 	if( kernelDepth>Depth.value )
 	{
-#ifdef MISC_NEW_CODE
-		MK_WARN( KernelDepth.name , " can't be greater than " , Depth.name , ": " , KernelDepth.value , " <= " , Depth.value );
-#else // !MISC_NEW_CODE
-		WARN( "%s can't be greater than %s: %d <= %d" , KernelDepth.name , Depth.name , KernelDepth.value , Depth.value );
-#endif // MISC_NEW_CODE
+		WARN( KernelDepth.name , " can't be greater than " , Depth.name , ": " , KernelDepth.value , " <= " , Depth.value );
 		kernelDepth = Depth.value;
 	}
 
@@ -675,11 +651,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 	if( Tree.set )
 	{
 		FILE* fp = fopen( Tree.value , "wb" );
-#ifdef MISC_NEW_CODE
-		if( !fp ) MK_ERROR_OUT( "Failed to open file for writing: " , Tree.value );
-#else // !MISC_NEW_CODE
-		if( !fp ) ERROR_OUT( "Failed to open file for writing: %s" , Tree.value );
-#endif // MISC_NEW_CODE
+		if( !fp ) ERROR_OUT( "Failed to open file for writing: " , Tree.value );
 		FEMTree< Dim , Real >::WriteParameter( fp );
 		DenseNodeData< Real , Sigs >::WriteSignatures( fp );
 		tree.write( fp );
@@ -763,11 +735,7 @@ void Execute( int argc , char* argv[] )
 				case 2: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 2 , BOUNDARY_FREE >::Signature >() );
 //				case 3: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 3 , BOUNDARY_FREE >::Signature >() );
 //				case 4: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 4 , BOUNDARY_FREE >::Signature >() );
-#ifdef MISC_NEW_CODE
-				default: MK_ERROR_OUT( "Only B-Splines of degree 1 - 2 are supported" );
-#else // !MISC_NEW_CODE
 				default: ERROR_OUT( "Only B-Splines of degree 1 - 2 are supported" );
-#endif // MISC_NEW_CODE
 			}
 		}
 		case BOUNDARY_NEUMANN+1:
@@ -778,11 +746,7 @@ void Execute( int argc , char* argv[] )
 				case 2: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 2 , BOUNDARY_NEUMANN >::Signature >() );
 //				case 3: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 3 , BOUNDARY_NEUMANN >::Signature >() );
 //				case 4: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 4 , BOUNDARY_NEUMANN >::Signature >() );
-#ifdef MISC_NEW_CODE
-				default: MK_ERROR_OUT( "Only B-Splines of degree 1 - 2 are supported" );
-#else // !MISC_NEW_CODE
 				default: ERROR_OUT( "Only B-Splines of degree 1 - 2 are supported" );
-#endif // MISC_NEW_CODE
 			}
 		}
 		case BOUNDARY_DIRICHLET+1:
@@ -793,18 +757,10 @@ void Execute( int argc , char* argv[] )
 			case 2: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 2 , BOUNDARY_DIRICHLET >::Signature >() );
 //			case 3: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 3 , BOUNDARY_DIRICHLET >::Signature >() );
 //			case 4: return Execute< Real , SampleData ... >( argc , argv , IsotropicUIntPack< Dim , FEMDegreeAndBType< 4 , BOUNDARY_DIRICHLET >::Signature >() );
-#ifdef MISC_NEW_CODE
-			default: MK_ERROR_OUT( "Only B-Splines of degree 1 - 2 are supported" );
-#else // !MISC_NEW_CODE
 			default: ERROR_OUT( "Only B-Splines of degree 1 - 2 are supported" );
-#endif // MISC_NEW_CODE
 			}
 		}
-#ifdef MISC_NEW_CODE
-		default: MK_ERROR_OUT( "Not a valid boundary type: %d" , BType.value );
-#else // !MISC_NEW_CODE
 		default: ERROR_OUT( "Not a valid boundary type: %d" , BType.value );
-#endif // MISC_NEW_CODE
 	}
 }
 #endif // !FAST_COMPILE
@@ -813,11 +769,7 @@ int main( int argc , char* argv[] )
 {
 	Timer timer;
 #ifdef ARRAY_DEBUG
-#ifdef MISC_NEW_CODE
-	MK_WARN( "Array debugging enabled" );
-#else // !MISC_NEW_CODE
 	WARN( "Array debugging enabled" );
-#endif // MISC_NEW_CODE
 #endif // ARRAY_DEBUG
 	cmdLineParse( argc-1 , &argv[1] , params );
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
@@ -831,11 +783,7 @@ int main( int argc , char* argv[] )
 	if( DataX.value<=0 ) Normals.set = Colors.set = false;
 	if( BaseDepth.value>FullDepth.value )
 	{
-#ifdef MISC_NEW_CODE
-		if( BaseDepth.set ) MK_WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
-#else // !MISC_NEW_CODE
-		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: %d <= %d" , BaseDepth.value , FullDepth.value );
-#endif // MISC_NEW_CODE
+		if( BaseDepth.set ) WARN( "Base depth must be smaller than full depth: " , BaseDepth.value , " <= " , FullDepth.value );
 		BaseDepth.value = FullDepth.value;
 	}
 
@@ -850,17 +798,9 @@ int main( int argc , char* argv[] )
 	static const BoundaryType BType = DEFAULT_FEM_BOUNDARY;
 	typedef IsotropicUIntPack< DIMENSION , FEMDegreeAndBType< Degree , BType >::Signature > FEMSigs;
 #ifdef NEW_CODE
-#ifdef MISC_NEW_CODE
-	MK_WARN( "Compiled for degree-" , Degree , ", boundary-" , BoundaryNames[ BType ] , ", " , sizeof(Real)==4 ? "single" : "double" , "-precision _only_" );
-#else // !MISC_NEW_CODE
-	WARN( "Compiled for degree-%d, boundary-%s, %s-precision _only_" , Degree , BoundaryNames[ BType ] , sizeof(Real)==4 ? "single" : "double" );
-#endif // MISC_NEW_CODE
+	WARN( "Compiled for degree-" , Degree , ", boundary-" , BoundaryNames[ BType ] , ", " , sizeof(Real)==4 ? "single" : "double" , "-precision _only_" );
 #else // !NEW_CODE
-#ifdef MISC_NEW_CODE
-	MK_WARN( "Compiled for degree-" , Degree , ", boundary-" , BoundaryNames[ BType ] , ", " , sizeof(DefaultFloatType)==4 ? "single" : "double" , "-precision _only_" );
-#else // !MISC_NEW_CODE
-	WARN( "Compiled for degree-%d, boundary-%s, %s-precision _only_" , Degree , BoundaryNames[ BType ] , sizeof(DefaultFloatType)==4 ? "single" : "double" );
-#endif // MISC_NEW_CODE
+	WARN( "Compiled for degree-" , Degree , ", boundary-" , BoundaryNames[ BType ] , ", " , sizeof(DefaultFloatType)==4 ? "single" : "double" , "-precision _only_" );
 #endif // NEW_CODE
 	if( !PointWeight.set ) PointWeight.value = DefaultPointWeightMultiplier*Degree;
 #ifdef NEW_CODE
