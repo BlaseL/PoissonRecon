@@ -771,10 +771,13 @@ int main( int argc , char* argv[] )
 #ifdef ARRAY_DEBUG
 	WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
-
+printf( "1\n" );
 	cmdLineParse( argc-1 , &argv[1] , params );
+printf( "2\n" );
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
+printf( "3\n" );
 	omp_set_num_threads( Threads.value > 1 ? Threads.value : 1 );
+printf( "4\n" );
 	messageWriter.echoSTDOUT = Verbose.set;
 
 	if( !In.set )
