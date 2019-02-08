@@ -28,8 +28,8 @@ DAMAGE.
 
 #undef SHOW_WARNINGS							// Display compilation warnings
 #undef USE_DOUBLE								// If enabled, double-precesion is used
-#define FAST_COMPILE								// If enabled, only a single version of the reconstruction code is compiled
-#undef ARRAY_DEBUG								// If enabled, array access is tested for validity
+#undef FAST_COMPILE								// If enabled, only a single version of the reconstruction code is compiled
+#define ARRAY_DEBUG								// If enabled, array access is tested for validity
 #define DATA_DEGREE 0							// The order of the B-Spline used to splat in data for color interpolation
 												// This can be changed to zero if more interpolatory performance is desired.
 #define WEIGHT_DEGREE 2							// The order of the B-Spline used to splat in the weights for density estimation
@@ -798,8 +798,8 @@ int main( int argc , char* argv[] )
 	static const BoundaryType BType = DEFAULT_FEM_BOUNDARY;
 	typedef IsotropicUIntPack< DIMENSION , FEMDegreeAndBType< Degree , BType >::Signature > FEMSigs;
 #ifdef NEW_CODE
-//	WARN( "Compiled for degree-%d, boundary-%s, %s-precision _only_" , Degree , BoundaryNames[ DEFAULT_FEM_BOUNDARY ] , sizeof(Real)==4 ? "single" : "double" );
-	printf( "Compiled for degree-%d, boundary-%s, %s-precision _only_\n" , Degree , BoundaryNames[ DEFAULT_FEM_BOUNDARY ] , sizeof(Real)==4 ? "single" : "double" );
+	WARN( "Compiled for degree-%d, boundary-%s, %s-precision _only_" , Degree , BoundaryNames[ DEFAULT_FEM_BOUNDARY ] , sizeof(Real)==4 ? "single" : "double" );
+//	printf( "Compiled for degree-%d, boundary-%s, %s-precision _only_\n" , Degree , BoundaryNames[ DEFAULT_FEM_BOUNDARY ] , sizeof(Real)==4 ? "single" : "double" );
 #else // !NEW_CODE
 	WARN( "Compiled for degree-%d, boundary-%s, %s-precision _only_" , Degree , BoundaryNames[ BType ] , sizeof(DefaultFloatType)==4 ? "single" : "double" );
 #endif // NEW_CODE
