@@ -57,6 +57,9 @@ DAMAGE.
 #include <functional>
 #include <string>
 
+#ifdef NEW_CODE
+bool debugFEMTree = false;
+#endif // NEW_CODE
 
 template< unsigned int Dim , class Real > class FEMTree;
 

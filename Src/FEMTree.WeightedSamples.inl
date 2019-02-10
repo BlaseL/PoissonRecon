@@ -148,6 +148,7 @@ template< unsigned int Dim , class Real >
 template< bool CreateNodes , class V , unsigned int ... DataSigs >
 void FEMTree< Dim , Real >::_splatPointData( FEMTreeNode* node , Point< Real , Dim > position , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& dataInfo , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey )
 {
+if( debugFEMTree ) printf( "_splatPointData1...\n" );
 	typedef UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > SupportSizes;
 	double values[ Dim ][ SupportSizes::Max() ];
 	typename FEMTreeNode::template Neighbors< UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > >& neighbors = dataKey.template getNeighbors< CreateNodes >( node , nodeAllocator , _NodeInitializer( *this ) );
@@ -166,11 +167,13 @@ void FEMTree< Dim , Real >::_splatPointData( FEMTreeNode* node , Point< Real , D
 		[&]( FEMTreeNode* node ){ if( IsActiveNode< Dim >( node ) )	AddAtomic( dataInfo[ node ] , v * (Real)scratch[Dim] ); } ,
 		neighbors.neighbors()
 	);
+if( debugFEMTree ) printf( "..._splatPointData1\n" );
 }
 template< unsigned int Dim , class Real >
 template< bool CreateNodes , unsigned int WeightDegree , class V , unsigned int ... DataSigs >
 Real FEMTree< Dim , Real >::_splatPointData( const DensityEstimator< WeightDegree >& densityWeights , Point< Real , Dim > position , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& dataInfo , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , LocalDepth minDepth , LocalDepth maxDepth , int dim , Real depthBias )
 {
+if( debugFEMTree ) printf( "_splatPointData2...\n" );
 	double dx;
 	V _v;
 	FEMTreeNode* temp;
@@ -179,7 +182,7 @@ Real FEMTree< Dim , Real >::_splatPointData( const DensityEstimator< WeightDegre
 	Point< Real , Dim > myCenter;
 	for( int d=0 ; d<Dim ; d++ ) myCenter[d] = (Real)0.5;
 	Real myWidth = (Real)1.;
-
+if( debugFEMTree ) printf( "1\n" );
 	temp = _spaceRoot;
 	while( _localDepth( temp )<densityWeights.kernelDepth() )
 	{
@@ -194,6 +197,7 @@ Real FEMTree< Dim , Real >::_splatPointData( const DensityEstimator< WeightDegre
 	Real weight , depth;
 	_getSampleDepthAndWeight( densityWeights , temp , position , weightKey , depth , weight );
 	depth += depthBias;
+if( debugFEMTree ) printf( "2\n" );
 
 	if( depth<minDepth ) depth = Real(minDepth);
 	if( depth>maxDepth ) depth = Real(maxDepth);
@@ -214,6 +218,8 @@ Real FEMTree< Dim , Real >::_splatPointData( const DensityEstimator< WeightDegre
 			if( (cIndex>>d) & 1 ) myCenter[d] += myWidth/2;
 			else                  myCenter[d] -= myWidth/2;
 	}
+if( debugFEMTree ) printf( "3\n" );
+
 	width = 1.0 / ( 1<<_localDepth( temp ) );
 	_v = v * weight / Real( pow( width , dim ) ) * Real( dx );
 #if defined( __GNUC__ ) && __GNUC__ < 5
@@ -236,6 +242,7 @@ Real FEMTree< Dim , Real >::_splatPointData( const DensityEstimator< WeightDegre
 		_splatPointData< CreateNodes , V , DataSigs ... >( temp , position , _v , dataInfo , dataKey );
 #endif // __GNUC__ || __GNUC__ < 4
 	}
+if( debugFEMTree ) printf( "..._splatPointData2\n" );
 	return weight;
 }
 template< unsigned int Dim , class Real >
