@@ -278,7 +278,7 @@ namespace MKExceptions
 	template< typename ... Args >
 	void ErrorOut( const char *functionName , const char *format , Args ... args )
 	{
-		std::cerr << MakeMessageString( "[WARNING]" , functionName , format , args ... ) << std::endl;
+		std::cerr << MakeMessageString( "[ERROR]" , functionName , format , args ... ) << std::endl;
 		exit( 0 );
 	}
 #endif // VERBOSE_MESSAGING
