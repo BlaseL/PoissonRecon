@@ -329,11 +329,13 @@ SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim 
 	pointWeightSum = 0;
 	SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > normalField;
 	Real _pointWeightSum = 0;
+#if defined( _WIN32 ) || defined( _WIN64 )
 #pragma message( "[WARNING] Uncomment me!!!!!!!" )
+#endif // WINDOWS
 //#pragma omp parallel for reduction( + : weightSum , _pointWeightSum )
 	for( int i=0 ; i<samples.size() ; i++ )
 	{
-if( i>=62784300 ) printf( " Sample: %d\n" , i );
+if( i>=62784300 ) printf( "Sample: %d\n" , i );
 		DensityKey& densityKey = densityKeys[ omp_get_thread_num() ];
 		NormalKey& normalKey = normalKeys[ omp_get_thread_num() ];
 		const ProjectiveData< Point< Real , Dim > , Real >& sample = samples[i].sample;
