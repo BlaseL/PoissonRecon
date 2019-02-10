@@ -335,12 +335,15 @@ SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim 
 //#pragma omp parallel for reduction( + : weightSum , _pointWeightSum )
 	for( int i=0 ; i<samples.size() ; i++ )
 	{
-if( i>=62784300 ) printf( "Sample: %d\n" , i );
+bool debug = (i==62784320);
+if( debug ) printf( "1\n" );
 		DensityKey& densityKey = densityKeys[ omp_get_thread_num() ];
 		NormalKey& normalKey = normalKeys[ omp_get_thread_num() ];
 		const ProjectiveData< Point< Real , Dim > , Real >& sample = samples[i].sample;
+if( debug ) printf( "2\n" );
 		if( sample.weight>0 )
 		{
+if( debug ) printf( "3\n" );
 			Point< Real , Dim > p = sample.data / sample.weight , n = std::get< 0 >( normalData[i].data ).data;
 			Real l = (Real)Length( n );
 			// It is possible that the samples have non-zero normals but there are two co-located samples with negative normals...
@@ -349,6 +352,7 @@ if( i>=62784300 ) printf( "Sample: %d\n" , i );
 			n *= sample.weight / l;
 			Real depthBias = BiasFunction( confidence );
 			weightSum += sample.weight;
+if( debug ) printf( "4\n" );
 			if( !_InBounds(p) )
 			{
 				WARN( "Point sample is out of bounds" );
@@ -371,9 +375,9 @@ if( i>=62784300 ) printf( "Sample: %d\n" , i );
 #endif // __GNUC__ || __GNUC__ < 4
 				_pointWeightSum += sample.weight;
 			}
+if( debug ) printf( "5\n" );
 		}
 	}
-printf( "2\n" );
 	pointWeightSum = _pointWeightSum / weightSum;
 	MemoryUsage();
 	return normalField;
