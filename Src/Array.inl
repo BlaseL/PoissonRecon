@@ -25,8 +25,8 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING 
 ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
 DAMAGE.
 */
-#define FULL_ARRAY_DEBUG    0	// Note that this is not thread-safe
 #define ARRAY_NEW_CODE
+#define ARRAY_NEW_CODE_2
 
 #include <string.h>
 #include <stdio.h>
@@ -58,56 +58,38 @@ template< >         inline bool IsValid< __m128 >( const __m128& m )
 template< class C > inline bool IsValid( const C& c ){ return true; }
 
 
-#if FULL_ARRAY_DEBUG
-class DebugMemoryInfo
-{
-public:
-	const void* address;
-	char name[512];
-};
-static std::vector< DebugMemoryInfo > memoryInfo;
-#endif // FULL_ARRAY_DEBUG
-
 template< class C >
 class Array
 {
+#ifdef ARRAY_NEW_CODE_2
+	template< class _C > friend class ConstArray;
+#endif // ARRAY_NEW_CODE_2
 	template< class D > friend class Array;
 	void _assertBounds( long long idx ) const
 	{
+#ifdef ARRAY_NEW_CODE_2
+		if( idx<min || idx>=max ) ERROR_OUT( "Array index out-of-bounds: " , min , " <= " , idx , " < " , max , "\nFile: " , _fileName , "; Line: " , _line , "; Function: " , _functionName );
+#else // !ARRAY_NEW_CODE_2
 		if( idx<min || idx>=max ) ERROR_OUT( "Array index out-of-bounds: " , min , " <= " , idx , " < " , max );
+#endif // ARRAY_NEW_CODE_2
 	}
 protected:
 	C *data , *_data;
 	long long min , max;
-#if FULL_ARRAY_DEBUG
-	static void _AddMemoryInfo( const void* ptr , const char* name )
-	{
-		size_t sz = memoryInfo.size();
-		memoryInfo.resize( sz + 1 );
-		memoryInfo[sz].address = ptr;
-		if( name ) strcpy( memoryInfo[sz].name , name );
-		else memoryInfo[sz].name[0] = 0;
-	}
-	static void _RemoveMemoryInfo( const void* ptr )
-	{
-		{
-			size_t idx;
-			for( idx=0 ; idx<memoryInfo.size( ) ; idx++ ) if( memoryInfo[idx].address==ptr ) break;
-			if( idx==memoryInfo.size() ) ERROR_OUT( "Could not find memory in address table" );
-			else
-			{
-				memoryInfo[idx] = memoryInfo[memoryInfo.size()-1];
-				memoryInfo.pop_back( );
-			}
-		}
-	}
-#endif // FULL_ARRAY_DEBUG
+#ifdef ARRAY_NEW_CODE_2
+	std::string _fileName , _functionName;
+	std::string _line;
+#endif // ARRAY_NEW_CODE_2
 
 public:
 	long long minimum( void ) const { return min; }
 	long long maximum( void ) const { return max; }
 
+#ifdef ARRAY_NEW_CODE_2
+	static inline Array New( size_t size , std::string fileName , int line , std::string functionName )
+#else // !ARRAY_NEW_CODE_2
 	static inline Array New( size_t size , const char* name=NULL )
+#endif // ARRAY_NEW_CODE_2
 	{
 		Array a;
 		a._data = a.data = new C[size];
@@ -116,12 +98,16 @@ public:
 #pragma message( "[WARNING] Casting unsigned to signed" )
 #endif // SHOW_WARNINGS
 		a.max = ( long long ) size;
-#if FULL_ARRAY_DEBUG
-		_AddMemoryInfo( a._data , name );
-#endif // FULL_ARRAY_DEBUG
+#ifdef ARRAY_NEW_CODE_2
+		a._fileName = fileName , a._line = line , a._functionName = functionName;
+#endif // ARRAY_NEW_CODE_2
 		return a;
 	}
+#ifdef ARRAY_NEW_CODE_2
+	static inline Array Alloc( size_t size , bool clear , std::string fileName , int line , std::string functionName )
+#else // !ARRAY_NEW_CODE_2
 	static inline Array Alloc( size_t size , bool clear , const char* name=NULL )
+#endif // ARRAY_NEW_CODE_2
 	{
 		Array a;
 		a._data = a.data = ( C* ) malloc( size * sizeof( C ) );
@@ -132,12 +118,17 @@ public:
 #pragma message( "[WARNING] Casting unsigned to signed" )
 #endif // SHOW_WARNINGS
 		a.max = ( long long ) size;
-#if FULL_ARRAY_DEBUG
-		_AddMemoryInfo( a._data , name );
-#endif // FULL_ARRAY_DEBUG
+#ifdef ARRAY_NEW_CODE_2
+		a._fileName = fileName , a._line = line , a._functionName = functionName;
+#endif // ARRAY_NEW_CODE_2
 		return a;
 	}
+
+#ifdef ARRAY_NEW_CODE_2
+	static inline Array AlignedAlloc( size_t size , size_t alignment , bool clear , std::string fileName , int line , std::string functionName )
+#else // !ARRAY_NEW_CODE_2
 	static inline Array AlignedAlloc( size_t size , size_t alignment , bool clear , const char* name=NULL )
+#endif // ARRAY_NEW_CODE_2
 	{
 		Array a;
 		a.data = ( C* ) aligned_malloc( sizeof(C) * size , alignment );
@@ -149,28 +140,30 @@ public:
 #pragma message( "[WARNING] Casting unsigned to signed" )
 #endif // SHOW_WARNINGS
 		a.max = ( long long ) size;
-#if FULL_ARRAY_DEBUG
-		_AddMemoryInfo( a._data , name );
-#endif // FULL_ARRAY_DEBUG
+#ifdef ARRAY_NEW_CODE_2
+		a._fileName = fileName , a._line = line , a._functionName = functionName;
+#endif // ARRAY_NEW_CODE_2
 		return a;
 	}
+
+#ifdef ARRAY_NEW_CODE_2
+	static inline Array ReAlloc( Array& a , size_t size , bool clear , std::string fileName , int line , std::string functionName )
+#else // !ARRAY_NEW_CODE_2
 	static inline Array ReAlloc( Array& a , size_t size , bool clear , const char* name=NULL )
+#endif // ARRAY_NEW_CODE_2
 	{
 		Array _a;
 		_a._data = _a.data = ( C* ) realloc( a.data , size * sizeof( C ) );
 		if( clear ) memset( _a.data ,  0 , size * sizeof( C ) );
-#if FULL_ARRAY_DEBUG
-		_RemoveMemoryInfo( a._data );
-#endif // FULL_ARRAY_DEBUG
 		a._data = NULL;
 		_a.min = 0;
 #ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] Casting unsigned to signed" )
 #endif // SHOW_WARNINGS
 		_a.max = ( long long ) size;
-#if FULL_ARRAY_DEBUG
-		_AddMemoryInfo( _a._data , name );
-#endif // FULL_ARRAY_DEBUG
+#ifdef ARRAY_NEW_CODE_2
+		a._fileName = fileName , a._line = line , a._functionName = functionName;
+#endif // ARRAY_NEW_CODE_2
 		return _a;
 	}
 
@@ -190,13 +183,18 @@ public:
 		}
 		else
 		{
-			// [WARNING] Chaning szC and szD to size_t causes some really strange behavior.
+			// [WARNING] Changing szC and szD to size_t causes some really strange behavior.
 			long long szC = sizeof( C );
 			long long szD = sizeof( D );
 			data = (C*)a.data;
 			min = ( a.minimum() * szD ) / szC;
 			max = ( a.maximum() * szD ) / szC;
 			if( min*szC!=a.minimum()*szD || max*szC!=a.maximum()*szD ) ERROR_OUT( "Could not convert array [ " , a.minimum() , " , " , a.maximum() , " ] * " , szD , " => [ " , min , " , " , max , " ] * " , szC );
+#ifdef ARRAY_NEW_CODE_2
+			_fileName = a._fileName;
+			_line = a._line;
+			_functionName = a._functionName;
+#endif // ARRAY_NEW_CODE_2
 		}
 	}
 	static Array FromPointer( C* data , long long max )
@@ -366,9 +364,6 @@ public:
 		if( _data )
 		{
 			free( _data );
-#if FULL_ARRAY_DEBUG
-			_RemoveMemoryInfo( _data );
-#endif // FULL_ARRAY_DEBUG
 		}
 		(*this) = Array( );
 	}
@@ -377,9 +372,6 @@ public:
 		if( _data )
 		{
 			delete[] _data;
-#if FULL_ARRAY_DEBUG
-			_RemoveMemoryInfo( _data );
-#endif // FULL_ARRAY_DEBUG
 		}
 		(*this) = Array( );
 	}
@@ -395,11 +387,19 @@ class ConstArray
 	template< class D > friend class ConstArray;
 	void _assertBounds( long long idx ) const
 	{
-		if( idx<min || idx>=max ) ERROR_OUT( "ConstArray index out-of-bounds: " , min , " <= " , idx ,  " < " , max );
+#ifdef ARRAY_NEW_CODE_2
+		if( idx<min || idx>=max ) ERROR_OUT( "ConstArray index out-of-bounds: " , min , " <= " , idx , " < " , max , "\nFile: " , _fileName , "; Line: " , _line , "; Function: " , _functionName );
+#else // !ARRAY_NEW_CODE_2
+		if( idx<min || idx>=max ) ERROR_OUT( "ConstArray index out-of-bounds: " , min , " <= " , idx , " < " , max );
+#endif // ARRAY_NEW_CODE_2
 	}
 protected:
 	const C *data;
 	long long min , max;
+#ifdef ARRAY_NEW_CODE_2
+	std::string _fileName , _functionName;
+	std::string _line;
+#endif // ARRAY_NEW_CODE_2
 public:
 	long long minimum( void ) const { return min; }
 	long long maximum( void ) const { return max; }
@@ -415,6 +415,11 @@ public:
 		data = ( const C* )a.pointer( );
 		min = a.minimum();
 		max = a.maximum();
+#ifdef ARRAY_NEW_CODE_2
+		_fileName = a._fileName;
+		_line = a._line;
+		_functionName = a._functionName;
+#endif // ARRAY_NEW_CODE_2
 	}
 	template< class D >
 	inline ConstArray( const Array< D >& a )
@@ -426,6 +431,11 @@ public:
 		min = ( a.minimum() * szD ) / szC;
 		max = ( a.maximum() * szD ) / szC;
 		if( min*szC!=a.minimum()*szD || max*szC!=a.maximum()*szD ) ERROR_OUT( "Could not convert const array [ " , a.minimum() , " , " , a.maximum() , " ] * " , szD , " => [ " , min , " , " , max , " ] * " , szC );
+#ifdef ARRAY_NEW_CODE_2
+		_fileName = a._fileName;
+		_line = a._line;
+		_functionName = a._functionName;
+#endif // ARRAY_NEW_CODE_2
 	}
 	template< class D >
 	inline ConstArray( const ConstArray< D >& a )
@@ -437,6 +447,11 @@ public:
 		min = ( a.minimum() * szD ) / szC;
 		max = ( a.maximum() * szD ) / szC;
 		if( min*szC!=a.minimum()*szD || max*szC!=a.maximum()*szD ) ERROR_OUT( "Could not convert array [ " , a.minimum() , " , " , a.maximum() , " ] * " , szD , " => [ " , min , " , " , max , " ] * " , szC );
+#ifdef ARRAY_NEW_CODE_2
+		_fileName = a._fileName;
+		_line = a._line;
+		_functionName = a._functionName;
+#endif // ARRAY_NEW_CODE_2
 	}
 	static ConstArray FromPointer( const C* data , long long max )
 	{
@@ -580,9 +595,6 @@ public:
 	operator bool( ) { return data!=NULL; }
 };
 
-#if FULL_ARRAY_DEBUG
-inline void PrintMemoryInfo( void ){ for( size_t i=0 ; i<memoryInfo.size() ; i++ ) printf( "%d] %s\n" , i , memoryInfo[i].name ); }
-#endif // FULL_ARRAY_DEBUG
 template< class C >
 Array< C > memcpy( Array< C > destination , const void* source , size_t size )
 {
