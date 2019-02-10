@@ -334,7 +334,7 @@ printf( "1\n" );
 //#pragma omp parallel for reduction( + : weightSum , _pointWeightSum )
 	for( int i=0 ; i<samples.size() ; i++ )
 	{
-if( !( i % 10000 ) ) printf( "Sample: %d\n" , i );
+if( i>=62780000 && !( i % 100 ) ) printf( "Sample: %d\n" , i );
 		DensityKey& densityKey = densityKeys[ omp_get_thread_num() ];
 		NormalKey& normalKey = normalKeys[ omp_get_thread_num() ];
 		const ProjectiveData< Point< Real , Dim > , Real >& sample = samples[i].sample;
