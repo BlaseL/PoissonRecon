@@ -329,7 +329,6 @@ SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim 
 	pointWeightSum = 0;
 	SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > normalField;
 	Real _pointWeightSum = 0;
-printf( "1\n" );
 #pragma message( "[WARNING] Uncomment me!!!!!!!" )
 //#pragma omp parallel for reduction( + : weightSum , _pointWeightSum )
 	for( int i=0 ; i<samples.size() ; i++ )
