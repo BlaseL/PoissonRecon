@@ -31,8 +31,8 @@ LFLAGS_DEBUG =
 CFLAGS_RELEASE = -O3 -DRELEASE -funroll-loops -ffast-math -g
 LFLAGS_RELEASE = -O3 -g
 
-SRC = src/
-BIN = bin/linux/
+SRC = Src/
+BIN = Bin/Linux/
 #INCLUDE = /usr/include/
 INCLUDE = .
 
