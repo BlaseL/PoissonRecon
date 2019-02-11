@@ -148,7 +148,7 @@ template< unsigned int Dim , class Real >
 template< bool CreateNodes , class V , unsigned int ... DataSigs >
 void FEMTree< Dim , Real >::_splatPointData( FEMTreeNode* node , Point< Real , Dim > position , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& dataInfo , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey )
 {
-if( debugFEMTree ) printf( "_splatPointData1...( %d / %llu )\n" , node->nodeData.nodeIndex , _tree->nodes() );
+if( debugFEMTree ) printf( "_splatPointData1...( %d / %lu )\n" , node->nodeData.nodeIndex , _tree->nodes() );
 	typedef UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > SupportSizes;
 	double values[ Dim ][ SupportSizes::Max() ];
 	typename FEMTreeNode::template Neighbors< UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > >& neighbors = dataKey.template getNeighbors< CreateNodes >( node , nodeAllocator , _NodeInitializer( *this ) );
@@ -157,7 +157,7 @@ if( debugFEMTree ) printf( "_splatPointData1...( %d / %llu )\n" , node->nodeData
 	Real w;
 	_startAndWidth( node , start , w );
 	__SetBSplineComponentValues< Real , FEMSignature< DataSigs >::Degree ... >( &position[0] , &start[0] , w , &values[0][0] , SupportSizes::Max() );
-if( debugFEMTree ) printf( "Running WindowLoop: %llu\n" , _tree->nodes() );
+if( debugFEMTree ) printf( "Running WindowLoop: %lu\n" , _tree->nodes() );
 	double scratch[Dim+1];
 	scratch[0] = 1;
 	WindowLoop< Dim >::Run
