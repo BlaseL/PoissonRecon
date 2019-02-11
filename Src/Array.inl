@@ -26,7 +26,7 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 #define ARRAY_NEW_CODE
-#define ARRAY_NEW_CODE_2
+#undef ARRAY_NEW_CODE_2
 
 #include <string.h>
 #include <stdio.h>
@@ -112,7 +112,6 @@ public:
 		Array a;
 		a._data = a.data = ( C* ) malloc( size * sizeof( C ) );
 		if( clear ) memset( a.data ,  0 , size * sizeof( C ) );
-//		else        memset( a.data , -1 , size * sizeof( C ) );
 		a.min = 0;
 #ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] Casting unsigned to signed" )
@@ -134,7 +133,6 @@ public:
 		a.data = ( C* ) aligned_malloc( sizeof(C) * size , alignment );
 		a._data = ( C* )( ( ( void** )a.data )[-1] );
 		if( clear ) memset( a.data ,  0 , size * sizeof( C ) );
-//		else        memset( a.data , -1 , size * sizeof( C ) );
 		a.min = 0;
 #ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] Casting unsigned to signed" )
