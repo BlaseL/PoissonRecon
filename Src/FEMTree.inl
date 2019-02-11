@@ -354,7 +354,6 @@ debugFEMTree = (i==62784320);
 				WARN( "Point sample is out of bounds" );
 				continue;
 			}
-if( debugFEMTree ) printf( "Trying to splat\n" );
 #if defined( __GNUC__ ) && __GNUC__ < 5
 #warning "you've got me gcc version<5"
 			if( density ) _pointWeightSum += _splatPointData< true , DensityDegree , Point< Real , Dim > >( *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight;
@@ -372,7 +371,6 @@ if( debugFEMTree ) printf( "Trying to splat\n" );
 #endif // __GNUC__ || __GNUC__ < 4
 				_pointWeightSum += sample.weight;
 			}
-if( debugFEMTree ) printf( "Done splatting\n" );
 		}
 	}
 	pointWeightSum = _pointWeightSum / weightSum;
