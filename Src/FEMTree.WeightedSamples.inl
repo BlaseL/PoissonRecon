@@ -151,16 +151,16 @@ void FEMTree< Dim , Real >::_splatPointData( FEMTreeNode* node , Point< Real , D
 if( debugFEMTree ) printf( "_splatPointData1...\n" );
 	typedef UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > SupportSizes;
 	double values[ Dim ][ SupportSizes::Max() ];
-printf( "0\n" );
+if( debugFEMTree ) printf( "0\n" );
 	typename FEMTreeNode::template Neighbors< UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > >& neighbors = dataKey.template getNeighbors< CreateNodes >( node , nodeAllocator , _NodeInitializer( *this ) );
-printf( "1\n" );
+if( debugFEMTree ) printf( "1\n" );
 
 	Point< Real , Dim > start;
 	Real w;
 	_startAndWidth( node , start , w );
-printf( "2\n" );
+if( debugFEMTree ) printf( "2\n" );
 	__SetBSplineComponentValues< Real , FEMSignature< DataSigs >::Degree ... >( &position[0] , &start[0] , w , &values[0][0] , SupportSizes::Max() );
-printf( "3\n" );
+if( debugFEMTree ) printf( "3\n" );
 	double scratch[Dim+1];
 	scratch[0] = 1;
 	WindowLoop< Dim >::Run
