@@ -148,26 +148,27 @@ template< unsigned int Dim , class Real >
 template< bool CreateNodes , class V , unsigned int ... DataSigs >
 void FEMTree< Dim , Real >::_splatPointData( FEMTreeNode* node , Point< Real , Dim > position , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& dataInfo , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey )
 {
-if( debugFEMTree ) printf( "_splatPointData1...( %d )\n" , node->nodeData.nodeIndex );
+if( debugFEMTree ) printf( "_splatPointData1...( %d / %llu )\n" , node->nodeData.nodeIndex , _tree->nodes() );
 	typedef UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > SupportSizes;
 	double values[ Dim ][ SupportSizes::Max() ];
-if( debugFEMTree ) printf( "0\n" );
 	typename FEMTreeNode::template Neighbors< UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > >& neighbors = dataKey.template getNeighbors< CreateNodes >( node , nodeAllocator , _NodeInitializer( *this ) );
-if( debugFEMTree ) printf( "1\n" );
 
 	Point< Real , Dim > start;
 	Real w;
 	_startAndWidth( node , start , w );
-if( debugFEMTree ) printf( "2\n" );
 	__SetBSplineComponentValues< Real , FEMSignature< DataSigs >::Degree ... >( &position[0] , &start[0] , w , &values[0][0] , SupportSizes::Max() );
-if( debugFEMTree ) printf( "3\n" );
+if( debugFEMTree ) printf( "Running WindowLoop: %llu\n" , _tree->nodes() );
 	double scratch[Dim+1];
 	scratch[0] = 1;
 	WindowLoop< Dim >::Run
 	(
 		ZeroUIntPack< Dim >() , UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... >() ,
 		[&]( int d , int i ){ scratch[d+1] = scratch[d] * values[d][i]; } ,
-		[&]( FEMTreeNode* node ){ if( IsActiveNode< Dim >( node ) )	AddAtomic( dataInfo[ node ] , v * (Real)scratch[Dim] ); } ,
+		[&]( FEMTreeNode* node )
+	{
+if( debugFEMTree ) printf( "Node: %d\n" , node->nodeData.nodeIndex );
+		if( IsActiveNode< Dim >( node ) )	AddAtomic( dataInfo[ node ] , v * (Real)scratch[Dim] );
+	} ,
 		neighbors.neighbors()
 	);
 if( debugFEMTree ) printf( "..._splatPointData1\n" );
