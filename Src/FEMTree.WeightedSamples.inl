@@ -148,7 +148,7 @@ template< unsigned int Dim , class Real >
 template< bool CreateNodes , class V , unsigned int ... DataSigs >
 void FEMTree< Dim , Real >::_splatPointData( FEMTreeNode* node , Point< Real , Dim > position , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& dataInfo , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey )
 {
-if( debugFEMTree ) printf( "_splatPointData1...\n" );
+if( debugFEMTree ) printf( "_splatPointData1...( %d )\n" , node->nodeData.nodeIndex );
 	typedef UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > SupportSizes;
 	double values[ Dim ][ SupportSizes::Max() ];
 if( debugFEMTree ) printf( "0\n" );
