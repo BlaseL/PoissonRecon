@@ -47,6 +47,10 @@ DAMAGE.
 
 #define NEW_CODE
 
+#ifdef NEW_CODE
+bool debugFEMTree = false;
+#endif // NEW_CODE
+
 #include <atomic>
 #include "MyMiscellany.h"
 #include "BSplineData.h"
@@ -56,10 +60,6 @@ DAMAGE.
 #include "SparseMatrix.h"
 #include <functional>
 #include <string>
-
-#ifdef NEW_CODE
-bool debugFEMTree = false;
-#endif // NEW_CODE
 
 template< unsigned int Dim , class Real > class FEMTree;
 
