@@ -30,7 +30,6 @@ WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 
 */
 
-
 #ifndef __PLY_H__
 #define __PLY_H__
 
@@ -46,6 +45,27 @@ template<> inline int PLYType<        float  >( void ){ return PLY_FLOAT ; }
 template<> inline int PLYType<        double >( void ){ return PLY_DOUBLE; }
 template< class Real > inline int PLYType( void ){ ERROR_OUT( "Unrecognized type" ); }
 
+#ifdef NEW_CODE
+template< typename Index >
+struct PlyFace
+{
+	unsigned int nr_vertices;
+	Index *vertices;
+	int segment;
+
+	static PlyProperty face_props[];
+};
+template<>
+PlyProperty PlyFace<          int       >::face_props[] = { PlyProperty( "vertex_indices" , PLY_INT       , PLY_INT       , offsetof( PlyFace , vertices ) , 1 , PLY_UINT, PLY_UINT , offsetof( PlyFace , nr_vertices ) ) };
+template<>
+PlyProperty PlyFace< unsigned int       >::face_props[] = { PlyProperty( "vertex_indices" , PLY_UINT      , PLY_UINT      , offsetof( PlyFace , vertices ) , 1 , PLY_UINT, PLY_UINT , offsetof( PlyFace , nr_vertices ) ) };
+#ifdef NEW_CODE_PLY
+template<>
+PlyProperty PlyFace<          long long >::face_props[] = { PlyProperty( "vertex_indices" , PLY_LONGLONG  , PLY_LONGLONG  , offsetof( PlyFace , vertices ) , 1 , PLY_UINT, PLY_UINT , offsetof( PlyFace , nr_vertices ) ) };
+template<>
+PlyProperty PlyFace< unsigned long long >::face_props[] = { PlyProperty( "vertex_indices" , PLY_ULONGLONG , PLY_ULONGLONG , offsetof( PlyFace , vertices ) , 1 , PLY_UINT, PLY_UINT , offsetof( PlyFace , nr_vertices ) ) };
+#endif // NEW_CODE_PLY
+#else // !NEW_CODE
 typedef struct PlyFace
 {
 	unsigned char nr_vertices;
@@ -56,7 +76,7 @@ static PlyProperty face_props[] =
 {
 	PlyProperty( "vertex_indices" , PLY_INT , PLY_INT , offsetof( PlyFace , vertices ) , 1 , PLY_UCHAR, PLY_UCHAR , offsetof( PlyFace , nr_vertices ) ) ,
 };
-
+#endif // NEW_CODE
 
 struct RGBColor
 {
@@ -67,6 +87,7 @@ struct RGBColor
 	RGBColor( const RGBColor& rgb ){ memcpy( c , rgb.c , sizeof(unsigned char) * 3 ); }
 	RGBColor& operator = ( const RGBColor& rgb ){ memcpy( c , rgb.c , sizeof(unsigned char) * 3 ) ; return *this; }
 };
+
 ///////////////
 // PlyVertex //
 ///////////////
@@ -254,11 +275,19 @@ void PlyVertexWithData< Real , Dim , Data , RealOnDisk >::_SetWriteProperties( v
 	}
 }
 
+#ifdef NEW_CODE
+template< class Vertex , typename Index , class Real , int Dim >
+int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex , Index >* mesh , int file_type , const Point< float , Dim >& translate , float scale , const std::vector< std::string >& comments , XForm< Real , Dim+1 > xForm=XForm< Real , Dim+1 >::Identity() );
+
+template< class Vertex , typename Index , class Real , int Dim >
+int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex , Index >* mesh , int file_type , const std::vector< std::string >& comments , XForm< Real , Dim+1 > xForm=XForm< Real , Dim+1 >::Identity() );
+#else // !NEW_CODE
 template< class Vertex , class Real , int Dim >
 int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >*  mesh , int file_type , const Point< float , Dim >& translate , float scale , const std::vector< std::string >& comments , XForm< Real , Dim+1 > xForm=XForm< Real , Dim+1 >::Identity() );
 
 template< class Vertex , class Real , int Dim >
 int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >*  mesh , int file_type , const std::vector< std::string >& comments , XForm< Real , Dim+1 > xForm=XForm< Real , Dim+1 >::Identity() );
+#endif // NEW_CODE
 
 inline bool PlyReadHeader( char* fileName , const PlyProperty* properties , int propertyNum , bool* readFlags , int& file_type )
 {
@@ -280,6 +309,21 @@ inline bool PlyReadHeader( char* fileName , const PlyProperty* properties , int 
 }
 
 
+#ifdef NEW_CODE
+template< class Vertex , typename Index >
+int PlyReadPolygons( const char* fileName,
+	std::vector< Vertex >& vertices , std::vector<std::vector< Index > >& polygons ,
+	const PlyProperty* properties , int propertyNum ,
+	int& file_type ,
+	std::vector< std::string > &comments , bool* readFlags=NULL );
+
+template< class Vertex , typename Index >
+int PlyWritePolygons( const char* fileName ,
+	const std::vector< Vertex > &vertices , const std::vector< std::vector< Index > > &polygons ,
+	const PlyProperty* properties , int propertyNum ,
+	int file_type ,
+	const std::vector< std::string > &comments );
+#else // !NEW_CODE
 template< class Vertex >
 int PlyReadPolygons( const char* fileName,
 	std::vector< Vertex >& vertices , std::vector<std::vector<int> >& polygons ,
@@ -293,16 +337,31 @@ int PlyWritePolygons( const char* fileName ,
 	const PlyProperty* properties , int propertyNum ,
 	int file_type ,
 	const std::vector< std::string > &comments );
+#endif // NEW_CODE
 
+#ifdef NEW_CODE
+template< class Vertex , typename Index >
+int PlyWritePolygons( const char* fileName ,
+	const std::vector< Vertex > &vertices , const std::vector< std::vector< Index > > &polygons ,
+	const PlyProperty *properties , int propertyNum ,
+	int file_type ,
+	const std::vector< std::string > &comments )
+#else // !NEW_CODE
 template< class Vertex >
 int PlyWritePolygons( const char* fileName ,
 	const std::vector< Vertex > &vertices , const std::vector< std::vector< int > > &polygons ,
 	const PlyProperty *properties , int propertyNum ,
 	int file_type ,
 	const std::vector< std::string > &comments )
+#endif // NEW_CODE
 {
+#ifdef NEW_CODE
+	size_t nr_vertices = vertices.size();
+	size_t nr_faces = polygons.size();
+#else // !NEW_CODE
 	int nr_vertices=int(vertices.size());
 	int nr_faces=int(polygons.size());
+#endif // NEW_CODE
 	float version;
 	std::vector< std::string > elem_names = { std::string( "vertex" ) , std::string( "face" ) };
 	PlyFile *ply = PlyFile::Write( fileName , elem_names , file_type , version );
@@ -314,7 +373,11 @@ int PlyWritePolygons( const char* fileName ,
 	ply->element_count( "vertex", nr_vertices );
 	for( int i=0 ; i<propertyNum ; i++ ) ply->describe_property( "vertex" , &properties[i] );
 	ply->element_count( "face" , nr_faces );
+#ifdef NEW_CODE
+	ply->describe_property( "face" , PlyFace< Index >::face_props );
+#else // !NEW_CODE
 	ply->describe_property( "face" , &face_props[0] );
+#endif // NEW_CODE
 
 	// Write in the comments
 	for( int i=0 ; i<comments.size() ; i++ ) ply->put_comment( comments[i] );
@@ -322,22 +385,42 @@ int PlyWritePolygons( const char* fileName ,
 
 	// write vertices
 	ply->put_element_setup( elem_names[0] );
+#ifdef NEW_CODE
+	for( size_t i=0 ; i<vertices.size() ; i++ ) ply->put_element( (void *)&vertices[i] );
+#else // !NEW_CODE
 	for( int i=0 ; i<(int)vertices.size() ; i++ ) ply->put_element( (void *)&vertices[i] );
+#endif // NEW_CODE
 
 	// write faces
+#ifdef NEW_CODE
+	PlyFace< Index > ply_face;
+#else // !NEW_CODE
 	PlyFace ply_face;
+#endif // NEW_CODE
 	int maxFaceVerts=3;
 	ply_face.nr_vertices = 3;
+#ifdef NEW_CODE
+	ply_face.vertices = new Index[3];
+#else // !NEW_CODE
 	ply_face.vertices = new int[3];
+#endif // NEW_CODE
 
 	ply->put_element_setup( elem_names[1] );
+#ifdef NEW_CODE
+	for( size_t i=0 ; i<nr_faces ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<nr_faces ; i++ )
+#endif // NEW_CODE
 	{
 		if( (int)polygons[i].size()>maxFaceVerts )
 		{
 			delete[] ply_face.vertices;
 			maxFaceVerts = (int)polygons[i].size();
+#ifdef NEW_CODE
+			ply_face.vertices=new Index[ maxFaceVerts ];
+#else // !NEW_CODE
 			ply_face.vertices=new int[ maxFaceVerts ];
+#endif // NEW_CODE
 		}
 		ply_face.nr_vertices = (int)polygons[i].size();
 		for( int j=0 ; j<ply_face.nr_vertices ; j++ ) ply_face.vertices[j] = polygons[i][j];
@@ -349,14 +432,39 @@ int PlyWritePolygons( const char* fileName ,
 
 	return 1;
 }
-template< class Vertex >
-int PlyReadPolygons( const char *fileName ,
-	std::vector< Vertex > &vertices , std::vector< std::vector< int > > &polygons ,
-	const PlyProperty *properties , int propertyNum ,
+#ifdef NEW_CODE
+template< class Vertex , typename Index >
+int PlyReadPolygons
+(
+	const char *fileName ,
+	std::vector< Vertex > &vertices ,
+	std::vector< std::vector< Index > > &polygons ,
+	const PlyProperty *properties ,
+	int propertyNum ,
 	int &file_type ,
-	std::vector< std::string > &comments , bool *readFlags )
+	std::vector< std::string > &comments ,
+	bool *readFlags
+)
+#else // !NEW_CODE
+template< class Vertex >
+int PlyReadPolygons
+(
+	const char *fileName ,
+	std::vector< Vertex > &vertices ,
+	std::vector< std::vector< int > > &polygons ,
+	const PlyProperty *properties ,
+	int propertyNum ,
+	int &file_type ,
+	std::vector< std::string > &comments ,
+	bool *readFlags
+)
+#endif // NEW_CODE
 {
+#ifdef NEW_CODE
+	std::vector< std::string > elist = { std::string( "vertex" ) , std::string( "face" ) };
+#else // !NEW_CODE
 	std::vector< std::string > elist;
+#endif // NEW_CODE
 	float version;
 
 	PlyFile *ply = PlyFile::Read( fileName , elist , file_type , version );
@@ -368,7 +476,11 @@ int PlyReadPolygons( const char *fileName ,
 	for( int i=0 ; i<elist.size() ; i++ )
 	{
 		std::string &elem_name = elist[i];
+#ifdef NEW_CODE
+		size_t num_elems;
+#else // !NEW_CODE
 		int num_elems;
+#endif // NEW_CODE
 		std::vector< PlyProperty * > plist = ply->get_element_description( elem_name , num_elems );
 		if( !plist.size() )
 		{
@@ -383,15 +495,31 @@ int PlyReadPolygons( const char *fileName ,
 				if( readFlags ) readFlags[i] = (hasProperty!=0);
 			}
 			vertices.resize( num_elems );
+#ifdef NEW_CODE
+			for( size_t j=0 ; j<num_elems ; j++ ) ply->get_element( (void *)&vertices[j] );
+#else // !NEW_CODE
 			for( int j=0 ; j<num_elems ; j++ ) ply->get_element( (void *)&vertices[j] );
+#endif // NEW_CODE
 		}
 		else if( elem_name=="face" )
 		{
+#ifdef NEW_CODE
+			ply->get_property( elem_name , PlyFace< Index >::face_props );
+#else // !NEW_CODE
 			ply->get_property( elem_name , &face_props[0] );
+#endif // NEW_CODE
 			polygons.resize( num_elems );
+#ifdef NEW_CODE
+			for( size_t j=0 ; j<num_elems ; j++ )
+#else // !NEW_CODE
 			for( int j=0 ; j<num_elems ; j++ )
+#endif // NEW_CODE
 			{
+#ifdef NEW_CODE
+				PlyFace< Index > ply_face;
+#else // !NEW_CODE
 				PlyFace ply_face;
+#endif // NEW_CODE
 				ply->get_element( (void *)&ply_face );
 				polygons[j].resize( ply_face.nr_vertices );
 				for( int k=0 ; k<ply_face.nr_vertices ; k++ ) polygons[j][k] = ply_face.vertices[k];
@@ -407,11 +535,21 @@ int PlyReadPolygons( const char *fileName ,
 	return 1;
 }
 
+#ifdef NEW_CODE
+template< class Vertex , typename Index , class Real , int Dim >
+int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex , Index >* mesh , int file_type , const Point< float , Dim >& translate , float scale , const std::vector< std::string > &comments , XForm< Real , Dim+1 > xForm )
+#else // !NEW_CODE
 template< class Vertex , class Real , int Dim >
 int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int file_type , const Point< float , Dim >& translate , float scale , const std::vector< std::string > &comments , XForm< Real , Dim+1 > xForm )
+#endif // NEW_CODE
 {
+#ifdef NEW_CODE
+	Index nr_vertices = ( Index )( mesh->outOfCorePointCount()+mesh->inCorePoints.size() );
+	Index nr_faces = mesh->polygonCount();
+#else // !NEW_CODE
 	int nr_vertices=int(mesh->outOfCorePointCount()+mesh->inCorePoints.size());
 	int nr_faces=mesh->polygonCount();
+#endif // NEW_CODE
 	float version;
 	std::vector< std::string > elem_names = { std::string( "vertex" ) , std::string( "face" ) };
 	PlyFile *ply = PlyFile::Write( fileName , elem_names , file_type , version );
@@ -425,7 +563,11 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 	ply->element_count( "vertex" , nr_vertices );
 	for( int i=0 ; i<Vertex::Components ; i++ ) ply->describe_property( "vertex" , &Vertex::Properties[i] );
 	ply->element_count( "face" , nr_faces );
+#ifdef NEW_CODE
+	ply->describe_property( "face" , PlyFace< Index >::face_props );
+#else // !NEW_CODE
 	ply->describe_property( "face" , &face_props[0] );
+#endif // NEW_CODE
 
 	// Write in the comments
 	for( int i=0 ; i<comments.size() ; i++ ) ply->put_comment( comments[i] );
@@ -433,12 +575,20 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 
 	// write vertices
 	ply->put_element_setup( "vertex" );
+#ifdef NEW_CODE
+	for( Index i=0 ; i<(Index)mesh->inCorePoints.size() ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<int( mesh->inCorePoints.size() ) ; i++ )
+#endif // NEW_CODE
 	{
 		Vertex vertex = xForm * ( mesh->inCorePoints[i] * scale + translate );
 		ply->put_element( (void *)&vertex );
 	}
+#ifdef NEW_CODE
+	for( Index i=0; i<mesh->outOfCorePointCount() ; i++ )
+#else // !NEW_CODE
 	for( int i=0; i<mesh->outOfCorePointCount() ; i++ )
+#endif // NEW_CODE
 	{
 		Vertex vertex;
 		mesh->nextOutOfCorePoint( vertex );
@@ -447,20 +597,40 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 	}  // for, write vertices
 
 	   // write faces
+#ifdef NEW_CODE
+	std::vector< CoredVertexIndex< Index > > polygon;
+#else // !NEW_CODE
 	std::vector< CoredVertexIndex > polygon;
+#endif // NEW_CODE
 	ply->put_element_setup( "face" );
+#ifdef NEW_CODE
+	for( Index i=0 ; i<nr_faces ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<nr_faces ; i++ )
+#endif // NEW_CODE
 	{
 		//
 		// create and fill a struct that the ply code can handle
 		//
+#ifdef NEW_CODE
+		PlyFace< Index > ply_face;
+#else // !NEW_CODE
 		PlyFace ply_face;
+#endif // NEW_CODE
 		mesh->nextPolygon( polygon );
 		ply_face.nr_vertices = int( polygon.size() );
+#ifdef NEW_CODE
+		ply_face.vertices = new Index[ polygon.size() ];
+#else // !NEW_CODE
 		ply_face.vertices = new int[ polygon.size() ];
+#endif // NEW_CODE
 		for( int j=0 ; j<int(polygon.size()) ; j++ )
 			if( polygon[j].inCore ) ply_face.vertices[j] = polygon[j].idx;
+#ifdef NEW_CODE
+			else                    ply_face.vertices[j] = polygon[j].idx + (Index)mesh->inCorePoints.size();
+#else // !NEW_CODE
 			else                    ply_face.vertices[j] = polygon[j].idx + int( mesh->inCorePoints.size() );
+#endif // NEW_CODE
 			ply->put_element( (void *)&ply_face );
 			delete[] ply_face.vertices;
 	}  // for, write faces
@@ -469,11 +639,22 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 
 	return 1;
 }
+
+#ifdef NEW_CODE
+template< class Vertex , typename Index , class Real , int Dim >
+int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex , Index >* mesh , int file_type , const std::vector< std::string > &comments , XForm< Real , Dim+1 > xForm )
+#else // !NEW_CODE
 template< class Vertex , class Real , int Dim >
 int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int file_type , const std::vector< std::string > &comments , XForm< Real , Dim+1 > xForm )
+#endif // NEW_CODE
 {
+#ifdef NEW_CODE
+	Index nr_vertices = (Index)( mesh->outOfCorePointCount()+mesh->inCorePoints.size() );
+	Index nr_faces = mesh->polygonCount();
+#else // !NEW_CODE
 	int nr_vertices=int(mesh->outOfCorePointCount()+mesh->inCorePoints.size());
 	int nr_faces=mesh->polygonCount();
+#endif // NEW_CODE
 	float version;
 	std::vector< std::string > elem_names = { std::string( "vertex" ) , std::string( "face" ) };
 	PlyFile *ply = PlyFile::Write( fileName , elem_names , file_type , version );
@@ -489,19 +670,31 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 	const PlyProperty* PlyWriteProperties = Vertex::PlyWriteProperties();
 	for( int i=0 ; i<Vertex::PlyWriteNum ; i++ ) ply->describe_property( "vertex" , &PlyWriteProperties[i] );
 	ply->element_count( "face" , nr_faces );
+#ifdef NEW_CODE
+	ply->describe_property( "face" , PlyFace< Index >::face_props );
+#else // !NEW_CODE
 	ply->describe_property( "face" , &face_props[0] );
+#endif // NEW_CODE
 
 	// Write in the comments
 	for( int i=0 ; i<comments.size() ; i++ ) ply->put_comment( comments[i] );
 	ply->header_complete();
 	// write vertices
 	ply->put_element_setup( "vertex" );
+#ifdef NEW_CODE
+	for( Index i=0 ; i<(Index)mesh->inCorePoints.size() ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<int( mesh->inCorePoints.size() ) ; i++ )
+#endif // NEW_CODE
 	{
 		Vertex vertex = _xForm( mesh->inCorePoints[i] );
 		ply->put_element( (void *)&vertex );
 	}
+#ifdef NEW_CODE
+	for( Index i=0; i<mesh->outOfCorePointCount() ; i++ )
+#else // !NEW_CODE
 	for( int i=0; i<mesh->outOfCorePointCount() ; i++ )
+#endif // NEW_CODE
 	{
 		Vertex vertex;
 		mesh->nextOutOfCorePoint( vertex );
@@ -510,20 +703,40 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 	}  // for, write vertices
 
 	   // write faces
+#ifdef NEW_CODE
+	std::vector< CoredVertexIndex< Index > > polygon;
+#else // !NEW_CODE
 	std::vector< CoredVertexIndex > polygon;
+#endif // NEW_CODE
 	ply->put_element_setup( "face" );
+#ifdef NEW_CODE
+	for( Index i=0 ; i<nr_faces ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<nr_faces ; i++ )
+#endif // NEW_CODE
 	{
 		//
 		// create and fill a struct that the ply code can handle
 		//
+#ifdef NEW_CODE
+		PlyFace< Index > ply_face;
+#else // !NEW_CODE
 		PlyFace ply_face;
+#endif // NEW_CODE
 		mesh->nextPolygon( polygon );
 		ply_face.nr_vertices = int( polygon.size() );
+#ifdef NEW_CODE
+		ply_face.vertices = new Index[ polygon.size() ];
+#else // !NEW_CODE
 		ply_face.vertices = new int[ polygon.size() ];
+#endif // NEW_CODE
 		for( int j=0 ; j<int(polygon.size()) ; j++ )
 			if( polygon[j].inCore ) ply_face.vertices[j] = polygon[j].idx;
+#ifdef NEW_CODE
+			else                    ply_face.vertices[j] = polygon[j].idx + (Index)mesh->inCorePoints.size();
+#else // !NEW_CODE
 			else                    ply_face.vertices[j] = polygon[j].idx + int( mesh->inCorePoints.size() );
+#endif // NEW_CODE
 			ply->put_element( (void *)&ply_face );
 			delete[] ply_face.vertices;
 	}  // for, write faces
@@ -532,6 +745,6 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 
 	return 1;
 }
-inline int PlyDefaultFileType(void){return PLY_ASCII;}
+inline int PlyDefaultFileType( void ){ return PLY_ASCII; }
 
 #endif /* !__PLY_H__ */

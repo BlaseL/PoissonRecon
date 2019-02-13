@@ -49,6 +49,8 @@ Point< Real , Dim > RandomSpherePoint( void )
 	return p / (Real)Length( p );
 }
 
+#ifdef NEW_CODE
+#else // !NEW_CODE
 ///////////////////
 // Triangulation //
 ///////////////////
@@ -193,9 +195,88 @@ int Triangulation< Real , Dim >::flipMinimize( int eIndex )
 	}
 	return 1;
 }
+#endif // NEW_CODE
+
 /////////////////////////
 // CoredVectorMeshData //
 /////////////////////////
+#ifdef NEW_CODE
+template< class Vertex , typename Index >
+CoredVectorMeshData< Vertex , Index >::CoredVectorMeshData( void ) { oocPointIndex = polygonIndex = threadIndex = 0 ; polygons.resize( omp_get_max_threads() ); }
+template< class Vertex , typename Index >
+void CoredVectorMeshData< Vertex , Index >::resetIterator ( void ) { oocPointIndex = polygonIndex = threadIndex = 0; }
+template< class Vertex , typename Index >
+Index CoredVectorMeshData< Vertex , Index >::addOutOfCorePoint( const Vertex& p )
+{
+	oocPoints.push_back(p);
+	return ( Index )oocPoints.size()-1;
+}
+template< class Vertex , typename Index >
+Index CoredVectorMeshData< Vertex , Index >::addOutOfCorePoint_s( const Vertex& p )
+{
+	size_t sz;
+#pragma omp critical (CoredVectorMeshData_addOutOfCorePoint_s )
+	{
+		sz = oocPoints.size();
+		oocPoints.push_back(p);
+	}
+	return (Index)sz;
+}
+template< class Vertex , typename Index >
+void CoredVectorMeshData< Vertex , Index >::addPolygon_s( const std::vector< Index >& polygon )
+{
+	polygons[ omp_get_thread_num() ].push_back( polygon );
+}
+template< class Vertex , typename Index >
+void CoredVectorMeshData< Vertex , Index >::addPolygon_s( const std::vector< CoredVertexIndex< Index > >& vertices )
+{
+	std::vector< Index > polygon( vertices.size() );
+	for( int i=0 ; i<(int)vertices.size() ; i++ ) 
+		if( vertices[i].inCore ) polygon[i] =  vertices[i].idx;
+		else                     polygon[i] = -vertices[i].idx-1;
+	return addPolygon_s( polygon );
+}
+template< class Vertex , typename Index >
+Index CoredVectorMeshData< Vertex , Index >::nextOutOfCorePoint( Vertex& p )
+{
+	if( oocPointIndex<(Index)oocPoints.size() )
+	{
+		p=oocPoints[oocPointIndex++];
+		return 1;
+	}
+	else return 0;
+}
+template< class Vertex , typename Index >
+Index CoredVectorMeshData< Vertex , Index >::nextPolygon( std::vector< CoredVertexIndex< Index > >& vertices )
+{
+	while( true )
+	{
+		if( threadIndex<(int)polygons.size() )
+		{
+			if( polygonIndex<(Index)( polygons[threadIndex].size() ) )
+			{
+				std::vector< Index >& polygon = polygons[threadIndex][ polygonIndex++ ];
+				vertices.resize( polygon.size() );
+				for( int i=0 ; i<int(polygon.size()) ; i++ )
+					if( polygon[i]<0 ) vertices[i].idx = -polygon[i]-1 , vertices[i].inCore = false;
+					else               vertices[i].idx =  polygon[i]   , vertices[i].inCore = true;
+				return 1;
+			}
+			else threadIndex++ , polygonIndex = 0;
+		}
+		else return 0;
+	}
+}
+template< class Vertex , typename Index >
+Index CoredVectorMeshData< Vertex , Index >::outOfCorePointCount( void ){ return (Index)oocPoints.size(); }
+template< class Vertex , typename Index >
+Index CoredVectorMeshData< Vertex , Index >::polygonCount( void )
+{
+	Index count = 0;
+	for( int i=0 ; i<polygons.size() ; i++ ) count += (Index)polygons[i].size();
+	return count;
+}
+#else // !NEW_CODE
 template< class Vertex >
 CoredVectorMeshData< Vertex >::CoredVectorMeshData( void ) { oocPointIndex = polygonIndex = threadIndex = 0 ; polygons.resize( omp_get_max_threads() ); }
 template< class Vertex >
@@ -271,10 +352,116 @@ int CoredVectorMeshData< Vertex >::polygonCount( void )
 	for( int i=0 ; i<polygons.size() ; i++ ) count += (int)polygons[i].size();
 	return count;
 }
+#endif // NEW_CODE
 
 ///////////////////////
 // CoredFileMeshData //
 ///////////////////////
+#ifdef NEW_CODE
+template< class Vertex , typename Index >
+CoredFileMeshData< Vertex , Index >::CoredFileMeshData( const char* fileHeader )
+{
+	threadIndex = 0;
+	oocPoints = 0;
+	polygons.resize( omp_get_max_threads() );
+	for( int i=0 ; i<polygons.size() ; i++ ) polygons[i] = 0;
+
+	oocPointFile = new BufferedReadWriteFile( NULL , fileHeader );
+	polygonFiles.resize( omp_get_max_threads() );
+	for( int i=0 ; i<polygonFiles.size() ; i++ ) polygonFiles[i] = new BufferedReadWriteFile( NULL , fileHeader );
+}
+template< class Vertex , typename Index >
+CoredFileMeshData< Vertex , Index >::~CoredFileMeshData( void )
+{
+	delete oocPointFile;
+	for( int i=0 ; i<polygonFiles.size() ; i++ ) delete polygonFiles[i];
+}
+template< class Vertex , typename Index >
+void CoredFileMeshData< Vertex , Index >::resetIterator ( void )
+{
+	oocPointFile->reset();
+	threadIndex = 0;
+	for( int i=0 ; i<polygonFiles.size() ; i++ ) polygonFiles[i]->reset();
+}
+template< class Vertex , typename Index >
+Index CoredFileMeshData< Vertex , Index >::addOutOfCorePoint( const Vertex& p )
+{
+	oocPointFile->write( &p , sizeof( Vertex ) );
+	oocPoints++;
+	return oocPoints-1;
+}
+template< class Vertex , typename Index >
+Index CoredFileMeshData< Vertex , Index >::addOutOfCorePoint_s( const Vertex& p )
+{
+	Index sz;
+#pragma omp critical (CoredFileMeshData_addOutOfCorePoint_s)
+	{
+		sz = oocPoints;
+		oocPointFile->write( &p , sizeof( Vertex ) );
+		oocPoints++;
+	}
+	return sz;
+}
+template< class Vertex , typename Index >
+void CoredFileMeshData< Vertex , Index >::addPolygon_s( const std::vector< Index >& vertices )
+{
+	int vSize = (int)vertices.size();
+	int thread = omp_get_thread_num();
+	polygonFiles[thread]->write( &vSize , sizeof(int) );
+	polygonFiles[thread]->write( &vertices[0] , sizeof(Index) * vSize );
+	polygons[thread]++;
+}
+template< class Vertex , typename Index >
+void CoredFileMeshData< Vertex , Index >::addPolygon_s( const std::vector< CoredVertexIndex< Index > >& vertices )
+{
+	std::vector< Index > polygon( vertices.size() );
+	for( int i=0 ; i<(int)vertices.size() ; i++ ) 
+		if( vertices[i].inCore ) polygon[i] =  vertices[i].idx;
+		else                     polygon[i] = -vertices[i].idx-1;
+	return addPolygon_s( polygon );
+}
+template< class Vertex , typename Index >
+Index CoredFileMeshData< Vertex , Index >::nextOutOfCorePoint( Vertex& p )
+{
+	if( oocPointFile->read( &p , sizeof( Vertex ) ) ) return 1;
+	else return 0;
+}
+template< class Vertex , typename Index >
+Index CoredFileMeshData< Vertex , Index >::nextPolygon( std::vector< CoredVertexIndex< Index > >& vertices )
+{
+	while( true )
+	{
+		if( threadIndex<(int)polygonFiles.size() )
+		{
+			int pSize;
+			if( polygonFiles[threadIndex]->read( &pSize , sizeof(int) ) )
+			{
+				std::vector< Index > polygon( pSize );
+				if( polygonFiles[threadIndex]->read( &polygon[0] , sizeof(Index)*pSize ) )
+				{
+					vertices.resize( pSize );
+					for( int i=0 ; i<int(polygon.size()) ; i++ )
+						if( polygon[i]<0 ) vertices[i].idx = -polygon[i]-1 , vertices[i].inCore = false;
+						else               vertices[i].idx =  polygon[i]   , vertices[i].inCore = true;
+					return 1;
+				}
+				ERROR_OUT( "Failed to read polygon from file" );
+			}
+			else threadIndex++;
+		}
+		else return 0;
+	}
+}
+template< class Vertex , typename Index >
+Index CoredFileMeshData< Vertex , Index >::outOfCorePointCount( void ){ return oocPoints; }
+template< class Vertex , typename Index >
+Index CoredFileMeshData< Vertex , Index >::polygonCount( void )
+{
+	Index count = 0;
+	for( int i=0 ; i<polygons.size() ; i++ ) count += polygons[i];
+	return count;
+}
+#else // !NEW_CODE
 template< class Vertex >
 CoredFileMeshData< Vertex >::CoredFileMeshData( const char* fileHeader )
 {
@@ -378,7 +565,7 @@ int CoredFileMeshData< Vertex >::polygonCount( void )
 	for( int i=0 ; i<polygons.size() ; i++ ) count += polygons[i];
 	return count;
 }
-
+#endif // NEW_CODE
 /////////////
 // Simplex //
 /////////////

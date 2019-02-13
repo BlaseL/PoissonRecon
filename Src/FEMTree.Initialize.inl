@@ -136,10 +136,18 @@ int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPoint
 			if( weight<=0 ){ badData++ ; continue; }
 			FEMTreeNode* temp = Leaf( root , p , maxDepth );
 			if( !temp ){ outOfBoundPoints++ ; continue; }
+#ifdef NEW_CODE
+			node_index_type nodeIndex = temp->nodeData.nodeIndex;
+#else // !NEW_CODE
 			int nodeIndex = temp->nodeData.nodeIndex;
+#endif // NEW_CODE
 			if( mergeNodeSamples )
 			{
+#ifdef NEW_CODE
+				if( nodeIndex>=(node_index_type)nodeToIndexMap.size() ) nodeToIndexMap.resize( nodeIndex+1 , -1 );
+#else // !NEW_CODE
 				if( nodeIndex>=nodeToIndexMap.size() ) nodeToIndexMap.resize( nodeIndex+1 , -1 );
+#endif // NEW_CODE
 				int idx = nodeToIndexMap[ nodeIndex ];
 				if( idx==-1 )
 				{
@@ -169,7 +177,11 @@ int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPoint
 	return pointCount;
 }
 template< unsigned int Dim , class Real >
+#ifdef NEW_CODE
+void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
+#else // !NEW_CODE
 void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 > >& simplices , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
+#endif // NEW_CODE
 {
 	std::vector< int > nodeToIndexMap;
 #pragma omp parallel for
@@ -338,7 +350,11 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode* node , Simplex< 
 }
 
 template< unsigned int Dim , class Real >
+#ifdef NEW_CODE
+void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& nodeSimplices , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
+#else // !NEW_CODE
 void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 > >& simplices , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& nodeSimplices , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
+#endif // NEW_CODE
 {
 	std::vector< int > nodeToIndexMap;
 	for( int i=0 ; i<simplices.size() ; i++ )

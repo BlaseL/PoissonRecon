@@ -25,6 +25,7 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING 
 ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
 DAMAGE.
 */
+#define NEW_CODE
 
 #undef SHOW_WARNINGS							// Display compilation warnings
 #undef USE_DOUBLE								// If enabled, double-precesion is used
@@ -318,9 +319,15 @@ void ExtractMesh( UIntPack< FEMSigs ... > , std::tuple< SampleData ... > , FEMTr
 		if( tempPath[ strlen( tempPath )-1 ]==FileSeparator ) sprintf( tempHeader , "%sPR_" , tempPath );
 		else                                                  sprintf( tempHeader , "%s%cPR_" , tempPath , FileSeparator );
 	}
+#ifdef NEW_CODE
+	CoredMeshData< Vertex , node_index_type > *mesh;
+	if( InCore.set ) mesh = new CoredVectorMeshData< Vertex , node_index_type >();
+	else             mesh = new CoredFileMeshData< Vertex , node_index_type >( tempHeader );
+#else // !NEW_CODE
 	CoredMeshData< Vertex > *mesh;
 	if( InCore.set ) mesh = new CoredVectorMeshData< Vertex >();
 	else             mesh = new CoredFileMeshData< Vertex >( tempHeader );
+#endif // NEW_CODE
 
 	profiler.start();
 	typename IsoSurfaceExtractor< Dim , Real , Vertex >::IsoStats isoStats;
@@ -347,7 +354,11 @@ void ExtractMesh( UIntPack< FEMSigs ... > , std::tuple< SampleData ... > , FEMTr
 	else                  profiler.dumpOutput2( comments , "#        Got triangles:" );
 
 	std::vector< std::string > noComments;
+#ifdef NEW_CODE
+	if( !PlyWritePolygons< Vertex , node_index_type , Real , Dim >( Out.value , mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NoComments.set ? noComments : comments , iXForm ) )
+#else // !NEW_CODE
 	if( !PlyWritePolygons< Vertex , Real , Dim >( Out.value , mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NoComments.set ? noComments : comments , iXForm ) )
+#endif // NEW_CODE
 		ERROR_OUT( "Could not write mesh to: " , Out.value );
 
 	delete mesh;
@@ -797,17 +808,9 @@ int main( int argc , char* argv[] )
 	static const int Degree = DEFAULT_FEM_DEGREE;
 	static const BoundaryType BType = DEFAULT_FEM_BOUNDARY;
 	typedef IsotropicUIntPack< DIMENSION , FEMDegreeAndBType< Degree , BType >::Signature > FEMSigs;
-#ifdef NEW_CODE
 	WARN( "Compiled for degree-" , Degree , ", boundary-" , BoundaryNames[ BType ] , ", " , sizeof(Real)==4 ? "single" : "double" , "-precision _only_" );
-#else // !NEW_CODE
-	WARN( "Compiled for degree-" , Degree , ", boundary-" , BoundaryNames[ BType ] , ", " , sizeof(DefaultFloatType)==4 ? "single" : "double" , "-precision _only_" );
-#endif // NEW_CODE
 	if( !PointWeight.set ) PointWeight.value = DefaultPointWeightMultiplier*Degree;
-#ifdef NEW_CODE
 	if( Colors.set ) Execute< Real , PointStreamColor< Real > >( argc , argv , FEMSigs() );
-#else // !NEW_CODE
-	if( Colors.set ) Execute< Real , PointStreamColor< DefaultFloatType > >( argc , argv , FEMSigs() );
-#endif // NEW_CODE
 	else             Execute< Real >( argc , argv , FEMSigs() );
 #else // !FAST_COMPILE
 	if( !PointWeight.set ) PointWeight.value = DefaultPointWeightMultiplier*Degree.value;

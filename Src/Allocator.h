@@ -30,7 +30,15 @@ DAMAGE.
 #define ALLOCATOR_INCLUDED
 #include <vector>
 
+#ifdef NEW_CODE
+struct AllocatorState
+{
+	size_t index , remains;
+	AllocatorState( void ) : index(0) , remains(0) {}
+};
+#else // !NEW_CODE
 struct AllocatorState{ int index , remains; };
+#endif // NEW_CODE
 /** This templated class assists in memory allocation and is well suited for instances
   * when it is known that the sequence of memory allocations is performed in a stack-based
   * manner, so that memory allocated last is released first. It also preallocates memory
@@ -42,28 +50,49 @@ struct AllocatorState{ int index , remains; };
 template< class T >
 class SingleThreadedAllocator
 {
+#ifdef NEW_CODE
+	size_t _blockSize;
+	AllocatorState _state;
+	std::vector< T* > _memory;
+#else // !NEW_CODE
 	int blockSize;
 	int index , remains;
 	std::vector< T* > memory;
+#endif // NEW_CODE
 public:
+#ifdef NEW_CODE
+	SingleThreadedAllocator( void ) : _blockSize(0) {}
+#else // !NEW_CODE
 	SingleThreadedAllocator( void ){ blockSize = index = remains = 0; }
+#endif // NEW_CODE
 	~SingleThreadedAllocator( void ){ reset(); }
 
 	/** This method is the allocators destructor. It frees up any of the memory that
 	  * it has allocated. */
 	void reset( void )
 	{
-		for( size_t i=0;i<memory.size();i++ ) delete[] memory[i];
+#ifdef NEW_CODE
+		for( size_t i=0 ; i<_memory.size() ; i++ ) delete[] _memory[i];
+		_memory.clear();
+		_blockSize = 0;
+		_state = AllocatorState();
+#else // !NEW_CODE
+		for( size_t i=0 ; i<memory.size() ; i++ ) delete[] memory[i];
 		memory.clear();
 		blockSize=index=remains=0;
+#endif // NEW_CODE
 	}
 	/** This method returns the memory state of the allocator. */
 	AllocatorState getState( void ) const
 	{
+#ifdef NEW_CODE
+		return _state;
+#else // !NEW_CODE
 		AllocatorState s;
 		s.index=index;
 		s.remains=remains;
 		return s;
+#endif // NEW_CODE
 	}
 
 
@@ -71,8 +100,19 @@ public:
 	  * allocated available for re-allocation. Note that it does it not call the constructor
 	  * again, so after this method has been called, assumptions about the state of the values
 	  * in memory are no longer valid. */
-	void rollBack(void)
+	void rollBack( void )
 	{
+#ifdef NEW_CODE
+		if( _memory.size() )
+		{
+			for( size_t i=0 ; i<_memory.size() ; i++ ) for( size_t j=0 ; j<_blockSize ; j++ )
+			{
+				_memory[i][j].~T();
+				new( &_memory[i][j] ) T();
+			}
+			_state = AllocatorState();
+		}
+#else // !NEW_CODE
 		if( memory.size() )
 		{
 			for( size_t i=0 ; i<memory.size() ; i++ )
@@ -86,12 +126,47 @@ public:
 			index=0;
 			remains=blockSize;
 		}
+#endif // NEW_CODE
 	}
 	/** This method rolls back the allocator to the previous memory state and makes all of the memory previously
 	  * allocated available for re-allocation. Note that it does it not call the constructor
 	  * again, so after this method has been called, assumptions about the state of the values
 	  * in memory are no longer valid. */
-	void rollBack(const AllocatorState& state){
+	void rollBack( const AllocatorState& state )
+	{
+#ifdef NEW_CODE
+		if( state.index<_state.index || ( state.index==_state.index && state.remains<_state.remains ) )
+		{
+			if( state.index<_state.index )
+			{
+				for( size_t j=state.remains ; j<_blockSize ; j++ )
+				{
+					_memory[ state.index ][j].~T();
+					new( &_memory[ state.index ][j] ) T();
+				}
+				for( size_t i=state.index+1 ; i<_state.index-1 ; i++ ) for( size_t j=0 ; j<_blockSize ; j++ )
+				{
+					_memory[i][j].~T();
+					new( &_memory[i][j] ) T();
+				}
+				for( size_t j=0 ; j<_state.remains ; j++ )
+				{
+					_memory[ _state.index ][j].~T();
+					new( &_memory[ _state.index ][j] ) T();
+				}
+				_state = state;
+			}
+			else
+			{
+				for( size_t j=0 ; j<state.remains ; j++ )
+				{
+					_memory[ _state.index ][j].~T();
+					new( &_memory[ _state.index ][j] ) T();
+				}
+				_state.remains = state.remains;
+			}
+		}
+#else // !NEW_CODE
 		if(state.index<index || (state.index==index && state.remains<remains)){
 			if(state.index<index){
 				for(int j=state.remains;j<blockSize;j++){
@@ -119,16 +194,27 @@ public:
 				remains=state.remains;
 			}
 		}
+#endif // NEW_CODE
 	}
 
 	/** This method initiallizes the constructor and the blockSize variable specifies the
 	  * the number of objects that should be pre-allocated at a time. */
+#ifdef NEW_CODE
+	void set( size_t blockSize )
+#else // !NEW_CODE
 	void set( int blockSize )
+#endif // NEW_CODE
 	{
 		reset();
+#ifdef NEW_CODE
+		_blockSize = blockSize;
+		_state.index = -1;
+		_state.remains = 0;
+#else // !NEW_CODE
 		this->blockSize = blockSize;
 		index=-1;
 		remains=0;
+#endif // NEW_CODE
 	}
 
 	/** This method returns a pointer to an array of elements objects. If there is left over pre-allocated
@@ -136,6 +222,28 @@ public:
 	  * more memory. Note that if the number of objects requested is larger than the value blockSize with which
 	  * the allocator was initialized, the request for memory will fail.
 	  */
+#ifdef NEW_CODE
+	T* newElements( size_t elements=1 )
+	{
+		T* mem;
+		if( !elements ) return NULL;
+		if( elements>_blockSize ) ERROR_OUT( "elements bigger than block-size: " , elements , " > " , _blockSize );
+		if( _state.remains<elements )
+		{
+			if( _state.index==_memory.size()-1 )
+			{
+				mem = new T[ _blockSize ];
+				if( !mem ) ERROR_OUT( "Failed to allocate memory" );
+				_memory.push_back( mem );
+			}
+			_state.index++;
+			_state.remains = _blockSize;
+		}
+		mem = &( _memory[ _state.index ][ _blockSize-_state.remains ] );
+		_state.remains -= elements;
+		return mem;
+	}
+#else // !NEW_CODE
 	T* newElements( int elements=1 )
 	{
 		T* mem;
@@ -156,12 +264,17 @@ public:
 		remains -= elements;
 		return mem;
 	}
+#endif // NEW_CODE
 };
 template< class T >
 class Allocator
 {
 	SingleThreadedAllocator< T >* _allocators;
+#ifdef NEW_CODE
+	size_t _maxThreads;
+#else // !NEW_CODE
 	int _maxThreads;
+#endif // NEW_CODE
 public:
 	Allocator( void )
 	{
@@ -170,8 +283,13 @@ public:
 	}
 	~Allocator( void ){ delete[] _allocators; }
 
+#ifdef NEW_CODE
+	void set( size_t blockSize ){ for( size_t t=0 ; t<_maxThreads ; t++ ) _allocators[t].set( blockSize ); }
+	T* newElements( size_t elements=1 ){ return _allocators[ omp_get_thread_num() ].newElements( elements ); }
+#else // !NEW_CODE
 	void set( int blockSize ){ for( int t=0 ; t<_maxThreads ; t++ ) _allocators[t].set( blockSize ); }
 	T* newElements( int elements=1 ){ return _allocators[ omp_get_thread_num() ].newElements( elements ); }
+#endif // NEW_CODE
 };
 
 #endif // ALLOCATOR_INCLUDE

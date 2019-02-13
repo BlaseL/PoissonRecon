@@ -235,10 +235,15 @@ typename FEMTree< Dim , Real >::LocalDepth FEMTree< Dim , Real >::getFullDepth( 
 
 template< unsigned int Dim , class Real >
 template< unsigned int LeftRadius , unsigned int RightRadius , class ... DenseOrSparseNodeData > 
-void FEMTree< Dim , Real >::thicken( FEMTreeNode** nodes , size_t nodeCount, DenseOrSparseNodeData* ... data )
+void FEMTree< Dim , Real >::thicken( FEMTreeNode **nodes , size_t nodeCount, DenseOrSparseNodeData* ... data )
 {
+#ifdef NEW_CODE
+	std::vector< node_index_type > map( _nodeCount );
+	for( node_index_type i=0 ; i<_nodeCount ; i++ ) map[i] = i;
+#else // !NEW_CODE
 	std::vector< int > map( _nodeCount );
 	for( int i=0 ; i<_nodeCount ; i++ ) map[i] = i;
+#endif // NEW_CODE
 	{
 		int d=0 , off[Dim];
 		for( int d=0 ; d<Dim ; d++ ) off[d] = 0;
@@ -246,7 +251,11 @@ void FEMTree< Dim , Real >::thicken( FEMTreeNode** nodes , size_t nodeCount, Den
 	}
 	typename RegularTreeNode< Dim , FEMTreeNodeData >::template NeighborKey< IsotropicUIntPack< Dim , LeftRadius > , IsotropicUIntPack< Dim , RightRadius > > neighborKey;
 	neighborKey.set( _tree->maxDepth() );
+#ifdef NEW_CODE
+	for( size_t i=0 ; i<nodeCount ; i++ ) neighborKey.template getNeighbors< true >( nodes[i] , nodeAllocator , _NodeInitializer( *this ) );
+#else // !NEW_CODE
 	for( int i=0 ; i<nodeCount ; i++ ) neighborKey.template getNeighbors< true >( nodes[i] , nodeAllocator , _NodeInitializer( *this ) );
+#endif // NEW_CODE
 	{
 		int d=0 , off[Dim];
 		for( int d=0 ; d<Dim ; d++ ) off[d] = 0;
@@ -275,14 +284,26 @@ typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree >* FEMT
 	PointSupportKey< IsotropicUIntPack< Dim , DensityDegree > > densityKey;
 	densityKey.set( _localToGlobal( splatDepth ) );
 
+#ifdef NEW_CODE
+	std::vector< node_index_type > sampleMap( nodeCount() , -1 );
+#else // !NEW_CODE
 	std::vector< int > sampleMap( nodeCount() , -1 );
+#endif // NEW_CODE
 #pragma omp parallel for
+#ifdef NEW_CODE
+	for( node_index_type i=0 ; i<(node_index_type)samples.size() ; i++ ) if( samples[i].sample.weight>0 ) sampleMap[ samples[i].node->nodeData.nodeIndex ] = i;
+#else // !NEW_CODE
 	for( int i=0 ; i<samples.size() ; i++ ) if( samples[i].sample.weight>0 ) sampleMap[ samples[i].node->nodeData.nodeIndex ] = i;
+#endif // NEW_CODE
 	std::function< ProjectiveData< Point< Real , Dim > , Real > ( FEMTreeNode* ) > SetDensity = [&] ( FEMTreeNode* node )
 	{
 		ProjectiveData< Point< Real , Dim > , Real > sample;
 		LocalDepth d = _localDepth( node );
+#ifdef NEW_CODE
+		node_index_type idx = node->nodeData.nodeIndex;
+#else // !NEW_CODE
 		int idx = node->nodeData.nodeIndex;
+#endif // NEW_CODE
 		if( node->children )
 			for( int c=0 ; c<(1<<Dim) ; c++ )
 			{
@@ -295,7 +316,11 @@ typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree >* FEMT
 				}
 				sample += s;
 			}
+#ifdef NEW_CODE
+		else if( idx<(node_index_type)sampleMap.size() && sampleMap[idx]!=-1 )
+#else // !NEW_CODE
 		else if( idx<sampleMap.size() && sampleMap[idx]!=-1 )
+#endif // NEW_CODE
 		{
 			sample = samples[ sampleMap[ idx ] ].sample;
 			if( d<=splatDepth && sample.weight>0 )
@@ -323,19 +348,30 @@ SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim 
 	std::vector< DensityKey > densityKeys( omp_get_max_threads() );
 	std::vector<  NormalKey >  normalKeys( omp_get_max_threads() );
 	bool oneKey = DensityDegree==NormalDegrees::Min() && DensityDegree==NormalDegrees::Max();
+#ifdef NEW_CODE
+	for( size_t i=0 ; i<densityKeys.size() ; i++ ) densityKeys[i].set( _localToGlobal( maxDepth ) );
+	if( !oneKey ) for( size_t i=0 ; i<normalKeys.size() ; i++ ) normalKeys[i].set( _localToGlobal( maxDepth ) );
+#else // !NEW_CODE
 	for( int i=0 ; i<densityKeys.size() ; i++ ) densityKeys[i].set( _localToGlobal( maxDepth ) );
 	if( !oneKey ) for( int i=0 ; i<normalKeys.size() ; i++ ) normalKeys[i].set( _localToGlobal( maxDepth ) );
+#endif // NEW_CODE
 	Real weightSum = 0;
 	pointWeightSum = 0;
 	SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > normalField;
 	Real _pointWeightSum = 0;
-#if defined( _WIN32 ) || defined( _WIN64 )
-#pragma message( "[WARNING] Uncomment me!!!!!!!" )
-#endif // WINDOWS
-//#pragma omp parallel for reduction( + : weightSum , _pointWeightSum )
+#ifdef BLASE_DEBUG
+#else // !BLASE_DEBUG
+#pragma omp parallel for reduction( + : weightSum , _pointWeightSum )
+#endif // BLASE_DEBUG
+#ifdef NEW_CODE
+	for( node_index_type i=0 ; i<(node_index_type)samples.size() ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<samples.size() ; i++ )
+#endif // NEW_CODE
 	{
+#ifdef BLASE_DEBUG
 debugFEMTree = (i==62784320);
+#endif // BLASE_DEBUG
 		DensityKey& densityKey = densityKeys[ omp_get_thread_num() ];
 		NormalKey& normalKey = normalKeys[ omp_get_thread_num() ];
 		const ProjectiveData< Point< Real , Dim > , Real >& sample = samples[i].sample;
@@ -387,7 +423,11 @@ SparseNodeData< Data , IsotropicUIntPack< Dim , DataSig > > FEMTree< Dim , Real 
 	densityKey.set( _localToGlobal( maxDepth ) ) , dataKey.set( _localToGlobal( maxDepth ) );
 
 	SparseNodeData< Data , IsotropicUIntPack< Dim , DataSig > > dataField;
+#ifdef NEW_CODE
+	for( node_index_type i=0 ; i<samples.size() ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<samples.size() ; i++ )
+#endif // NEW_CODE
 	{
 		const ProjectiveData< Point< Real , Dim > , Real >& sample = samples[i].sample;
 		const Data& data = sampleData[i];
@@ -413,7 +453,11 @@ SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig
 	densityKey.set( _localToGlobal( maxDepth ) ) , dataKey.set( _localToGlobal( maxDepth ) );
 
 	SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > dataField;
+#ifdef NEW_CODE
+	for( node_index_type i=0 ; i<(node_index_type)samples.size() ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<samples.size() ; i++ )
+#endif // NEW_CODE
 	{
 		const ProjectiveData< Point< Real , Dim > , Real >& sample = samples[i].sample;
 		const Data& data = sampleData[i];
@@ -488,7 +532,11 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const H
 		auto NodeTerminationLambda = [&]( const FEMTreeNode *node ){ return _localDepth( node )==d; };
 		for( FEMTreeNode* node=_tree->nextNode( NodeTerminationLambda , NULL ) ; node ; node=_tree->nextNode( NodeTerminationLambda , node ) ) if( _localDepth( node )==d && IsActiveNode< Dim >( node->children ) ) nodes.push_back( node );
 #pragma omp parallel for
+#ifdef NEW_CODE
+		for( node_index_type i=0 ; i<(node_index_type)nodes.size() ; i++ )
+#else // !NEW_CODE
 		for( int i=0 ; i<nodes.size() ; i++ )
+#endif // NEW_CODE
 		{
 			NeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 			FEMTreeNode* node = nodes[i];
@@ -498,7 +546,11 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const H
 			for( unsigned int i=0 ; i<size ; i++ ) SetGhostFlag< Dim >( nodes[i] , false );
 		}
 	}
+#ifdef NEW_CODE
+	std::vector< node_index_type > map;
+#else // !NEW_CODE
 	std::vector< int > map;
+#endif // NEW_CODE
 	_sNodes.set( *_tree , &map );
 	_setSpaceValidityFlags();
 	for( FEMTreeNode* node=_tree->nextNode() ; node ; node=_tree->nextNode( node ) ) if( !IsActiveNode< Dim >( node ) ) node->nodeData.nodeIndex = -1;
@@ -510,7 +562,11 @@ template< unsigned int Dim , class Real >
 void FEMTree< Dim , Real >::_setSpaceValidityFlags( void ) const
 {
 #pragma omp parallel for
+#ifdef NEW_CODE
+	for( node_index_type i=0 ; i<(node_index_type)_sNodes.size() ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<_sNodes.size() ; i++ )
+#endif // NEW_CODE
 	{
 		const unsigned char MASK = ~( FEMTreeNodeData::SPACE_FLAG );
 		_sNodes.treeNodes[i]->nodeData.flags &= MASK;
@@ -529,7 +585,11 @@ void FEMTree< Dim , Real >::_setFEM1ValidityFlags( UIntPack< FEMSigs1 ... > ) co
 		if( needToReset ) memcpy( _femSigs1 , femSigs1 , sizeof( _femSigs1 ) );
 	}
 	if( needToReset )
+#ifdef NEW_CODE
+		for( node_index_type i=0 ; i<(node_index_type)_sNodes.size() ; i++ )
+#else // !NEW_CODE
 		for( int i=0 ; i<_sNodes.size() ; i++ )
+#endif // NEW_CODE
 		{
 			const unsigned char MASK = ~( FEMTreeNodeData::FEM_FLAG_1 );
 			_sNodes.treeNodes[i]->nodeData.flags &= MASK;
@@ -549,7 +609,11 @@ void FEMTree< Dim , Real >::_setFEM2ValidityFlags( UIntPack< FEMSigs2 ... > ) co
 		if( needToReset ) memcpy( _femSigs2 , femSigs2 , sizeof( _femSigs2 ) );
 	}
 	if( needToReset )
+#ifdef NEW_CODE
+		for( node_index_type i=0 ; i<(node_index_type)_sNodes.size() ; i++ )
+#else // !NEW_CODE
 		for( int i=0 ; i<_sNodes.size() ; i++ )
+#endif // NEW_CODE
 		{
 			const unsigned char MASK = ~( FEMTreeNodeData::FEM_FLAG_2 );
 			_sNodes.treeNodes[i]->nodeData.flags &= MASK;
@@ -577,7 +641,11 @@ void FEMTree< Dim , Real >::_setRefinabilityFlags( UIntPack< FEMSigs ... > ) con
 
 		for( int d=0 ; d<_maxDepth ; d++ )
 #pragma omp parallel for
+#ifdef NEW_CODE
+			for( node_index_type i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ )
+#else // !NEW_CODE
 			for( int i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ )
+#endif // NEW_CODE
 			{
 				UpSampleKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 
@@ -615,7 +683,11 @@ void FEMTree< Dim , Real >::_clipTree( const HasDataFunctor& f , LocalDepth full
 	auto NodeTerminationLambda = [&]( const FEMTreeNode *node ){ return _localDepth( node )==fullDepth; };
 	for( FEMTreeNode* temp=_tree->nextNode( NodeTerminationLambda , NULL ) ; temp ; temp=_tree->nextNode( NodeTerminationLambda , temp ) ) if( _localDepth( temp )==fullDepth ) nodes.push_back( temp );
 #pragma omp parallel for
+#ifdef NEW_CODE
+	for( node_index_type i=0 ; i<(node_index_type)nodes.size() ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<nodes.size() ; i++ )
+#endif // NEW_CODE
 		for( FEMTreeNode* node=nodes[i]->nextNode() ; node ; node=nodes[i]->nextNode(node) ) if( node->children )
 		{
 			bool hasData = false;
@@ -630,8 +702,13 @@ void FEMTree< Dim , Real >::_ExactPointAndDataInterpolationInfo< T , Data , Poin
 {
 	_sampleSpan.resize( tree.nodesSize() );
 #pragma omp parallel for
+#ifdef NEW_CODE
+	for( node_index_type i=0 ; i<tree.nodesSize() ; i++ ) _sampleSpan[i] = std::pair< int , int >( 0 , 0 );
+	for( node_index_type i=0 ; i<samples.size() ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<tree.nodesSize() ; i++ ) _sampleSpan[i] = std::pair< int , int >( 0 , 0 );
 	for( int i=0 ; i<samples.size() ; i++ )
+#endif // NEW_CODE
 	{
 		const FEMTreeNode* leaf = samples[i].node;
 		while( leaf && !tree._isValidSpaceNode( leaf ) ) leaf = leaf->parent;
@@ -639,9 +716,17 @@ void FEMTree< Dim , Real >::_ExactPointAndDataInterpolationInfo< T , Data , Poin
 	}
 	_iData.resize( samples.size() );
 
-	std::function< void ( FEMTreeNode* , int& ) > SetRange = [&] ( FEMTreeNode* node , int& start )
+#ifdef NEW_CODE
+	std::function< void ( FEMTreeNode* , node_index_type & ) > SetRange = [&] ( FEMTreeNode* node , node_index_type &start )
+#else // !NEW_CODE
+	std::function< void ( FEMTreeNode* , int& ) > SetRange = [&] ( FEMTreeNode* node , int &start )
+#endif // NEW_CODE
 	{
+#ifdef NEW_CODE
+		std::pair< node_index_type , node_index_type >& span = _sampleSpan[ node->nodeData.nodeIndex ];
+#else // !NEW_CODE
 		std::pair< int , int >& span = _sampleSpan[ node->nodeData.nodeIndex ];
+#endif // NEW_CODE
 		if( tree._isValidSpaceNode( node->children ) )
 		{
 			for( int c=0 ; c<(1<<Dim) ; c++ ) SetRange( node->children + c , start );
@@ -656,12 +741,20 @@ void FEMTree< Dim , Real >::_ExactPointAndDataInterpolationInfo< T , Data , Poin
 		}
 	};
 
+#ifdef NEW_CODE
+	node_index_type start = 0;
+#else // !NEW_CODE
 	int start = 0;
+#endif // NEW_CODE
 	SetRange( tree._spaceRoot , start );
 	for( FEMTreeNode* node=tree._spaceRoot->nextNode() ; node ; node=tree._spaceRoot->nextNode(node) )
 		if( tree._isValidSpaceNode( node ) && !tree._isValidSpaceNode( node->children ) ) _sampleSpan[ node->nodeData.nodeIndex ].second = _sampleSpan[ node->nodeData.nodeIndex ].first;
 
+#ifdef NEW_CODE
+	for( node_index_type i=0 ; i<samples.size() ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<samples.size() ; i++ )
+#endif // NEW_CODE
 	{
 		const FEMTreeNode* leaf = samples[i].node;
 		while( leaf && !tree._isValidSpaceNode( leaf ) ) leaf = leaf->parent;
@@ -677,7 +770,11 @@ void FEMTree< Dim , Real >::_ExactPointAndDataInterpolationInfo< T , Data , Poin
 	}
 
 #pragma omp parallel for
+#ifdef NEW_CODE
+	for( node_index_type i=0 ; i<_iData.size() ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<(int)_iData.size() ; i++ )
+#endif // NEW_CODE
 	{
 		Real w = _iData[i].pointInfo.weight;
 		_iData[i] /= w;
@@ -686,14 +783,20 @@ void FEMTree< Dim , Real >::_ExactPointAndDataInterpolationInfo< T , Data , Poin
 		_iData[i].pointInfo.dualValues *= _iData[i].pointInfo.weight;
 	}
 }
+
 template< unsigned int Dim , class Real >
 template< typename T , unsigned int PointD , typename ConstraintDual , typename SystemDual >
 void FEMTree< Dim , Real >::ExactPointInterpolationInfo< T , PointD , ConstraintDual , SystemDual >::_init( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , bool noRescale )
 {
 	_sampleSpan.resize( tree.nodesSize() );
 #pragma omp parallel for
+#ifdef NEW_CODE
+	for( node_index_type i=0 ; i<(node_index_type)tree.nodesSize() ; i++ ) _sampleSpan[i] = std::pair< node_index_type , node_index_type >( 0 , 0 );
+	for( node_index_type i=0 ; i<(node_index_type)samples.size() ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<tree.nodesSize() ; i++ ) _sampleSpan[i] = std::pair< int , int >( 0 , 0 );
 	for( int i=0 ; i<samples.size() ; i++ )
+#endif // NEW_CODE
 	{
 		const FEMTreeNode* leaf = samples[i].node;
 		while( leaf && !tree._isValidSpaceNode( leaf ) ) leaf = leaf->parent;
@@ -701,9 +804,17 @@ void FEMTree< Dim , Real >::ExactPointInterpolationInfo< T , PointD , Constraint
 	}
 	_iData.resize( samples.size() );
 
-	std::function< void ( FEMTreeNode* , int& ) > SetRange = [&] ( FEMTreeNode* node , int& start )
+#ifdef NEW_CODE
+	std::function< void ( FEMTreeNode* , node_index_type & ) > SetRange = [&] ( FEMTreeNode* node , node_index_type &start )
+#else // !NEW_CODE
+	std::function< void ( FEMTreeNode* , int & ) > SetRange = [&] ( FEMTreeNode* node , int &start )
+#endif // NEW_CODE
 	{
+#ifdef NEW_CODE
+		std::pair< node_index_type , node_index_type >& span = _sampleSpan[ node->nodeData.nodeIndex ];
+#else // !NEW_CODE
 		std::pair< int , int >& span = _sampleSpan[ node->nodeData.nodeIndex ];
+#endif // NEW_CODE
 		if( tree._isValidSpaceNode( node->children ) )
 		{
 			for( int c=0 ; c<(1<<Dim) ; c++ ) SetRange( node->children + c , start );
@@ -718,12 +829,20 @@ void FEMTree< Dim , Real >::ExactPointInterpolationInfo< T , PointD , Constraint
 		}
 	};
 
+#ifdef NEW_CODE
+	node_index_type start=0;
+#else // !NEW_CODE
 	int start = 0;
+#endif // NEW_CODE
 	SetRange( tree._spaceRoot , start );
 	for( FEMTreeNode* node=tree._spaceRoot->nextNode() ; node ; node=tree._spaceRoot->nextNode(node) )
 		if( tree._isValidSpaceNode( node ) && !tree._isValidSpaceNode( node->children ) ) _sampleSpan[ node->nodeData.nodeIndex ].second = _sampleSpan[ node->nodeData.nodeIndex ].first;
 
+#ifdef NEW_CODE
+	for( node_index_type i=0 ; i<(node_index_type)samples.size() ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<samples.size() ; i++ )
+#endif // NEW_CODE
 	{
 		const FEMTreeNode* leaf = samples[i].node;
 		while( leaf && !tree._isValidSpaceNode( leaf ) ) leaf = leaf->parent;
@@ -738,7 +857,11 @@ void FEMTree< Dim , Real >::ExactPointInterpolationInfo< T , PointD , Constraint
 	}
 
 #pragma omp parallel for
+#ifdef NEW_CODE
+	for( node_index_type i=0 ; i<(node_index_type)_iData.size() ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<(int)_iData.size() ; i++ )
+#endif // NEW_CODE
 	{
 		Real w = _iData[i].weight;
 		_iData[i] /= w;
@@ -753,8 +876,13 @@ void FEMTree< Dim , Real >::ExactPointInterpolationInfo< double , PointD , Const
 {
 	_sampleSpan.resize( tree.nodesSize() );
 #pragma omp parallel for
+#ifdef NEW_CODE
+	for( node_index_type i=0 ; i<tree.nodesSize() ; i++ ) _sampleSpan[i] = std::pair< node_index_type , node_index_type >( 0 , 0 );
+	for( node_index_type i=0 ; i<samples.size() ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<tree.nodesSize() ; i++ ) _sampleSpan[i] = std::pair< int , int >( 0 , 0 );
 	for( int i=0 ; i<samples.size() ; i++ )
+#endif // NEW_CODE
 	{
 		const FEMTreeNode* leaf = samples[i].node;
 		while( leaf && !tree._isValidSpaceNode( leaf ) ) leaf = leaf->parent;
@@ -762,9 +890,17 @@ void FEMTree< Dim , Real >::ExactPointInterpolationInfo< double , PointD , Const
 	}
 	_iData.resize( samples.size() );
 
-	std::function< void ( FEMTreeNode* , int& ) > SetRange = [&] ( FEMTreeNode* node , int& start )
+#ifdef NEW_CODE
+	std::function< void ( FEMTreeNode* , node_index_type & ) > SetRange = [&] ( FEMTreeNode *node , node_index_type &start )
+#else // !NEW_CODE
+	std::function< void ( FEMTreeNode* , int & ) > SetRange = [&] ( FEMTreeNode* node , int& start )
+#endif // NEW_CODE
 	{
+#ifdef NEW_CODE
+		std::pair< node_index_type , node_index_type >& span = _sampleSpan[ node->nodeData.nodeIndex ];
+#else // !NEW_CODE
 		std::pair< int , int >& span = _sampleSpan[ node->nodeData.nodeIndex ];
+#endif // NEW_CODE
 		if( tree._isValidSpaceNode( node->children ) )
 		{
 			for( int c=0 ; c<(1<<Dim) ; c++ ) SetRange( node->children + c , start );
@@ -779,12 +915,20 @@ void FEMTree< Dim , Real >::ExactPointInterpolationInfo< double , PointD , Const
 		}
 	};
 
+#ifdef NEW_CODE
+	node_index_type start = 0;
+#else // !NEW_CODE
 	int start = 0;
+#endif // NEW_CODE
 	SetRange( tree._spaceRoot , start );
 	for( FEMTreeNode* node=tree._spaceRoot->nextNode() ; node ; node=tree._spaceRoot->nextNode(node) )
 		if( tree._isValidSpaceNode( node ) && !tree._isValidSpaceNode( node->children ) ) _sampleSpan[ node->nodeData.nodeIndex ].second = _sampleSpan[ node->nodeData.nodeIndex ].first;
 
+#ifdef NEW_CODE
+	for( node_index_type i=0 ; i<samples.size() ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<samples.size() ; i++ )
+#endif // NEW_CODE
 	{
 		const FEMTreeNode* leaf = samples[i].node;
 		while( leaf && !tree._isValidSpaceNode( leaf ) ) leaf = leaf->parent;
@@ -799,7 +943,11 @@ void FEMTree< Dim , Real >::ExactPointInterpolationInfo< double , PointD , Const
 	}
 
 #pragma omp parallel for
+#ifdef NEW_CODE
+	for( node_index_type i=0 ; i<_iData.size() ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<(int)_iData.size() ; i++ )
+#endif // NEW_CODE
 	{
 		Real w = _iData[i].weight;
 		_iData[i] /= w;
@@ -832,7 +980,11 @@ template< typename T , unsigned int PointD , typename ConstraintDual >
 SparseNodeData< DualPointInfo< Dim , Real , T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > FEMTree< Dim , Real >::_densifyInterpolationInfoAndSetDualConstraints( const std::vector< PointSample >& samples , ConstraintDual constraintDual , int adaptiveExponent ) const
 {
 	SparseNodeData< DualPointInfo< Dim , Real , T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > iInfo;
+#ifdef NEW_CODE
+	for( node_index_type i=0 ; i<(node_index_type)samples.size() ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<samples.size() ; i++ )
+#endif // NEW_CODE
 	{
 		const FEMTreeNode* node = samples[i].node;
 		const ProjectiveData< Point< Real , Dim > , Real >& pData = samples[i].sample;
@@ -850,7 +1002,11 @@ SparseNodeData< DualPointInfo< Dim , Real , T , PointD > , IsotropicUIntPack< Di
 	_setInterpolationInfoFromChildren( _spaceRoot , iInfo );
 
 #pragma omp parallel for
+#ifdef NEW_CODE
+	for( node_index_type i=0 ; i<(node_index_type)iInfo.size() ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<(int)iInfo.size() ; i++ )
+#endif // NEW_CODE
 	{
 		Real w = iInfo[i].weight;
 		iInfo[i] /= w ; iInfo[i].weight = w;
@@ -876,7 +1032,11 @@ template< typename T , typename Data , unsigned int PointD , typename Constraint
 SparseNodeData< DualPointAndDataInfo< Dim , Real , Data , T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > FEMTree< Dim , Real >::_densifyInterpolationInfoAndSetDualConstraints( const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , ConstraintDual constraintDual , int adaptiveExponent ) const
 {
 	SparseNodeData< DualPointAndDataInfo< Dim , Real , Data , T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > iInfo;
+#ifdef NEW_CODE
+	for( node_index_type i=0 ; i<samples.size() ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<samples.size() ; i++ )
+#endif // NEW_CODE
 	{
 		const FEMTreeNode* node = samples[i].node;
 		const ProjectiveData< Point< Real , Dim > , Real >& pData = samples[i].sample;
@@ -895,7 +1055,11 @@ SparseNodeData< DualPointAndDataInfo< Dim , Real , Data , T , PointD > , Isotrop
 	_setInterpolationInfoFromChildren( _spaceRoot , iInfo );
 
 #pragma omp parallel for
+#ifdef NEW_CODE
+	for( node_index_type i=0 ; i<iInfo.size() ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<(int)iInfo.size() ; i++ )
+#endif // NEW_CODE
 	{
 		Real w = iInfo[i].pointInfo.weight;
 		iInfo[i] /= w ; iInfo[i].pointInfo.weight = w;
@@ -921,7 +1085,11 @@ template< typename T , unsigned int PointD , typename ConstraintDual >
 SparseNodeData< DualPointInfoBrood< Dim , Real , T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > FEMTree< Dim , Real >::_densifyChildInterpolationInfoAndSetDualConstraints( const std::vector< PointSample >& samples , ConstraintDual constraintDual , bool noRescale ) const
 {
 	SparseNodeData< DualPointInfoBrood< Dim , Real , T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > iInfo;
+#ifdef NEW_CODE
+	for( node_index_type i=0 ; i<samples.size() ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<samples.size() ; i++ )
+#endif // NEW_CODE
 	{
 		const FEMTreeNode* node = samples[i].node;
 		const ProjectiveData< Point< Real , Dim > , Real >& pData = samples[i].sample;
@@ -941,7 +1109,11 @@ SparseNodeData< DualPointInfoBrood< Dim , Real , T , PointD > , IsotropicUIntPac
 	_setInterpolationInfoFromChildren( _spaceRoot , iInfo );
 
 #pragma omp parallel for
+#ifdef NEW_CODE
+	for( node_index_type i=0 ; i<iInfo.size() ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<(int)iInfo.size() ; i++ )
+#endif // NEW_CODE
 	{
 		iInfo[i].finalize();
 		for( int c=0 ; c<(int)iInfo[i].size() ; c++ )
@@ -961,7 +1133,11 @@ template< typename T , typename Data , unsigned int PointD , typename Constraint
 SparseNodeData< DualPointAndDataInfoBrood< Dim , Real , Data , T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > FEMTree< Dim , Real >::_densifyChildInterpolationInfoAndSetDualConstraints( const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , ConstraintDual constraintDual , bool noRescale ) const
 {
 	SparseNodeData< DualPointAndDataInfoBrood< Dim , Real , Data , T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > iInfo;
+#ifdef NEW_CODE
+	for( node_index_type i=0 ; i<samples.size() ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<samples.size() ; i++ )
+#endif // NEW_CODE
 	{
 		const FEMTreeNode* node = samples[i].node;
 		const ProjectiveData< Point< Real , Dim > , Real >& pData = samples[i].sample;
@@ -982,7 +1158,11 @@ SparseNodeData< DualPointAndDataInfoBrood< Dim , Real , Data , T , PointD > , Is
 	_setInterpolationInfoFromChildren( _spaceRoot , iInfo );
 
 #pragma omp parallel for
+#ifdef NEW_CODE
+	for( node_index_type i=0 ; i<iInfo.size() ; i++ )
+#else // !NEW_CODE
 	for( int i=0 ; i<(int)iInfo.size() ; i++ )
+#endif // NEW_CODE
 	{
 		iInfo[i].finalize();
 		for( int c=0 ; c<(int)iInfo[i].size() ; c++ )
@@ -1005,21 +1185,39 @@ SparseNodeData< DualPointAndDataInfoBrood< Dim , Real , Data , T , PointD > , Is
 template< unsigned int Dim , class Real >
 std::vector< int > FEMTree< Dim , Real >::merge( FEMTree* tree )
 {
+#ifdef NEW_CODE
+	std::vector< node_index_type > map;
+#else // !NEW_CODE
 	std::vector< int > map;
+#endif // NEW_CODE
 	if( _depthOffset!=tree->_depthOffset ) ERROR_OUT( "depthOffsets don't match: %d != %d" , _depthOffset , tree->_depthOffset );
 
 	// Compute the next available index
+#ifdef NEW_CODE
+	node_index_type nextIndex = 0;
+	for( const FEMTreeNode* node=_tree->nextNode() ; node!=NULL ; node=_tree->nextNode( node ) ) nextIndex = std::max< node_index_type >( nextIndex , node->nodeData.nodeIndex+1 );
+#else // !NEW_CODE
 	int nextIndex = 0;
 	for( const FEMTreeNode* node=_tree->nextNode() ; node!=NULL ; node=_tree->nextNode( node ) ) nextIndex = std::max< int >( nextIndex , node->nodeData.nodeIndex+1 );
+#endif // NEW_CODE
 
 	// Set the size of the map
 	{
+#ifdef NEW_CODE
+		node_index_type mapSize = 0;
+		for( const FEMTreeNode* node=tree->_tree->nextNode() ; node!=NULL ; node=tree->_tree->nextNode( node ) ) mapSize = std::max< node_index_type >( mapSize , node->nodeData.nodeIndex+1 );
+#else // !NEW_CODE
 		int mapSize = 0;
 		for( const FEMTreeNode* node=tree->_tree->nextNode() ; node!=NULL ; node=tree->_tree->nextNode( node ) ) mapSize = std::max< int >( mapSize , node->nodeData.nodeIndex+1 );
+#endif // NEW_CODE
 		map.resize( mapSize );
 	}
 
-	std::function< void ( FEMTreeNode* , FEMTreeNode* , std::vector< int >& , int& ) > MergeNodes = [&]( FEMTreeNode* node1 , FEMTreeNode* node2 , std::vector< int >& map , int& nextIndex )
+#ifdef NEW_CODE
+	std::function< void ( FEMTreeNode* , FEMTreeNode* , std::vector< node_index_type > & , node_index_type & ) > MergeNodes = [&]( FEMTreeNode* node1 , FEMTreeNode* node2 , std::vector< node_index_type > &map , node_index_type &nextIndex )
+#else // !NEW_CODE
+	std::function< void ( FEMTreeNode* , FEMTreeNode* , std::vector< int > & , int & ) > MergeNodes = [&]( FEMTreeNode* node1 , FEMTreeNode* node2 , std::vector< int > &map , int &nextIndex )
+#endif // NEW_CODE
 	{
 		if( node1 && node2 )
 		{

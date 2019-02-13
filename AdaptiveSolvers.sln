@@ -31,6 +31,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Header Files", "Header File
 		Src\Allocator.h = Src\Allocator.h
 		Src\Array.h = Src\Array.h
 		Src\BinaryNode.h = Src\BinaryNode.h
+		Src\BlockedVector.h = Src\BlockedVector.h
 		Src\BSplineData.h = Src\BSplineData.h
 		Src\CmdLineParser.h = Src\CmdLineParser.h
 		Src\Factor.h = Src\Factor.h

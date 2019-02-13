@@ -833,7 +833,11 @@ Pointer( V ) FEMTree< Dim , Real >::regularGridUpSample( const DenseNodeData< V 
 		upSampledCoefficients = NewPointer< V >( count );
 		memset( upSampledCoefficients , 0 , sizeof( V ) * count );
 #pragma omp parallel for
+#ifdef NEW_CODE
+		for( node_index_type i=_sNodesBegin(_depth) ; i<_sNodesEnd(_depth) ; i++ ) if( !_outOfBounds( UIntPack< DataSigs ... >() , _sNodes.treeNodes[i] ) )
+#else // !NEW_CODE
 		for( int i=_sNodesBegin(_depth) ; i<_sNodesEnd(_depth) ; i++ ) if( !_outOfBounds( UIntPack< DataSigs ... >() , _sNodes.treeNodes[i] ) )
+#endif // NEW_CODE
 		{
 			LocalDepth _d ; LocalOffset _off;
 			_localDepthAndOffset( _sNodes.treeNodes[i] , _d , _off );
@@ -854,7 +858,11 @@ Pointer( V ) FEMTree< Dim , Real >::regularGridUpSample( const DenseNodeData< V 
 		memset( _coefficients , 0 , sizeof( V ) * count );
 		if( _depth<=_maxDepth )
 #pragma omp parallel for
+#ifdef NEW_CODE
+			for( node_index_type i=_sNodesBegin(_depth) ; i<_sNodesEnd(_depth) ; i++ ) if( !_outOfBounds( UIntPack< DataSigs ... >() , _sNodes.treeNodes[i] ) )
+#else // !NEW_CODE
 			for( int i=_sNodesBegin(_depth) ; i<_sNodesEnd(_depth) ; i++ ) if( !_outOfBounds( UIntPack< DataSigs ... >() , _sNodes.treeNodes[i] ) )
+#endif // NEW_CODE
 			{
 				LocalDepth _d ; LocalOffset _off;
 				_localDepthAndOffset( _sNodes.treeNodes[i] , _d , _off );
@@ -896,7 +904,11 @@ V FEMTree< Dim , Real >::average( const DenseNodeData< V , UIntPack< DataSigs ..
 		for( int dd=0 ; dd<Dim ; dd++ ) off[dd] = center , __begin[dd] = 0 , __end[dd] = 1;
 		double integral = FEMIntegrator::Integral( UIntPack< DataSigs ... >() , d , off , __begin , __end );
 #pragma omp parallel for
+#ifdef NEW_CODE
+		for( node_index_type i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ ) if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
+#else //!NEW_CODE
 		for( int i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ ) if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
+#endif // NEW_CODE
 		{
 			int d , off[Dim];
 			_localDepthAndOffset( _sNodes.treeNodes[i] , d , off );
@@ -925,7 +937,11 @@ SparseNodeData< CumulativeDerivativeValues< Real , Dim , PointD > , IsotropicUIn
 	{
 		std::vector< ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > > > neighborKeys( omp_get_max_threads() );
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( d ) );
+#ifdef NEW_CODE
+		for( node_index_type i=_sNodesBegin(d) ; i<(node_index_type)_sNodesEnd(d) ; i++ ) if( _isValidSpaceNode( _sNodes.treeNodes[i] ) )
+#else // !NEW_CODE
 		for( int i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ ) if( _isValidSpaceNode( _sNodes.treeNodes[i] ) )
+#endif // NEW_CODE
 		{
 			ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& neighborKey = neighborKeys[ omp_get_thread_num() ];
 			FEMTreeNode* node = _sNodes.treeNodes[i];

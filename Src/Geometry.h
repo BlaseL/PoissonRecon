@@ -342,56 +342,105 @@ struct Simplex< Real , Dim , 0 >
 template< class Real , unsigned int Dim > using Edge = Simplex< Real , Dim , 1 >;
 template< class Real , unsigned int Dim > using Triangle = Simplex< Real , Dim , 2 >;
 
+#ifdef NEW_CODE
+template< unsigned int K , typename Index >
+#else // !NEW_CODE
 template< unsigned int K >
+#endif // NEW_CODE
 struct SimplexIndex
 {
+#ifdef NEW_CODE
+	Index idx[K+1];
+#else // !NEW_CODE
 	int idx[K+1];
+#endif // NEW_CODE
 	template< class ... Ints >
 	SimplexIndex( Ints ... values ){ static_assert( sizeof...(values)==K+1 || sizeof...(values)==0 , "[ERROR] Invalid number of coefficients" ) ; _init( 0 , values ... ); }
+#ifdef NEW_CODE
+	Index &operator[] ( int i ) { return idx[i] ;}
+	const Index &operator[] ( int i ) const { return idx[i]; }
+#else // !NEW_CODE
 	SimplexIndex( int i0 , int i1 , int i2 ){ idx[0] = i0 , idx[1] = i1 , idx[2] = i2; }
 	int& operator[] ( int i ) { return idx[i] ;}
 	const int& operator[] ( int i ) const { return idx[i]; }
+#endif // NEW_CODE
 protected:
 	void _init( int k )
 	{
 		if( !k ) memset( idx , 0 , sizeof(idx) );
 		else ERROR_OUT( "Should never be called" );
 	}
+#ifdef NEW_CODE
+	template< class ... Ints > void _init( int k , Index v , Ints ... values )
+#else // !NEW_CODE
 	template< class ... Ints > void _init( int k , int v , Ints ... values )
+#endif // NEW_CODE
 	{
 		idx[k] = v;
 		if( k<=K ) _init( k+1 , values ... );
 	}
 };
+#ifdef NEW_CODE
+template< typename Index > using EdgeIndex = SimplexIndex< 1 , Index >;
+template< typename Index > using TriangleIndex = SimplexIndex< 2 , Index >;
+#else // !NEW_CODE
 typedef SimplexIndex< 1 > EdgeIndex;
 typedef SimplexIndex< 2 > TriangleIndex;
+#endif // NEW_CODE
 
+#ifdef NEW_CODE
+template< typename Index >
+#endif // NEW_CODE
 class CoredPointIndex
 {
 public:
+#ifdef NEW_CODE
+	Index index;
+#else // !NEW_CODE
 	int index;
+#endif // NEW_CODE
 	char inCore;
 
 	int operator == (const CoredPointIndex& cpi) const {return (index==cpi.index) && (inCore==cpi.inCore);};
 	int operator != (const CoredPointIndex& cpi) const {return (index!=cpi.index) || (inCore!=cpi.inCore);};
 };
+#ifdef NEW_CODE
+template< typename Index > struct CoredEdgeIndex{ CoredPointIndex< Index > idx[2]; };
+#else // !NEW_CODE
 struct CoredEdgeIndex{ CoredPointIndex idx[2]; };
+#endif // NEW_CODE
 
+#ifdef NEW_CODE
+template< typename Index >
+#endif // NEW_CODE
 class TriangulationEdge
 {
 public:
 	TriangulationEdge( void ){ pIndex[0] = pIndex[1] = tIndex[0] = tIndex[1] = -1; }
+#ifdef NEW_CODE
+	Index pIndex[2] , tIndex[2];
+#else // !NEW_CODE
 	int pIndex[2];
 	int tIndex[2];
+#endif // NEW_CODE
 };
 
+#ifdef NEW_CODE
+template< typename Index >
+#endif // NEW_CODE
 class TriangulationTriangle
 {
 public:
 	TriangulationTriangle( void ){ eIndex[0] = eIndex[1] = eIndex[2] = -1; }
+#ifdef NEW_CODE
+	Index eIndex[3];
+#else // !NEW_CODE
 	int eIndex[3];
+#endif // NEW_CODE
 };
 
+#ifdef NEW_CODE
+#else // !NEW_CODE
 template< class Real , unsigned int Dim >
 class Triangulation
 {
@@ -412,12 +461,41 @@ protected:
 	static long long EdgeIndex( int p1 , int p2 );
 	Real area( const Triangle< Real , Dim >& t ) const;
 };
+#endif // NEW_CODE
 
+#ifdef NEW_CODE
+template< typename Index >
+#endif // NEW_CODE
 struct CoredVertexIndex
 {
+#ifdef NEW_CODE
+	Index idx;
+#else // !NEW_CODE
 	int idx;
+#endif // NEW_CODE
 	bool inCore;
 };
+
+#ifdef NEW_CODE
+template< class Vertex , typename Index >
+class CoredCurveData
+{
+public:
+	std::vector< Vertex > inCorePoints;
+	virtual void resetIterator( void ) = 0;
+
+	virtual Index addOutOfCorePoint( const Vertex& p ) = 0;
+	virtual Index addOutOfCorePoint_s( const Vertex& p ) = 0;
+	virtual void addEdge_s( CoredVertexIndex< Index > v1 , CoredVertexIndex< Index > v2 ) = 0;
+	virtual void addEdge_s( Index v1 , Index v2 ) = 0;
+
+	virtual Index nextOutOfCorePoint( Vertex& p )=0;
+	virtual Index nextEdge( CoredVertexIndex< Index >& v1 , CoredVertexIndex< Index >& v2 ) = 0;
+
+	virtual Index outOfCorePointCount(void)=0;
+	virtual Index edgeCount( void ) = 0;
+};
+#else // !NEW_CODE
 template< class Vertex >
 class CoredCurveData
 {
@@ -436,7 +514,13 @@ public:
 	virtual int outOfCorePointCount(void)=0;
 	virtual int edgeCount( void ) = 0;
 };
+#endif // NEW_CODE
+
+#ifdef NEW_CODE
+template< class Vertex , typename Index >
+#else // !NEW_CODE
 template< class Vertex >
+#endif // NEW_CODE
 class CoredMeshData
 {
 public:
@@ -444,6 +528,18 @@ public:
 	std::vector< Vertex > inCorePoints;
 	virtual void resetIterator( void ) = 0;
 
+#ifdef NEW_CODE
+	virtual Index addOutOfCorePoint( const Vertex& p ) = 0;
+	virtual Index addOutOfCorePoint_s( const Vertex& p ) = 0;
+	virtual void addPolygon_s( const std::vector< CoredVertexIndex< Index > >& vertices ) = 0;
+	virtual void addPolygon_s( const std::vector< Index >& vertices ) = 0;
+
+	virtual Index nextOutOfCorePoint( Vertex& p )=0;
+	virtual Index nextPolygon( std::vector< CoredVertexIndex< Index > >& vertices ) = 0;
+
+	virtual Index outOfCorePointCount( void )=0;
+	virtual Index polygonCount( void ) = 0;
+#else // !NEW_CODE
 	virtual int addOutOfCorePoint( const Vertex& p ) = 0;
 	virtual int addOutOfCorePoint_s( const Vertex& p ) = 0;
 	virtual void addPolygon_s( const std::vector< CoredVertexIndex >& vertices ) = 0;
@@ -454,8 +550,59 @@ public:
 
 	virtual int outOfCorePointCount(void)=0;
 	virtual int polygonCount( void ) = 0;
+#endif // NEW_CODE
 };
 
+#ifdef NEW_CODE
+template< class Vertex , typename Index >
+class CoredVectorCurveData : public CoredCurveData< Vertex , Index >
+{
+	std::vector< Vertex > oocPoints;
+	std::vector< std::pair< Index , Index > > edges;
+	int threadIndex;
+	Index edgeIndex;
+	Index oocPointIndex;
+public:
+	CoredVectorCurveData( void );
+
+	void resetIterator( void );
+
+	Index addOutOfCorePoint( const Vertex& p );
+	Index addOutOfCorePoint_s( const Vertex& p );
+	void addEdge_s( CoredVertexIndex< Index > v1 , CoredVertexIndex< Index > v2 );
+	void addEdge_s( Index v1 , Index v2 );
+
+	Index nextOutOfCorePoint( Vertex& p );
+	Index nextEdge( CoredVertexIndex< Index > &v1 , CoredVertexIndex< Index > &v2 );
+
+	Index outOfCorePointCount( void );
+	Index edgeCount( void );
+};
+template< class Vertex , typename Index >
+class CoredVectorMeshData : public CoredMeshData< Vertex , Index >
+{
+	std::vector< Vertex > oocPoints;
+	std::vector< std::vector< std::vector< Index > > > polygons;
+	int threadIndex;
+	Index polygonIndex;
+	Index oocPointIndex;
+public:
+	CoredVectorMeshData( void );
+
+	void resetIterator( void );
+
+	Index addOutOfCorePoint( const Vertex& p );
+	Index addOutOfCorePoint_s( const Vertex& p );
+	void addPolygon_s( const std::vector< CoredVertexIndex< Index > >& vertices );
+	void addPolygon_s( const std::vector< Index >& vertices );
+
+	Index nextOutOfCorePoint( Vertex& p );
+	Index nextPolygon( std::vector< CoredVertexIndex< Index > >& vertices );
+
+	Index outOfCorePointCount( void );
+	Index polygonCount( void );
+};
+#else // !NEW_CODE
 template< class Vertex >
 class CoredVectorCurveData : public CoredCurveData< Vertex >
 {
@@ -504,6 +651,7 @@ public:
 	int outOfCorePointCount(void);
 	int polygonCount( void );
 };
+#endif // NEW_CODE
 class BufferedReadWriteFile
 {
 	bool tempFile;
@@ -591,6 +739,58 @@ public:
 		_bufferSize = fread( _buffer , 1 , _bufferSize , _fp );
 	}
 };
+#ifdef NEW_CODE
+template< class Vertex , typename Index >
+class CoredFileCurveData : public CoredCurveData< Vertex , Index >
+{
+	BufferedReadWriteFile *oocPointFile;
+	Index oocPoints;
+	std::vector< BufferedReadWriteFile* > edgeFiles;
+	int threadIndex;
+public:
+	CoredFileCurveData( const char* fileHeader="" );
+	~CoredFileCurveData( void );
+
+	void resetIterator( void );
+
+	Index addOutOfCorePoint( const Vertex& p );
+	Index addOutOfCorePoint_s( const Vertex& p );
+	void addEdge_s( CoredVertexIndex< Index > v1 , CoredVertexIndex< Index > v2 );
+	void addEdge_s( Index v1 , Index v2 );
+
+	Index nextOutOfCorePoint( Vertex& p );
+	Index nextEdge( CoredVertexIndex< Index > &v1 , CoredVertexIndex< Index > &v2 );
+
+	Index outOfCorePointCount( void );
+	Index edgeCount( void );
+};
+
+template< class Vertex , typename Index >
+class CoredFileMeshData : public CoredMeshData< Vertex , Index >
+{
+	BufferedReadWriteFile *oocPointFile;
+	Index oocPoints;
+	std::vector< Index > polygons;
+	std::vector< BufferedReadWriteFile* > polygonFiles;
+	int threadIndex;
+public:
+	CoredFileMeshData( const char* fileHeader="" );
+	~CoredFileMeshData( void );
+
+	void resetIterator( void );
+
+	Index addOutOfCorePoint( const Vertex& p );
+	Index addOutOfCorePoint_s( const Vertex& p );
+	void addPolygon_s( const std::vector< CoredVertexIndex< Index > >& vertices );
+	void addPolygon_s( const std::vector< Index >& vertices );
+
+	Index nextOutOfCorePoint( Vertex& p );
+	Index nextPolygon( std::vector< CoredVertexIndex< Index > >& vertices );
+
+	Index outOfCorePointCount( void );
+	Index polygonCount( void );
+};
+#else // !NEW_CODE
 template< class Vertex >
 class CoredFileCurveData : public CoredCurveData< Vertex >
 {
@@ -642,6 +842,7 @@ public:
 	int outOfCorePointCount( void );
 	int polygonCount( void );
 };
+#endif // NEW_CODE
 #include "Geometry.inl"
 
 #endif // GEOMETRY_INCLUDED

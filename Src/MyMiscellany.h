@@ -311,6 +311,105 @@ namespace MKExceptions
 #endif // ERROR_OUT
 #endif // VERBOSE_MESSAGING
 
+#ifdef NEW_CODE
+#include <atomic>
+/////////////////////////
+// NumberWrapper Stuff //
+/////////////////////////
+#include <vector>
+struct EmptyNumberWrapperClass{};
+
+template< typename Number , typename Type=EmptyNumberWrapperClass , size_t I=0 >
+struct NumberWrapper
+{
+	typedef Number type;
+
+	Number n;
+
+	NumberWrapper( Number _n=0 ) : n(_n){}
+	NumberWrapper operator + ( NumberWrapper _n ) const { return NumberWrapper( n + _n.n ); }
+	NumberWrapper operator - ( NumberWrapper _n ) const { return NumberWrapper( n - _n.n ); }
+	NumberWrapper operator * ( NumberWrapper _n ) const { return NumberWrapper( n * _n.n ); }
+	NumberWrapper operator / ( NumberWrapper _n ) const { return NumberWrapper( n / _n.n ); }
+	NumberWrapper &operator += ( NumberWrapper _n ){ n += _n.n ; return *this; }
+	NumberWrapper &operator -= ( NumberWrapper _n ){ n -= _n.n ; return *this; }
+	NumberWrapper &operator *= ( NumberWrapper _n ){ n *= _n.n ; return *this; }
+	NumberWrapper &operator /= ( NumberWrapper _n ){ n /= _n.n ; return *this; }
+	bool operator == ( NumberWrapper _n ) const { return n==_n.n; }
+	bool operator != ( NumberWrapper _n ) const { return n!=_n.n; }
+	bool operator <  ( NumberWrapper _n ) const { return n<_n.n; }
+	bool operator >  ( NumberWrapper _n ) const { return n>_n.n; }
+	bool operator <= ( NumberWrapper _n ) const { return n<=_n.n; }
+	bool operator >= ( NumberWrapper _n ) const { return n>=_n.n; }
+	NumberWrapper operator ++ ( int ) { NumberWrapper _n(n) ; n++ ; return _n; }
+	NumberWrapper operator -- ( int ) { NumberWrapper _n(n) ; n-- ; return _n; }
+	NumberWrapper &operator ++ ( void ) { n++ ; return *this; }
+	NumberWrapper &operator -- ( void ) { n-- ; return *this; }
+	explicit operator Number () const { return n; }
+};
+
+#if 0
+template< typename Number , typename Type , size_t I >
+struct std::atomic< NumberWrapper< Number , Type , I > >
+{
+	typedef Number type;
+
+	std::atomic< Number > n;
+
+	atomic( Number _n=0 ) : n(_n){}
+	atomic( const std::atomic< Number > &_n ) : n(_n){}
+	atomic( NumberWrapper< Number , Type , I > _n ) : n(_n.n){}
+	atomic &operator = ( Number _n ){ n = _n ; return *this; }
+//	atomic &operator = ( const atomic &a ){ n = a.n ; return *this; }
+//	atomic &operator = ( const NumberWrapper< Number , Type , I > &_n ){ n = _n.n ; return *this; }
+	atomic operator + ( atomic _n ) const { return atomic( n + _n.n ); }
+	atomic operator - ( atomic _n ) const { return atomic( n * _n.n ); }
+	atomic operator * ( atomic _n ) const { return atomic( n * _n.n ); }
+	atomic operator / ( atomic _n ) const { return atomic( n / _n.n ); }
+	atomic &operator += ( atomic _n ){ n += _n.n ; return *this; }
+	atomic &operator -= ( atomic _n ){ n -= _n.n ; return *this; }
+	atomic &operator *= ( atomic _n ){ n *= _n.n ; return *this; }
+	atomic &operator /= ( atomic _n ){ n /= _n.n ; return *this; }
+	bool operator == ( atomic _n ) const { return n==_n.n; }
+	bool operator != ( atomic _n ) const { return n!=_n.n; }
+	bool operator <  ( atomic _n ) const { return n<_n.n; }
+	bool operator >  ( atomic _n ) const { return n>_n.n; }
+	bool operator <= ( atomic _n ) const { return n<=_n.n; }
+	bool operator >= ( atomic _n ) const { return n>=_n.n; }
+	atomic operator ++ ( int ) { atomic _n(n) ; n++ ; return _n; }
+	atomic operator -- ( int ) { atomic _n(n) ; n-- ; return _n; }
+	atomic &operator ++ ( void ) { n++ ; return *this; }
+	atomic &operator -- ( void ) { n-- ; return *this; }
+	operator NumberWrapper< Number , Type , I >() const { return NumberWrapper< Number , Type , I >(n); }
+	explicit operator Number () const { return n; }
+};
+#endif
+
+
+namespace std
+{
+	template< typename Number , typename Type , size_t I >
+	struct hash< NumberWrapper< Number , Type , I > >
+	{
+		size_t operator()( NumberWrapper< Number , Type , I > n ) const { return std::hash< Number >{}( n.n ); }
+	};
+}
+
+template< typename Data , typename _NumberWrapper >
+struct VectorWrapper : public std::vector< Data >
+{
+	VectorWrapper( void ){}
+	VectorWrapper( size_t sz ) : std::vector< Data >( sz ){}
+	VectorWrapper( size_t sz , Data d ) : std::vector< Data >( sz , d ){}
+
+//	void resize( _NumberWrapper n )         { std::vector< Data >::resize( (size_t)(_NumberWrapper::type)n ); }
+//	void resize( _NumberWrapper n , Data d ){ std::vector< Data >::resize( (size_t)(_NumberWrapper::type)n , d ); }
+
+	typename std::vector< Data >::reference operator[]( _NumberWrapper n ){ return std::vector< Data >::operator[]( n.n ); }
+	typename std::vector< Data >::const_reference operator[]( _NumberWrapper n ) const { return std::vector< Data >::operator[]( n.n ); }
+};
+#endif // NEW_CODE
+
 //////////////////
 // Memory Stuff //
 //////////////////
@@ -472,5 +571,4 @@ inline size_t getCurrentRSS( )
 	return (size_t)0L;          /* Unsupported. */
 #endif
 }
-
 #endif // MY_MISCELLANY_INCLUDED

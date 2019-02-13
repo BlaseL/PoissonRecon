@@ -30,6 +30,35 @@ DAMAGE.
 #include "Geometry.h"
 #include "Array.h"
 
+#ifdef NEW_CODE
+template< typename Index , class Real , unsigned int Dim >
+std::vector< TriangleIndex< Index > > MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , Index vCount );
+
+template< typename Index , class Real , unsigned int Dim >
+class _MinimalAreaTriangulation
+{
+	Pointer( Real ) _bestTriangulation;
+	Pointer( Index ) _midpoint;
+	Index _vCount;
+	ConstPointer( Point< Real , Dim > ) _vertices;
+
+	void _set( void );
+	Real _subPolygonArea( Index i , Index j );
+	void _addTriangles( Index i , Index j , std::vector< TriangleIndex< Index > >& triangles ) const;
+	Index _subPolygonIndex( Index i , Index j ) const;
+
+	_MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , Index vCount );
+	~_MinimalAreaTriangulation( void );
+	std::vector< TriangleIndex< Index > > getTriangulation( void );
+	friend std::vector< TriangleIndex< Index > > MinimalAreaTriangulation< Index , Real , Dim >( ConstPointer( Point< Real , Dim > ) vertices , Index vCount );
+};
+template< typename Index , class Real , unsigned int Dim >
+std::vector< TriangleIndex< Index > > MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , Index vCount )
+{
+	_MinimalAreaTriangulation< Index , Real , Dim > MAT( vertices , vCount );
+	return MAT.getTriangulation();
+}
+#else // !NEW_CODE
 template< class Real , unsigned int Dim >
 std::vector< TriangleIndex > MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount );
 
@@ -57,7 +86,7 @@ std::vector< TriangleIndex > MinimalAreaTriangulation( ConstPointer( Point< Real
 	_MinimalAreaTriangulation< Real , Dim > MAT( vertices , vCount );
 	return MAT.getTriangulation();
 }
-
+#endif // NEW_CODE
 #include "MAT.inl"
 
 #endif // MAT_INCLUDED

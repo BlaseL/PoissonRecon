@@ -56,10 +56,18 @@ SparseMatrix< T , IndexType , 0 >::SparseMatrix( const SparseMatrix& M )
 	rowNum = 0;
 	_entries = NullPointer( Pointer( MatrixEntry< T , IndexType > ) );
 	resize( M.rowNum );
+#ifdef NEW_CODE_SPARSE_MATRIX
+	for( size_t i=0 ; i<rowNum ; i++ )
+#else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<rowNum ; i++ )
+#endif // NEW_CODE_SPARSE_MATRIX
 	{
 		setRowSize( i , M.rowSizes[i] );
+#ifdef NEW_CODE_SPARSE_MATRIX
+		for( size_t j=0 ; j<rowSizes[i] ; j++ ) _entries[i][j] = M._entries[i][j];
+#else // !NEW_CODE_SPARSE_MATRIX
 		for( int j=0 ; j<rowSizes[i] ; j++ ) _entries[i][j] = M._entries[i][j];
+#endif // NEW_CODE_SPARSE_MATRIX
 	}
 }
 template< class T , class IndexType >
@@ -79,10 +87,18 @@ SparseMatrix< T , IndexType , 0 >::SparseMatrix( const SparseMatrix< T2 , IndexT
 	rowNum = 0;
 	_entries = NULL;
 	resize( M.rowNum );
+#ifdef NEW_CODE_SPARSE_MATRIX
+	for( size_t i=0 ; i<rowNum ; i++ )
+#else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<rowNum ; i++ )
+#endif // NEW_CODE_SPARSE_MATRIX
 	{
 		setRowSize( i , M.rowSizes[i] );
+#ifdef NEW_CODE_SPARSE_MATRIX
+		for( size_t j=0 ; j<rowSizes[i] ; j++ ) _entries[i][j] = MatrixEntry< T , IndexType >( M._entries[i][j].N , T( M._entries[i][j].Value ) );
+#else // !NEW_CODE_SPARSE_MATRIX
 		for( int j=0 ; j<rowSizes[i] ; j++ ) _entries[i][j] = MatrixEntry< T , IndexType >( M._entries[i][j].N , T( M._entries[i][j].Value ) );
+#endif // NEW_CODE_SPARSE_MATRIX
 	}
 }
 
@@ -91,13 +107,26 @@ template< class T2 , class IndexType2 >
 SparseMatrix< T , IndexType , 0 >& SparseMatrix< T , IndexType , 0 >::copy( const SparseMatrix< T2 , IndexType2 , 0 >& M  )
 {
 	resize( M.rowNum );
+#ifdef NEW_CODE_SPARSE_MATRIX
+	for ( size_t i=0 ; i<rowNum ; i++)
+#else // !NEW_CODE_SPARSE_MATRIX
 	for ( int i=0 ; i<rowNum ; i++)
+#endif // NEW_CODE_SPARSE_MATRIX
 	{
 		setRowSize( i , M.rowSizes[i] );
+#ifdef NEW_CODE_SPARSE_MATRIX
+		for( size_t j=0 ; j<rowSizes[i] ; j++ )
+#else // !NEW_CODE_SPARSE_MATRIX
 		for( int j=0 ; j<rowSizes[i] ; j++ )
+#endif // NEW_CODE_SPARSE_MATRIX
 		{
+#ifdef NEW_CODE_SPARSE_MATRIX
+			IndexType2 idx = M._entries[i][j].N;
+			_entries[i][j] = MatrixEntry< T , IndexType >( (IndexType)idx , T( M[i][j].Value ) );
+#else // !NEW_CODE_SPARSE_MATRIX
 			int idx = M._entries[i][j].N;
 			_entries[i][j] = MatrixEntry< T , IndexType >( idx , T( M[i][j].Value ) );
+#endif // NEW_CODE_SPARSE_MATRIX
 		}
 	}
 	return *this;
@@ -113,10 +142,18 @@ template< class T , class IndexType >
 SparseMatrix< T , IndexType , 0 >& SparseMatrix< T , IndexType , 0 >::operator = ( const SparseMatrix< T , IndexType , 0 >& M )
 {
 	resize( M.rowNum );
+#ifdef NEW_CODE_SPARSE_MATRIX
+	for( size_t i=0 ; i<rowNum ; i++ )
+#else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<rowNum ; i++ )
+#endif //NEW_CODE_SPARSE_MATRIX
 	{
 		setRowSize( i , M.rowSizes[i] );
+#ifdef NEW_CODE_SPARSE_MATRIX
+		for( size_t j=0 ; j<rowSizes[i] ; j++ ) _entries[i][j]=M._entries[i][j];
+#else // !NEW_CODE_SPARSE_MATRIX
 		for( int j=0 ; j<rowSizes[i] ; j++ ) _entries[i][j]=M._entries[i][j];
+#endif // NEW_CODE_SPARSE_MATRIX
 	}
 	return *this;
 }
@@ -125,10 +162,18 @@ template< class T2 , class IndexType2 >
 SparseMatrix< T , IndexType , 0 >& SparseMatrix< T , IndexType , 0 >::operator = (const SparseMatrix< T2 , IndexType2 , 0 >& M)
 {
 	resize( M.rowNum );
+#ifdef NEW_CODE_SPARSE_MATRIX
+	for( size_t i=0 ; i<rowNum ; i++ )
+#else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<rowNum ; i++ )
+#endif // NEW_CODE_SPARSE_MATRIX
 	{
 		setRowSize( i , M.rowSizes[i] );
+#ifdef NEW_CODE_SPARSE_MATRIX
+		for( size_t j=0 ; j<rowSizes[i] ; j++ ) _entries[i][j] = MatrixEntry< T , IndexType >( M._entries[i][j].N , T( M._entries[i][j].Value ) );
+#else // !NEW_CODE_SPARSE_MATRIX
 		for( int j=0 ; j<rowSizes[i] ; j++ ) _entries[i][j] = MatrixEntry< T , IndexType >( M._entries[i][j].N , T( M._entries[i][j].Value ) );
+#endif // NEW_CODE_SPARSE_MATRIX
 	}
 	return *this;
 }
@@ -144,7 +189,11 @@ void SparseMatrix< T , IndexType , 0 >::resize( size_t r )
 {
 	if( rowNum>0 )
 	{
+#ifdef NEW_CODE_SPARSE_MATRIX
+		for( size_t i=0 ; i<rowNum ; i++ ) FreePointer( _entries[i] );
+#else // !NEW_CODE_SPARSE_MATRIX
 		for( int i=0 ; i<rowNum ; i++ ) FreePointer( _entries[i] );
+#endif // NEW_CODE_SPARSE_MATRIX
 		FreePointer( _entries );
 		FreePointer( rowSizes );
 	}
@@ -153,7 +202,11 @@ void SparseMatrix< T , IndexType , 0 >::resize( size_t r )
 	{
 		rowSizes = AllocPointer< size_t >( r ) , memset( rowSizes , 0 , sizeof(size_t)*r );
 		_entries = AllocPointer< Pointer( MatrixEntry< T , IndexType > ) >( r );
+#ifdef NEW_CODE_SPARSE_MATRIX
+		for( size_t i=0 ; i<r ; i++ ) _entries[i] = NullPointer( MatrixEntry< T , IndexType > );
+#else // !NEW_CODE_SPARSE_MATRIX
 		for( int i=0 ; i<r ; i++ ) _entries[i] = NullPointer( MatrixEntry< T , IndexType > );
+#endif //NEW_CODE_SPARSE_MATRIX
 	}
 }
 
@@ -190,14 +243,22 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::Identity( s
 {
 	SparseMatrix I;
 	I.resize( dim );
+#ifdef NEW_CODE_SPARSE_MATRIX
+	for( size_t i=0 ; i<dim ; i++ ) I.setRowSize( i , 1 ) , I[i][0] = MatrixEntry< T , IndexType >( (IndexType)i , (T)1 );
+#else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<dim ; i++ ) I.setRowSize( i , 1 ) , I[i][0] = MatrixEntry< T , IndexType >( (IndexType)i , (T)1 );
+#endif // NEW_CODE_SPARSE_MATRIX
 	return I;
 }
 template< class T , class IndexType >
 SparseMatrix< T , IndexType , 0 >& SparseMatrix< T , IndexType , 0 >::operator *= ( T s )
 {
 #pragma omp parallel for
+#ifdef NEW_CODE_SPARSE_MATRIX
+	for( long long i=0 ; i<(long long)rowNum ; i++ ) for( size_t j=0 ; j<rowSizes[i] ; j++ ) _entries[i][j].Value *= s;
+#else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<rowNum ; i++ ) for( int j=0 ; j<rowSizes[i] ; j++ ) _entries[i][j].Value *= s;
+#endif // NEW_CODE_SPARSE_MATRIX
 	return *this;
 }
 template< class T , class IndexType >
@@ -245,20 +306,41 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::operator * 
 	const SparseMatrix& A = *this;
 	size_t aCols = 0 , aRows = A.rowNum;
 	size_t bCols = 0 , bRows = B.rowNum;
+#ifdef NEW_CODE_SPARSE_MATRIX
+	for( size_t i=0 ; i<A.rowNum ; i++ ) for( size_t j=0 ; j<A.rowSizes[i] ; j++ ) if( aCols<=A[i][j].N ) aCols = A[i][j].N+1;
+	for( size_t i=0 ; i<B.rowNum ; i++ ) for( size_t j=0 ; j<B.rowSizes[i] ; j++ ) if( bCols<=B[i][j].N ) bCols = B[i][j].N+1;
+#else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<A.rowNum ; i++ ) for( int j=0 ; j<A.rowSizes[i] ; j++ ) if( aCols<=A[i][j].N ) aCols = A[i][j].N+1;
 	for( int i=0 ; i<B.rowNum ; i++ ) for( int j=0 ; j<B.rowSizes[i] ; j++ ) if( bCols<=B[i][j].N ) bCols = B[i][j].N+1;
+#endif // NEW_CODE_SPARSE_MATRIX
 	if( bRows<aCols ) ERROR_OUT( "Matrix sizes do not support multiplication " , aRows , " x " , aCols , " * " , bRows , " x " , bCols );
 
+#ifdef NEW_CODE_SPARSE_MATRIX
+	out.resize( aRows );
+#else // !NEW_CODE_SPARSE_MATRIX
 	out.resize( (int)aRows );
+#endif // NEW_CODE_SPARSE_MATRIX
 #pragma omp parallel for
+#ifdef NEW_CODE_SPARSE_MATRIX
+	for( long long i=0 ; i<(long long)aRows ; i++ )
+#else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<aRows ; i++ )
+#endif // NEW_CODE_SPARSE_MATRIX
 	{
 		std::unordered_map< IndexType , T > row;
+#ifdef NEW_CODE_SPARSE_MATRIX
+		for( size_t j=0 ; j<A.rowSizes[i] ; j++ )
+#else // !NEW_CODE_SPARSE_MATRIX
 		for( int j=0 ; j<A.rowSizes[i] ; j++ )
+#endif // NEW_CODE_SPARSE_MATRIX
 		{
 			IndexType idx1 = A[i][j].N;
 			T AValue = A[i][j].Value;
+#ifdef NEW_CODE_SPARSE_MATRIX
+			for( size_t k=0 ; k<B.rowSizes[idx1] ; k++ )
+#else // !NEW_CODE_SPARSE_MATRIX
 			for( int k=0 ; k<B.rowSizes[idx1] ; k++ )
+#endif // NEW_CODE_SPARSE_MATRIX
 			{
 				IndexType idx2 = B[idx1][k].N;
 				T BValue = B[idx1][k].Value;
@@ -267,7 +349,11 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::operator * 
 				else iter->second += AValue * BValue;
 			}
 		}
+#ifdef NEW_CODE_SPARSE_MATRIX
+		out.setRowSize( i , row.size() );
+#else // !NEW_CODE_SPARSE_MATRIX
 		out.setRowSize( i , (int)row.size() );
+#endif // NEW_CODE_SPARSE_MATRIX
 		out.rowSizes[i] = 0;
 		for( typename std::unordered_map< IndexType , T >::iterator iter=row.begin() ; iter!=row.end() ; iter++ ) out[i][ out.rowSizes[i]++ ] = MatrixEntry< T , IndexType >( iter->first , iter->second );
 	}
@@ -282,11 +368,19 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::operator + 
 
 	out.resize( rowNum );
 #pragma omp parallel for
+#ifdef NEW_CODE_SPARSE_MATRIX
+	for( long long i=0 ; i<(long long)rowNum ; i++ )
+#else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<rowNum ; i++ )
+#endif // NEW_CODE_SPARSE_MATRIX
 	{
 		std::unordered_map< IndexType , T > row;
 		if( i<A.rowNum )
+#ifdef NEW_CODE_SPARSE_MATRIX
+			for( size_t j=0 ; j<A.rowSizes[i] ; j++ )
+#else // !NEW_CODE_SPARSE_MATRIX
 			for( int j=0 ; j<A.rowSizes[i] ; j++ )
+#endif // NEW_CODE_SPARSE_MATRIX
 			{
 				IndexType idx = A[i][j].N;
 				typename std::unordered_map< IndexType , T >::iterator iter = row.find(idx);
@@ -294,7 +388,11 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::operator + 
 				else iter->second += A[i][j].Value;
 			}
 		if( i<B.rowNum )
+#ifdef NEW_CODE_SPARSE_MATRIX
+			for( size_t j=0 ; j<B.rowSizes[i] ; j++ )
+#else // !NEW_CODE_SPARSE_MATRIX
 			for( int j=0 ; j<B.rowSizes[i] ; j++ )
+#endif // NEW_CODE_SPARSE_MATRIX
 			{
 				IndexType idx = B[i][j].N;
 				typename std::unordered_map< IndexType , T >::iterator iter = row.find(idx);
@@ -316,11 +414,19 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::operator - 
 
 	out.resize( rowNum );
 #pragma omp parallel for
+#ifdef NEW_CODE_SPARSE_MATRIX
+	for( long long i=0 ; i<(long long)rowNum ; i++ )
+#else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<rowNum ; i++ )
+#endif // NEW_CODE_SPARSE_MATRIX
 	{
 		std::unordered_map< IndexType , T > row;
 		if( i<A.rowNum )
+#ifdef NEW_CODE_SPARSE_MATRIX
+			for( size_t j=0 ; j<A.rowSizes[i] ; j++ )
+#else // !NEW_CODE_SPARSE_MATRIX
 			for( int j=0 ; j<A.rowSizes[i] ; j++ )
+#endif // NEW_CODE_SPARSE_MATRIX
 			{
 				IndexType idx = A[i][j].N;
 				typename std::unordered_map< IndexType , T >::iterator iter = row.find(idx);
@@ -328,14 +434,22 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::operator - 
 				else iter->second += A[i][j].Value;
 			}
 		if( i<B.rowNum )
+#ifdef NEW_CODE_SPARSE_MATRIX
+			for( size_t j=0 ; j<B.rowSizes[i] ; j++ )
+#else // !NEW_CODE_SPARSE_MATRIX
 			for( int j=0 ; j<B.rowSizes[i] ; j++ )
+#endif // NEW_CODE_SPARSE_MATRIX
 			{
 				IndexType idx = B[i][j].N;
 				typename std::unordered_map< IndexType , T >::iterator iter = row.find(idx);
 				if( iter==row.end() ) row[idx] = -B[i][j].Value;
 				else iter->second -= B[i][j].Value;
 			}
+#ifdef NEW_CODE_SPARSE_MATRIX
+		out.setRowSize( i , row.size() );
+#else // !NEW_CODE_SPARSE_MATRIX
 		out.setRowSize( i , (int)row.size() );
+#endif // NEW_CODE_SPARSE_MATRIX
 		out.rowSizes[i] = 0;
 		for( typename std::unordered_map< IndexType , T >::iterator iter=row.begin() ; iter!=row.end() ; iter++ ) out[i][ out.rowSizes[i]++ ] = MatrixEntry< T , IndexType >( iter->first , iter->second );
 	}
@@ -348,22 +462,48 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::transpose( 
 	SparseMatrix A;
 	const SparseMatrix& At = *this;
 	size_t aRows = 0 , aCols = At.rowNum;
+#ifdef NEW_CODE_SPARSE_MATRIX
+	for( size_t i=0 ; i<At.rowNum ; i++ ) for( size_t j=0 ; j<At.rowSizes[i] ; j++ ) if( aRows<=At[i][j].N ) aRows = At[i][j].N+1;
+#else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<At.rowNum ; i++ ) for( int j=0 ; j<At.rowSizes[i] ; j++ ) if( aRows<=At[i][j].N ) aRows = At[i][j].N+1;
+#endif // NEW_CODE_SPARSE_MATRIX
 
 	A.resize( aRows );
+#ifdef NEW_CODE_SPARSE_MATRIX
+	for( size_t i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;
+#pragma omp parallel for
+	for( long long i=0 ; i<(long long)At.rowNum ; i++ ) for( size_t j=0 ; j<At.rowSizes[i] ; j++ )
+#else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;
 #pragma omp parallel for
 	for( int i=0 ; i<At.rowNum ; i++ ) for( int j=0 ; j<At.rowSizes[i] ; j++ )
+#endif // NEW_CODE_SPARSE_MATRIX
 #pragma omp atomic
 		A.rowSizes[ At[i][j].N ]++;
 #pragma omp parallel for
+#ifdef NEW_CODE_SPARSE_MATRIX
+	for( long long i=0 ; i<(long long)A.rowNum ; i++ )
+#else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<A.rowNum ; i++ )
+#endif // NEW_CODE_SPARSE_MATRIX
 	{
 		size_t t = A.rowSizes[i];
 		A.rowSizes[i] = 0;
 		A.setRowSize( i , t );
 		A.rowSizes[i] = 0;
 	}
+#ifdef NEW_CODE_SPARSE_MATRIX
+	if( TransposeFunction ) for( size_t i=0 ; i<At.rowNum ; i++ ) for( size_t j=0 ; j<At.rowSizes[i] ; j++ )
+	{
+		size_t ii = At[i][j].N;
+		A[ii][ A.rowSizes[ii]++ ] = MatrixEntry< T , IndexType >( (IndexType)i , TransposeFunction( At[i][j].Value ) );
+	}
+	else for( size_t i=0 ; i<At.rowNum ; i++ ) for( size_t j=0 ; j<At.rowSizes[i] ; j++ )
+	{
+		size_t ii = At[i][j].N;
+		A[ii][ A.rowSizes[ii]++ ] = MatrixEntry< T , IndexType >( (IndexType)i , At[i][j].Value );
+	}
+#else // !NEW_CODE_SPARSE_MATRIX
 	if( TransposeFunction ) for( int i=0 ; i<At.rowNum ; i++ ) for( int j=0 ; j<At.rowSizes[i] ; j++ )
 	{
 		int ii = At[i][j].N;
@@ -374,6 +514,7 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::transpose( 
 		int ii = At[i][j].N;
 		A[ii][ A.rowSizes[ii]++ ] = MatrixEntry< T , IndexType >( i , At[i][j].Value );
 	}
+#endif // NEW_CODE_SPARSE_MATRIX
 	return A;
 }
 template< class T , class IndexType >
@@ -382,23 +523,51 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::transpose( 
 	SparseMatrix A;
 	const SparseMatrix& At = *this;
 	size_t _aRows = 0 , aCols = At.rowNum;
+#ifdef NEW_CODE_SPARSE_MATRIX
+	for( size_t i=0 ; i<At.rowNum ; i++ ) for( size_t j=0 ; j<At.rowSizes[i] ; j++ ) if( aCols<=At[i][j].N ) _aRows = At[i][j].N+1;
+#else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<At.rowNum ; i++ ) for( int j=0 ; j<At.rowSizes[i] ; j++ ) if( aCols<=At[i][j].N ) _aRows = At[i][j].N+1;
+#endif // NEW_CODE_SPARSE_MATRIX
 	if( _aRows>aRows ) ERROR_OUT( "Prescribed output dimension too low: " , aRows , " < " , _aRows );
 
 	A.resize( aRows );
+#ifdef NEW_CODE_SPARSE_MATRIX
+	for( size_t i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;
+#pragma omp parallel for
+	for( size_t i=0 ; i<At.rowNum ; i++ ) for( size_t j=0 ; j<At.rowSizes[i] ; j++ )
+#else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;
 #pragma omp parallel for
 	for( int i=0 ; i<At.rowNum ; i++ ) for( int j=0 ; j<At.rowSizes[i] ; j++ )
+#endif // NEW_CODE_SPARSE_MATRIX
 #pragma omp atomic
 		A.rowSizes[ At[i][j].N ]++;
 #pragma omp parallel for
+#ifdef NEW_CODE_SPARSE_MATRIX
+	for( long long i=0 ; i<(long long)A.rowNum ; i++ )
+#else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<A.rowNum ; i++ )
+#endif // NEW_CODE_SPARSE_MATRIX
 	{
 		size_t t = A.rowSizes[i];
 		A.rowSizes[i] = 0;
 		A.setRowSize( i , t );
 		A.rowSizes[i] = 0;
 	}
+#ifdef NEW_CODE_SPARSE_MATRIX
+	if( TransposeFunction )
+		for( size_t i=0 ; i<At.rowNum ; i++ ) for( size_t j=0 ; j<At.rowSizes[i] ; j++ )
+		{
+			size_t ii = At[i][j].N;
+			A[ii][ A.rowSizes[ii]++ ] = MatrixEntry< T , IndexType >( (IndexType)i , TransposeFunction( At[i][j].Value ) );
+		}
+	else
+		for( size_t i=0 ; i<At.rowNum ; i++ ) for( size_t j=0 ; j<At.rowSizes[i] ; j++ )
+		{
+			size_t ii = At[i][j].N;
+			A[ii][ A.rowSizes[ii]++ ] = MatrixEntry< T , IndexType >( (IndexType)i , At[i][j].Value );
+		}
+#else // !NEW_CODE_SPARSE_MATRIX
 	if( TransposeFunction )
 		for( int i=0 ; i<At.rowNum ; i++ ) for( int j=0 ; j<At.rowSizes[i] ; j++ )
 		{
@@ -411,6 +580,7 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::transpose( 
 			int ii = At[i][j].N;
 			A[ii][ A.rowSizes[ii]++ ] = MatrixEntry< T , IndexType >( i , At[i][j].Value );
 		}
+#endif // NEW_CODE_SPARSE_MATRIX
 	return A;
 }
 
@@ -421,13 +591,26 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::Multiply( c
 	SparseMatrix M;
 	size_t aCols = 0 , aRows = A.rows();
 	size_t bCols = 0 , bRows = B.rows();
+#ifdef NEW_CODE_SPARSE_MATRIX
+	for( size_t i=0 ; i<A.rows() ; i++ ) for( A_const_iterator iter=A.begin(i) ; iter!=A.end(i) ; iter++ ) if( aCols<=iter->N ) aCols = iter->N+1;
+	for( size_t i=0 ; i<B.rows() ; i++ ) for( B_const_iterator iter=B.begin(i) ; iter!=B.end(i) ; iter++ ) if( bCols<=iter->N ) bCols = iter->N+1;
+#else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<A.rows() ; i++ ) for( A_const_iterator iter=A.begin(i) ; iter!=A.end(i) ; iter++ ) if( aCols<=iter->N ) aCols = iter->N+1;
 	for( int i=0 ; i<B.rows() ; i++ ) for( B_const_iterator iter=B.begin(i) ; iter!=B.end(i) ; iter++ ) if( bCols<=iter->N ) bCols = iter->N+1;
+#endif // NEW_CODE_SPARSE_MATRIX
 	if( bRows<aCols ) ERROR_OUT( "Matrix sizes do not support multiplication " , aRows , " x " , aCols , " * " , bRows , " x " , bCols );
 
+#ifdef NEW_CODE_SPARSE_MATRIX
+	M.resize( aRows );
+#else // !NEW_CODE_SPARSE_MATRIX
 	M.resize( (int)aRows );
+#endif // NEW_CODE_SPARSE_MATRIX
 #pragma omp parallel for
+#ifdef NEW_CODE_SPARSE_MATRIX
+	for( size_t i=0 ; i<aRows ; i++ )
+#else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<aRows ; i++ )
+#endif // NEW_CODE_SPARSE_MATRIX
 	{
 		std::unordered_map< IndexType , T > row;
 		for( A_const_iterator iterA=A.begin(i) ; iterA!=A.end(i) ; iterA++ )
@@ -444,7 +627,11 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::Multiply( c
 				else iter->second += temp;
 			}
 		}
+#ifdef NEW_CODE_SPARSE_MATRIX
+		M.setRowSize( i , row.size() );
+#else // !NEW_CODE_SPARSE_MATRIX
 		M.setRowSize( i , (int)row.size() );
+#endif // NEW_CODE_SPARSE_MATRIX
 		M.rowSizes[i] = 0;
 		for( typename std::unordered_map< IndexType , T >::iterator iter=row.begin() ; iter!=row.end() ; iter++ )
 			M[i][ M.rowSizes[i]++ ] = MatrixEntry< T , IndexType >( iter->first , iter->second );
@@ -539,11 +726,19 @@ template< class T , class IndexType , size_t MaxRowSize >
 SparseMatrix< T , IndexType , MaxRowSize >::SparseMatrix( const SparseMatrix& M ) : SparseMatrix()
 {
 	resize( M._rowNum );
+#ifdef NEW_CODE_SPARSE_MATRIX
+	for( size_t i=0 ; i<_rowNum ; i++ )
+	{
+		_rowSizes[i] = M._rowSizes[i];
+		for( size_t j=0 ; j<_rowSizes[i] ; j++ ) _entries[ i + MaxRowSize*j ] = M._rowEntries[ i + MaxRowSize*j ];
+	}
+#else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<_rowNum ; i++ )
 	{
 		_rowSizes[i] = M._rowSizes[i];
 		for( int j=0 ; j<_rowSizes[i] ; j++ ) _entries[ i + MaxRowSize*j ] = M._rowEntries[ i + MaxRowSize*j ];
 	}
+#endif // NEW_CODE_SPARSE_MATRIX
 }
 template< class T , class IndexType , size_t MaxRowSize >
 SparseMatrix< T , IndexType , MaxRowSize >::SparseMatrix( SparseMatrix&& M ) : SparseMatrix()
@@ -555,11 +750,19 @@ template< class T2 , class IndexType2 >
 SparseMatrix< T , IndexType , MaxRowSize >::SparseMatrix( const SparseMatrix< T2 , IndexType2 , MaxRowSize >& M ) : SparseMatrix()
 {
 	resize( M._rowNum );
+#ifdef NEW_CODE_SPARSE_MATRIX
+	for( size_t i=0 ; i<_rowNum ; i++ )
+	{
+		_rowSizes[i] = M._rowSizes[i];
+		for( size_t j=0 ; j<_rowSizes[i] ; j++ ) _entries[ i + MaxRowSize*j ] = MatrixEntry< T , IndexType >( M._rowEntries[i][j].N , T( M._entries[ i + MaxRowSize*j ].Value ) );
+	}
+#else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<_rowNum ; i++ )
 	{
 		_rowSizes[i] = M._rowSizes[i];
 		for( int j=0 ; j<_rowSizes[i] ; j++ ) _entries[ i + MaxRowSize*j ] = MatrixEntry< T , IndexType >( M._rowEntries[i][j].N , T( M._entries[ i + MaxRowSize*j ].Value ) );
 	}
+#endif // NEW_CODE_SPARSE_MATRIX
 }
 
 template< class T , class IndexType , size_t MaxRowSize >
@@ -573,11 +776,19 @@ template< class T , class IndexType , size_t MaxRowSize >
 SparseMatrix< T , IndexType , MaxRowSize >& SparseMatrix< T , IndexType , MaxRowSize >::operator = ( const SparseMatrix< T , IndexType , MaxRowSize >& M )
 {
 	resize( M._rowNum );
+#ifdef NEW_CODE_SPARSE_MATRIX
+	for( size_t i=0 ; i<_rowNum ; i++ )
+	{
+		_rowSizes[i] = M._rowSizes[i];
+		for( size_t j=0 ; j<_rowSizes[i] ; j++ ) _entries[ i + MaxRowSize*j ] = M._entries[ i + MaxRowSize*j ];
+	}
+#else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<_rowNum ; i++ )
 	{
 		_rowSizes[i] = M._rowSizes[i];
 		for( int j=0 ; j<_rowSizes[i] ; j++ ) _entries[ i + MaxRowSize*j ] = M._entries[ i + MaxRowSize*j ];
 	}
+#endif // NEW_CODE_SPARSE_MATRIX
 	return *this;
 }
 
@@ -586,11 +797,19 @@ template< class T2 , class IndexType2 >
 SparseMatrix< T , IndexType , MaxRowSize >& SparseMatrix< T , IndexType , MaxRowSize >::operator = ( const SparseMatrix< T2 , IndexType2 , MaxRowSize >& M )
 {
 	resize( M._rowNum );
+#ifdef NEW_CODE_SPARSE_MATRIX
+	for( size_t i=0 ; i<_rowNum ; i++ )
+	{
+		_rowSizes[i] = M._rowSizes[i];
+		for( size_t j=0 ; j<_rowSizes[i] ; j++ ) _entries[ i + MaxRowSize*j ] = MatrixEntry< T , IndexType >( M._entries[ i + MaxRowSize*j ].N , T( M._entries[ i + MaxRowSize*j ].Value ) );
+	}
+#else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<_rowNum ; i++ )
 	{
 		_rowSizes[i] = M._rowSizes[i];
 		for( int j=0 ; j<_rowSizes[i] ; j++ ) _entries[ i + MaxRowSize*j ] = MatrixEntry< T , IndexType >( M._entries[ i + MaxRowSize*j ].N , T( M._entries[ i + MaxRowSize*j ].Value ) );
 	}
+#endif // NEW_CODE_SPARSE_MATRIX
 	return *this;
 }
 
@@ -642,7 +861,11 @@ template< class T , class IndexType , size_t MaxRowSize >
 SparseMatrix< T , IndexType , MaxRowSize >& SparseMatrix< T , IndexType , MaxRowSize >::operator *= ( T s )
 {
 #pragma omp parallel for
+#ifdef NEW_CODE_SPARSE_MATRIX
+	for( long long i=0 ; i<(long long)_rowNum*MaxRowSize ; i++ ) _entries[i].Value *= s;
+#else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<_rowNum*MaxRowSize ; i++ ) _entries[i].Value *= s;
+#endif // NEW_CODE_SPARSE_MATRIX
 	return *this;
 }
 

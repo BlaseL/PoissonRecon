@@ -88,10 +88,17 @@ template< class C > ConstArray< C > GetPointer( const C& c ) { return ConstArray
 template< class C >      Array< C > GetPointer(       std::vector< C >& v ){ return      Array< C >::FromPointer( &v[0] , v.size() ); }
 template< class C > ConstArray< C > GetPointer( const std::vector< C >& v ){ return ConstArray< C >::FromPointer( &v[0] , v.size() ); }
 
+#ifdef ARRAY_NEW_CODE
+template< class C >      Array< C > GetPointer(       C* c , size_t sz ) { return      Array< C >::FromPointer( c , sz ); }
+template< class C > ConstArray< C > GetPointer( const C* c , size_t sz ) { return ConstArray< C >::FromPointer( c , sz ); }
+template< class C >      Array< C > GetPointer(       C* c , long long start , long long end ) { return      Array< C >::FromPointer( c , start , end ); }
+template< class C > ConstArray< C > GetPointer( const C* c , long long start , long long end ) { return ConstArray< C >::FromPointer( c , start , end ); }
+#else // !ARRAY_NEW_CODE
 template< class C >      Array< C > GetPointer(       C* c , int sz ) { return      Array< C >::FromPointer( c , sz ); }
 template< class C > ConstArray< C > GetPointer( const C* c , int sz ) { return ConstArray< C >::FromPointer( c , sz ); }
 template< class C >      Array< C > GetPointer(       C* c , int start , int end ) { return      Array< C >::FromPointer( c , start , end ); }
 template< class C > ConstArray< C > GetPointer( const C* c , int start , int end ) { return ConstArray< C >::FromPointer( c , start , end ); }
+#endif // ARRAY_NEW_CODE
 
 #else // !ARRAY_DEBUG
 #define      Pointer( ... )       __VA_ARGS__*
@@ -116,9 +123,16 @@ template< class C > const C* GetPointer( const C& c ){ return &c; }
 template< class C >       C* GetPointer(       std::vector< C >& v ){ return &v[0]; }
 template< class C > const C* GetPointer( const std::vector< C >& v ){ return &v[0]; }
 
+#ifdef NEW_CODE
+template< class C >       C* GetPointer(       C* c , size_t sz ) { return c; }
+template< class C > const C* GetPointer( const C* c , size_t sz ) { return c; }
+template< class C >       C* GetPointer(       C* c , long long start , long long end ) { return c; }
+template< class C > const C* GetPointer( const C* c , long long start , long long end ) { return c; }
+#else // !NEW_CODE
 template< class C >       C* GetPointer(       C* c , int sz ) { return c; }
 template< class C > const C* GetPointer( const C* c , int sz ) { return c; }
 template< class C >       C* GetPointer(       C* c , int start , int end ) { return c; }
 template< class C > const C* GetPointer( const C* c , int start , int end ) { return c; }
+#endif // NEW_CODE
 #endif // ARRAY_DEBUG
 #endif // ARRAY_INCLUDED
