@@ -313,6 +313,7 @@ namespace MKExceptions
 
 #ifdef NEW_CODE
 
+#ifdef NEW_THREADS
 ////////////////////
 // MKThread Stuff //
 ////////////////////
@@ -367,6 +368,7 @@ struct MKThread
 	}
 };
 unsigned int MKThread::Threads = std::thread::hardware_concurrency();
+#endif // NEW_THREADS
 
 /////////////////////////
 // NumberWrapper Stuff //

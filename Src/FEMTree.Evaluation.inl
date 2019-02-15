@@ -617,7 +617,7 @@ Pointer( V ) FEMTree< Dim , Real >::regularGridEvaluate( const DenseNodeData< V 
 #ifdef NEW_THREADS
 		MKThread::parallel_thread_for( 0 , cellCount , [&]( unsigned int , size_t c )
 #else // !NEW_THREADS
-#pragma omp parallel for( 0 , cellCount , [&]( unsigned int , size_t c )
+#pragma omp parallel for
 		for( long long c=0 ; c<(long long)cellCount ; c++ )
 #endif // NEW_THREADS
 		{
