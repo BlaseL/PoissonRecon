@@ -229,7 +229,11 @@ struct PlyFile
 	std::vector< std::string > &get_comments( void );
 	std::vector< std::string > &get_obj_info( void );
 	void get_info( float & , int & );
+#ifdef NEW_CODE_PLY
+	PlyOtherElems *get_other_element( std::string & , size_t );
+#else // !NEW_CODE_PLY
 	PlyOtherElems *get_other_element( std::string & , int );
+#endif // NEW_CODE_PLY
 protected:
 	void _ascii_get_element ( void * );
 	void _binary_get_element( void * );

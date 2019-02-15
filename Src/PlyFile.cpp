@@ -972,7 +972,11 @@ Exit:
 returns pointer to ALL the "other" element data for this PLY file
 ******************************************************************************/
 
+#ifdef NEW_CODE_PLY
+PlyOtherElems *PlyFile::get_other_element( std::string &elem_name , size_t elem_count )
+#else // !NEW_CODE_PLY
 PlyOtherElems *PlyFile::get_other_element( std::string &elem_name , int elem_count )
+#endif // NEW_CODE_PLY
 {
 	/* look for appropriate element */
 	PlyElement *elem = find_element( elem_name );

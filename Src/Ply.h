@@ -33,6 +33,9 @@ WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
 #ifndef __PLY_H__
 #define __PLY_H__
 
+#ifdef NEW_CODE
+#include <limits>
+#endif // NEW_CODE
 #include <vector>
 #include "PlyFile.h"
 #include "Geometry.h"
@@ -46,6 +49,14 @@ template<> inline int PLYType<        double >( void ){ return PLY_DOUBLE; }
 template< class Real > inline int PLYType( void ){ ERROR_OUT( "Unrecognized type" ); }
 
 #ifdef NEW_CODE
+template< typename Integer > struct PLYTraits{ static const std::string name; };
+template<> const std::string PLYTraits< int >::name="int";
+template<> const std::string PLYTraits< unsigned int >::name="unsigned int";
+template<> const std::string PLYTraits< long >::name="long";
+template<> const std::string PLYTraits< unsigned long >::name="unsigned long";
+template<> const std::string PLYTraits< long long >::name="long long";
+template<> const std::string PLYTraits< unsigned long long >::name="unsigned long long";
+
 template< typename Index >
 struct PlyFace
 {
@@ -56,14 +67,14 @@ struct PlyFace
 	static PlyProperty face_props[];
 };
 template<>
-PlyProperty PlyFace<          int       >::face_props[] = { PlyProperty( "vertex_indices" , PLY_INT       , PLY_INT       , offsetof( PlyFace , vertices ) , 1 , PLY_UINT, PLY_UINT , offsetof( PlyFace , nr_vertices ) ) };
+PlyProperty PlyFace<          int       >::face_props[] = { PlyProperty( "vertex_indices" , PLY_INT       , PLY_INT       , offsetof( PlyFace , vertices ) , 1 , PLY_INT , PLY_INT , offsetof( PlyFace , nr_vertices ) ) };
 template<>
-PlyProperty PlyFace< unsigned int       >::face_props[] = { PlyProperty( "vertex_indices" , PLY_UINT      , PLY_UINT      , offsetof( PlyFace , vertices ) , 1 , PLY_UINT, PLY_UINT , offsetof( PlyFace , nr_vertices ) ) };
+PlyProperty PlyFace< unsigned int       >::face_props[] = { PlyProperty( "vertex_indices" , PLY_UINT      , PLY_UINT      , offsetof( PlyFace , vertices ) , 1 , PLY_INT , PLY_INT , offsetof( PlyFace , nr_vertices ) ) };
 #ifdef NEW_CODE_PLY
 template<>
-PlyProperty PlyFace<          long long >::face_props[] = { PlyProperty( "vertex_indices" , PLY_LONGLONG  , PLY_LONGLONG  , offsetof( PlyFace , vertices ) , 1 , PLY_UINT, PLY_UINT , offsetof( PlyFace , nr_vertices ) ) };
+PlyProperty PlyFace<          long long >::face_props[] = { PlyProperty( "vertex_indices" , PLY_LONGLONG  , PLY_LONGLONG  , offsetof( PlyFace , vertices ) , 1 , PLY_INT , PLY_INT , offsetof( PlyFace , nr_vertices ) ) };
 template<>
-PlyProperty PlyFace< unsigned long long >::face_props[] = { PlyProperty( "vertex_indices" , PLY_ULONGLONG , PLY_ULONGLONG , offsetof( PlyFace , vertices ) , 1 , PLY_UINT, PLY_UINT , offsetof( PlyFace , nr_vertices ) ) };
+PlyProperty PlyFace< unsigned long long >::face_props[] = { PlyProperty( "vertex_indices" , PLY_ULONGLONG , PLY_ULONGLONG , offsetof( PlyFace , vertices ) , 1 , PLY_INT , PLY_INT , offsetof( PlyFace , nr_vertices ) ) };
 #endif // NEW_CODE_PLY
 #else // !NEW_CODE
 typedef struct PlyFace
@@ -276,11 +287,11 @@ void PlyVertexWithData< Real , Dim , Data , RealOnDisk >::_SetWriteProperties( v
 }
 
 #ifdef NEW_CODE
-template< class Vertex , typename Index , class Real , int Dim >
+template< class Vertex , typename Index , class Real , int Dim , typename OutputIndex=int >
 int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex , Index >* mesh , int file_type , const Point< float , Dim >& translate , float scale , const std::vector< std::string >& comments , XForm< Real , Dim+1 > xForm=XForm< Real , Dim+1 >::Identity() );
 
-template< class Vertex , typename Index , class Real , int Dim >
-int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex , Index >* mesh , int file_type , const std::vector< std::string >& comments , XForm< Real , Dim+1 > xForm=XForm< Real , Dim+1 >::Identity() );
+template< class Vertex , typename Index , class Real , int Dim , typename OutputIndex=int  >
+int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex , Index >* mesh , int file_type ,                                                       const std::vector< std::string >& comments , XForm< Real , Dim+1 > xForm=XForm< Real , Dim+1 >::Identity() );
 #else // !NEW_CODE
 template< class Vertex , class Real , int Dim >
 int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >*  mesh , int file_type , const Point< float , Dim >& translate , float scale , const std::vector< std::string >& comments , XForm< Real , Dim+1 > xForm=XForm< Real , Dim+1 >::Identity() );
@@ -423,7 +434,11 @@ int PlyWritePolygons( const char* fileName ,
 #endif // NEW_CODE
 		}
 		ply_face.nr_vertices = (int)polygons[i].size();
+#ifdef NEW_CODE
+		for( size_t j=0 ; j<ply_face.nr_vertices ; j++ ) ply_face.vertices[j] = polygons[i][j];
+#else // !NEW_CODE
 		for( int j=0 ; j<ply_face.nr_vertices ; j++ ) ply_face.vertices[j] = polygons[i][j];
+#endif // NEW_CODE
 		ply->put_element( (void *)&ply_face );
 	}
 
@@ -522,7 +537,11 @@ int PlyReadPolygons
 #endif // NEW_CODE
 				ply->get_element( (void *)&ply_face );
 				polygons[j].resize( ply_face.nr_vertices );
+#ifdef NEW_CODE
+				for( unsigned int k=0 ; k<ply_face.nr_vertices ; k++ ) polygons[j][k] = ply_face.vertices[k];
+#else // !NEW_CODE
 				for( int k=0 ; k<ply_face.nr_vertices ; k++ ) polygons[j][k] = ply_face.vertices[k];
+#endif // NEW_CODE
 				free( ply_face.vertices );
 			}  // for, read faces
 		}  // if face
@@ -536,7 +555,7 @@ int PlyReadPolygons
 }
 
 #ifdef NEW_CODE
-template< class Vertex , typename Index , class Real , int Dim >
+template< class Vertex , typename Index , class Real , int Dim , typename OutputIndex >
 int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex , Index >* mesh , int file_type , const Point< float , Dim >& translate , float scale , const std::vector< std::string > &comments , XForm< Real , Dim+1 > xForm )
 #else // !NEW_CODE
 template< class Vertex , class Real , int Dim >
@@ -544,6 +563,12 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 #endif // NEW_CODE
 {
 #ifdef NEW_CODE
+	if( mesh->outOfCorePointCount()+mesh->inCorePoints.size()>(size_t)std::numeric_limits<OutputIndex>::max() )
+	{
+		if( std::is_same< Index , OutputIndex >::value ) ERROR_OUT( "more vertices than can be represented using " , PLYTraits< Index >::name );
+		WARN( "more vertices than can be represented using " , PLYTraits< OutputIndex >::name , " using " , PLYTraits< Index >::name , " instead" );
+		return PlyWritePolygons< Vertex , Index , Real , Dim , Index >( fileName , mesh , file_type , translate , scale , comments , xForm );
+	}
 	Index nr_vertices = ( Index )( mesh->outOfCorePointCount()+mesh->inCorePoints.size() );
 	Index nr_faces = mesh->polygonCount();
 #else // !NEW_CODE
@@ -564,7 +589,7 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 	for( int i=0 ; i<Vertex::Components ; i++ ) ply->describe_property( "vertex" , &Vertex::Properties[i] );
 	ply->element_count( "face" , nr_faces );
 #ifdef NEW_CODE
-	ply->describe_property( "face" , PlyFace< Index >::face_props );
+	ply->describe_property( "face" , PlyFace< OutputIndex >::face_props );
 #else // !NEW_CODE
 	ply->describe_property( "face" , &face_props[0] );
 #endif // NEW_CODE
@@ -620,15 +645,16 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 		mesh->nextPolygon( polygon );
 		ply_face.nr_vertices = int( polygon.size() );
 #ifdef NEW_CODE
-		ply_face.vertices = new Index[ polygon.size() ];
+		ply_face.vertices = new OutputIndex[ polygon.size() ];
 #else // !NEW_CODE
 		ply_face.vertices = new int[ polygon.size() ];
 #endif // NEW_CODE
 		for( int j=0 ; j<int(polygon.size()) ; j++ )
-			if( polygon[j].inCore ) ply_face.vertices[j] = polygon[j].idx;
 #ifdef NEW_CODE
-			else                    ply_face.vertices[j] = polygon[j].idx + (Index)mesh->inCorePoints.size();
+			if( polygon[j].inCore ) ply_face.vertices[j] = (OutputIndex)polygon[j].idx;
+			else                    ply_face.vertices[j] = (OutputIndex)( polygon[j].idx + (Index)mesh->inCorePoints.size() );
 #else // !NEW_CODE
+			if( polygon[j].inCore ) ply_face.vertices[j] = polygon[j].idx;
 			else                    ply_face.vertices[j] = polygon[j].idx + int( mesh->inCorePoints.size() );
 #endif // NEW_CODE
 			ply->put_element( (void *)&ply_face );
@@ -641,7 +667,7 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 }
 
 #ifdef NEW_CODE
-template< class Vertex , typename Index , class Real , int Dim >
+template< class Vertex , typename Index , class Real , int Dim , typename OutputIndex >
 int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex , Index >* mesh , int file_type , const std::vector< std::string > &comments , XForm< Real , Dim+1 > xForm )
 #else // !NEW_CODE
 template< class Vertex , class Real , int Dim >
@@ -649,6 +675,12 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 #endif // NEW_CODE
 {
 #ifdef NEW_CODE
+	if( mesh->outOfCorePointCount()+mesh->inCorePoints.size()>(size_t)std::numeric_limits<OutputIndex>::max() )
+	{
+		if( std::is_same< Index , OutputIndex >::value ) ERROR_OUT( "more vertices than can be represented using " , PLYTraits< Index >::name );
+		WARN( "more vertices than can be represented using " , PLYTraits< OutputIndex >::name , " using " , PLYTraits< Index >::name , " instead" );
+		return PlyWritePolygons< Vertex , Index , Real , Dim , Index >( fileName , mesh , file_type , comments , xForm );
+	}
 	Index nr_vertices = (Index)( mesh->outOfCorePointCount()+mesh->inCorePoints.size() );
 	Index nr_faces = mesh->polygonCount();
 #else // !NEW_CODE
@@ -719,22 +751,23 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 		// create and fill a struct that the ply code can handle
 		//
 #ifdef NEW_CODE
-		PlyFace< Index > ply_face;
+		PlyFace< OutputIndex > ply_face;
 #else // !NEW_CODE
 		PlyFace ply_face;
 #endif // NEW_CODE
 		mesh->nextPolygon( polygon );
 		ply_face.nr_vertices = int( polygon.size() );
 #ifdef NEW_CODE
-		ply_face.vertices = new Index[ polygon.size() ];
+		ply_face.vertices = new OutputIndex[ polygon.size() ];
 #else // !NEW_CODE
 		ply_face.vertices = new int[ polygon.size() ];
 #endif // NEW_CODE
 		for( int j=0 ; j<int(polygon.size()) ; j++ )
-			if( polygon[j].inCore ) ply_face.vertices[j] = polygon[j].idx;
 #ifdef NEW_CODE
-			else                    ply_face.vertices[j] = polygon[j].idx + (Index)mesh->inCorePoints.size();
+			if( polygon[j].inCore ) ply_face.vertices[j] = (OutputIndex)polygon[j].idx;
+			else                    ply_face.vertices[j] = (OutputIndex)( polygon[j].idx + (Index)mesh->inCorePoints.size() );
 #else // !NEW_CODE
+			if( polygon[j].inCore ) ply_face.vertices[j] = polygon[j].idx;
 			else                    ply_face.vertices[j] = polygon[j].idx + int( mesh->inCorePoints.size() );
 #endif // NEW_CODE
 			ply->put_element( (void *)&ply_face );
