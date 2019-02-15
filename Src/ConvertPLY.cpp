@@ -53,7 +53,7 @@ void ShowUsage( char* ex )
 	printf( "Usage: %s\n" , ex );
 	printf( "\t --%s <input polygon mesh>\n" , In.name );
 	printf( "\t[--%s <ouput polygon mesh name/header>]\n" , Out.name );
-	printf( "\t[--%s <chunk width>=%f]\n" , ChunkWidth.name , ChunkWidth.value );
+	printf( "\t[--%s <chunk width>]\n" , ChunkWidth.name );
 	printf( "\t[--%s]\n" , ASCII.name );
 }
 
@@ -112,7 +112,6 @@ void GetBoundingBox( const std::vector< Vertex > &vertices , Point< float , 3 > 
 template< typename Vertex >
 void GetSubMesh( const std::vector< Vertex > &vertices , const std::vector< std::vector< long long > > &polygons , Point< float , 3 > min , Point< float , 3 > max , std::vector< Vertex > &subVertices , std::vector< std::vector< long long > > &subPolygons )
 {
-	printf( "Getting sub mesh: " ) ; PrintBoundingBox( min , max ) ; printf( "\n" );
 	subVertices.resize( 0 );
 	subPolygons.resize( 0 );
 
@@ -183,7 +182,7 @@ int Execute( void )
 						GetSubMesh( vertices , polygons , Point< float , 3 >( xMin , yMin , zMin ) , Point< float , 3 >( xMin+width , yMin+width , zMin+width ) , subVertices , subPolygons );
 						if( subPolygons.size() )
 						{
-							printf( "\tVertices / Polygons: %llu / %llu\n" , (unsigned long long)subVertices.size() , (unsigned long long)subPolygons.size() );
+							printf( "\t[%d %d %d]Vertices / Polygons: %llu / %llu\n" , i , j , k , (unsigned long long)subVertices.size() , (unsigned long long)subPolygons.size() );
 
 							Point< float , 3 > _min , _max;
 							GetBoundingBox( subVertices , _min , _max );
