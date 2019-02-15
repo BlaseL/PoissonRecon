@@ -58,10 +58,19 @@ void ShowUsage( char* ex )
 	printf( "\t[--%s]\n" , ASCII.name );
 }
 
+template< typename Index >
+void TestIndices( size_t vCount , const std::vector< std::vector< Index > > &polygons )
+{
+	for( size_t i=0 ; i<polygons.size() ; i++ ) for( size_t j=0 ; j<polygons[i].size() ; j++ ) if( polygons[i][j]<0 || polygons[i][j]>vCount ) ERROR_OUT( "bad vertex index: 0 <= " , polygons[i][j] , " <= " , vCount );
+}
+
 template< typename ... VertexData >
 void WriteMesh( const char *fileName , int ft , const std::vector< PlyVertexWithData< float , DIMENSION , MultiPointStreamData< float , VertexData ... > > > &vertices , const std::vector< std::vector< long long > > &polygons , const std::vector< std::string > &comments )
 {
+	TestIndices( vertices.size() , polygons );
+
 	typedef PlyVertexWithData< float , DIMENSION , MultiPointStreamData< float , VertexData ... > > Vertex;
+
 	if( vertices.size()>std::numeric_limits< int >::max() )
 	{
 		if( vertices.size()>std::numeric_limits< unsigned int >::max() ) ERROR_OUT( "more vertices than can be indexed by an unsigned int: %llu" , (unsigned long long)vertices.size() );
@@ -73,6 +82,7 @@ void WriteMesh( const char *fileName , int ft , const std::vector< PlyVertexWith
 			outPolygons[i].resize( polygons[i].size() );
 			for( int j=0 ; j<polygons[i].size() ; j++ ) outPolygons[i][j] = (unsigned int)polygons[i][j];
 		}
+		TestIndices( vertices.size() , outPolygons );
 		if( !PlyWritePolygons< Vertex >( fileName , vertices , outPolygons , Vertex::PlyWriteProperties() , Vertex::PlyWriteNum , ft , comments ) ) ERROR_OUT( "Could not write mesh to: " , fileName );
 	}
 	else
@@ -84,11 +94,22 @@ void WriteMesh( const char *fileName , int ft , const std::vector< PlyVertexWith
 			outPolygons[i].resize( polygons[i].size() );
 			for( int j=0 ; j<polygons[i].size() ; j++ ) outPolygons[i][j] = (int)polygons[i][j];
 		}
+		TestIndices( vertices.size() , outPolygons );
 		if( !PlyWritePolygons< Vertex >( fileName , vertices , outPolygons , Vertex::PlyWriteProperties() , Vertex::PlyWriteNum , ft , comments ) ) ERROR_OUT( "Could not write mesh to: " , fileName );
 	}
 
 }
 
+template< typename Vertex >
+void GetBoundingBox( const std::vector< Vertex > &vertices , Point< float , DIMENSION > &min , Point< float , DIMENSION > &max )
+{
+	min = max = vertices[0].point;
+	for( size_t i=0 ; i<vertices.size() ; i++ ) for( unsigned int d=0 ; d<DIMENSION ; d++ )
+	{
+		min[d] = std::min< float >( min[d] , vertices[i].point[d] );
+		max[d] = std::max< float >( max[d] , vertices[i].point[d] );
+	}
+}
 template< typename ... VertexData >
 int Execute( void )
 {
@@ -102,12 +123,7 @@ int Execute( void )
 	printf( "Vertices / Polygons: %llu / %llu\n" , (unsigned long long)vertices.size() , (unsigned long long)polygons.size() );
 
 	Point< float , DIMENSION > min , max;
-	min = max = vertices[0].point;
-	for( size_t i=0 ; i<vertices.size() ; i++ ) for( unsigned int d=0 ; d<DIMENSION ; d++ )
-	{
-		min[d] = std::min< float >( min[d] , vertices[i].point[d] );
-		max[d] = std::max< float >( max[d] , vertices[i].point[d] );
-	}
+	GetBoundingBox( vertices , min , max );
 	printf( "min / max: [" );
 	for( unsigned int d=0 ; d<DIMENSION ; d++ ) printf( " %f" , min[d] );
 	printf( " ] [" );
@@ -142,6 +158,16 @@ int Execute( void )
 			subVertices[ newIdx ] = vertices[ oldIdx ];
 			subPolygons[i][j] = newIdx;
 		}
+		printf( "Vertices / Polygons: %llu / %llu\n" , (unsigned long long)subVertices.size() , (unsigned long long)subPolygons.size() );
+
+		Point< float , DIMENSION > min , max;
+		GetBoundingBox( subVertices , min , max );
+		printf( "min / max: [" );
+		for( unsigned int d=0 ; d<DIMENSION ; d++ ) printf( " %f" , min[d] );
+		printf( " ] [" );
+		for( unsigned int d=0 ; d<DIMENSION ; d++ ) printf( " %f" , max[d] );
+		printf( " ]\n" );
+
 		if( Out.set ) WriteMesh( Out.value , ASCII.set ? PLY_ASCII : ft , subVertices , subPolygons , comments );
 	}
 	else
