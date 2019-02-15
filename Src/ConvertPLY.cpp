@@ -112,18 +112,31 @@ void GetBoundingBox( const std::vector< Vertex > &vertices , Point< float , 3 > 
 template< typename Vertex >
 void GetSubMesh( const std::vector< Vertex > &vertices , const std::vector< std::vector< long long > > &polygons , Point< float , 3 > min , Point< float , 3 > max , std::vector< Vertex > &subVertices , std::vector< std::vector< long long > > &subPolygons )
 {
+printf("a\n" );
 	subVertices.resize( 0 );
 	subPolygons.resize( 0 );
 
+printf( "Vertices: %d\n" , (int)vertices.size() );
 	for( size_t i=0 ; i<polygons.size() ; i++ )
 	{
+printf( "processing polygon: %d / %d\n" , (int)i , (int)polygons.size() );
+for( int j=0 ; j<polygons[i].size() ; j++ ) printf( " %d" , (int)polygons[i][j] );
+printf( "\n" );
 		Point< float , 3 > center;
-		for( size_t j=0 ; j<polygons[i].size() ; j++ ) center += vertices[ polygons[i][j] ].point;
+printf( "1\n ");
+		for( size_t j=0 ; j<polygons[i].size() ; j++ )
+		{
+printf( "processing corner %d / %d: %llu\n" , (int)j , (int)polygons[i].size() , (unsigned long long)polygons[i][j] );
+			center += vertices[ polygons[i][j] ].point;
+		}
+printf( "2\n ");
 		center /= (float)polygons[i].size();
+printf( "Center: %f %f %f\n" , center[0] , center[1] , center[2] );
 		bool inside = true;
 		for( unsigned int d=0 ; d<3 ; d++ ) if( center[d]<min[d] || center[d]>=max[d] ) inside = false;
 		if( inside ) subPolygons.push_back( polygons[i] );
 	}
+printf("b\n" );
 
 	long long count = 0;
 	std::unordered_map< long long , long long > vMap;
@@ -133,6 +146,7 @@ void GetSubMesh( const std::vector< Vertex > &vertices , const std::vector< std:
 		if( iter==vMap.end() ) vMap[ subPolygons[i][j] ] = count++;
 	}
 
+printf("c\n" );
 	subVertices.resize( vMap.size() );
 	for( size_t i=0 ; i<subPolygons.size() ; i++ ) for( size_t j=0 ; j<subPolygons[i].size() ; j++ )
 	{
@@ -141,6 +155,7 @@ void GetSubMesh( const std::vector< Vertex > &vertices , const std::vector< std:
 		subVertices[ newIdx ] = vertices[ oldIdx ];
 		subPolygons[i][j] = newIdx;
 	}
+printf("d\n" );
 }
 
 template< typename ... VertexData >

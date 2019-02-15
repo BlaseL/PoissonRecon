@@ -569,8 +569,8 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 		WARN( "more vertices than can be represented using " , PLYTraits< OutputIndex >::name , " using " , PLYTraits< Index >::name , " instead" );
 		return PlyWritePolygons< Vertex , Index , Real , Dim , Index >( fileName , mesh , file_type , translate , scale , comments , xForm );
 	}
-	Index nr_vertices = ( Index )( mesh->outOfCorePointCount()+mesh->inCorePoints.size() );
-	Index nr_faces = mesh->polygonCount();
+	size_t nr_vertices = mesh->outOfCorePointCount()+mesh->inCorePoints.size();
+	size_t nr_faces = mesh->polygonCount();
 #else // !NEW_CODE
 	int nr_vertices=int(mesh->outOfCorePointCount()+mesh->inCorePoints.size());
 	int nr_faces=mesh->polygonCount();
@@ -601,7 +601,7 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 	// write vertices
 	ply->put_element_setup( "vertex" );
 #ifdef NEW_CODE
-	for( Index i=0 ; i<(Index)mesh->inCorePoints.size() ; i++ )
+	for( size_t i=0 ; i<mesh->inCorePoints.size() ; i++ )
 #else // !NEW_CODE
 	for( int i=0 ; i<int( mesh->inCorePoints.size() ) ; i++ )
 #endif // NEW_CODE
@@ -610,7 +610,7 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 		ply->put_element( (void *)&vertex );
 	}
 #ifdef NEW_CODE
-	for( Index i=0; i<mesh->outOfCorePointCount() ; i++ )
+	for( size_t i=0; i<mesh->outOfCorePointCount() ; i++ )
 #else // !NEW_CODE
 	for( int i=0; i<mesh->outOfCorePointCount() ; i++ )
 #endif // NEW_CODE
@@ -629,7 +629,7 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 #endif // NEW_CODE
 	ply->put_element_setup( "face" );
 #ifdef NEW_CODE
-	for( Index i=0 ; i<nr_faces ; i++ )
+	for( size_t i=0 ; i<nr_faces ; i++ )
 #else // !NEW_CODE
 	for( int i=0 ; i<nr_faces ; i++ )
 #endif // NEW_CODE
@@ -638,7 +638,7 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 		// create and fill a struct that the ply code can handle
 		//
 #ifdef NEW_CODE
-		PlyFace< Index > ply_face;
+		PlyFace< OutputIndex > ply_face;
 #else // !NEW_CODE
 		PlyFace ply_face;
 #endif // NEW_CODE
@@ -652,7 +652,7 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 		for( int j=0 ; j<int(polygon.size()) ; j++ )
 #ifdef NEW_CODE
 			if( polygon[j].inCore ) ply_face.vertices[j] = (OutputIndex)polygon[j].idx;
-			else                    ply_face.vertices[j] = (OutputIndex)( polygon[j].idx + (Index)mesh->inCorePoints.size() );
+			else                    ply_face.vertices[j] = (OutputIndex)( polygon[j].idx + mesh->inCorePoints.size() );
 #else // !NEW_CODE
 			if( polygon[j].inCore ) ply_face.vertices[j] = polygon[j].idx;
 			else                    ply_face.vertices[j] = polygon[j].idx + int( mesh->inCorePoints.size() );
@@ -681,8 +681,8 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 		WARN( "more vertices than can be represented using " , PLYTraits< OutputIndex >::name , " using " , PLYTraits< Index >::name , " instead" );
 		return PlyWritePolygons< Vertex , Index , Real , Dim , Index >( fileName , mesh , file_type , comments , xForm );
 	}
-	Index nr_vertices = (Index)( mesh->outOfCorePointCount()+mesh->inCorePoints.size() );
-	Index nr_faces = mesh->polygonCount();
+	size_t nr_vertices = mesh->outOfCorePointCount()+mesh->inCorePoints.size();
+	size_t nr_faces = mesh->polygonCount();
 #else // !NEW_CODE
 	int nr_vertices=int(mesh->outOfCorePointCount()+mesh->inCorePoints.size());
 	int nr_faces=mesh->polygonCount();
@@ -703,7 +703,7 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 	for( int i=0 ; i<Vertex::PlyWriteNum ; i++ ) ply->describe_property( "vertex" , &PlyWriteProperties[i] );
 	ply->element_count( "face" , nr_faces );
 #ifdef NEW_CODE
-	ply->describe_property( "face" , PlyFace< Index >::face_props );
+	ply->describe_property( "face" , PlyFace< OutputIndex >::face_props );
 #else // !NEW_CODE
 	ply->describe_property( "face" , &face_props[0] );
 #endif // NEW_CODE
@@ -714,7 +714,7 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 	// write vertices
 	ply->put_element_setup( "vertex" );
 #ifdef NEW_CODE
-	for( Index i=0 ; i<(Index)mesh->inCorePoints.size() ; i++ )
+	for( size_t i=0 ; i<mesh->inCorePoints.size() ; i++ )
 #else // !NEW_CODE
 	for( int i=0 ; i<int( mesh->inCorePoints.size() ) ; i++ )
 #endif // NEW_CODE
@@ -723,7 +723,7 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 		ply->put_element( (void *)&vertex );
 	}
 #ifdef NEW_CODE
-	for( Index i=0; i<mesh->outOfCorePointCount() ; i++ )
+	for( size_t i=0; i<mesh->outOfCorePointCount() ; i++ )
 #else // !NEW_CODE
 	for( int i=0; i<mesh->outOfCorePointCount() ; i++ )
 #endif // NEW_CODE
@@ -742,7 +742,7 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 #endif // NEW_CODE
 	ply->put_element_setup( "face" );
 #ifdef NEW_CODE
-	for( Index i=0 ; i<nr_faces ; i++ )
+	for( size_t i=0 ; i<nr_faces ; i++ )
 #else // !NEW_CODE
 	for( int i=0 ; i<nr_faces ; i++ )
 #endif // NEW_CODE
@@ -765,7 +765,7 @@ int PlyWritePolygons( const char* fileName , CoredMeshData< Vertex >* mesh , int
 		for( int j=0 ; j<int(polygon.size()) ; j++ )
 #ifdef NEW_CODE
 			if( polygon[j].inCore ) ply_face.vertices[j] = (OutputIndex)polygon[j].idx;
-			else                    ply_face.vertices[j] = (OutputIndex)( polygon[j].idx + (Index)mesh->inCorePoints.size() );
+			else                    ply_face.vertices[j] = (OutputIndex)( polygon[j].idx + mesh->inCorePoints.size() );
 #else // !NEW_CODE
 			if( polygon[j].inCore ) ply_face.vertices[j] = polygon[j].idx;
 			else                    ply_face.vertices[j] = polygon[j].idx + int( mesh->inCorePoints.size() );

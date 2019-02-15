@@ -48,14 +48,11 @@ DAMAGE.
 #ifndef NEW_CODE
 //#define NEW_CODE
 #endif // NEW_CODE
-//#define BLASE_DEBUG
 
-
-#ifdef BLASE_DEBUG
-bool debugFEMTree = false;
-#endif // BLASE_DEBUG
 #ifdef NEW_CODE
+#define NEW_THREADS
 #endif // NEW_CODE
+
 
 #include <atomic>
 #include "MyMiscellany.h"
@@ -66,16 +63,24 @@ bool debugFEMTree = false;
 #include "SparseMatrix.h"
 #ifdef NEW_CODE
 #include "BlockedVector.h"
+#include <limits>
 #endif // NEW_CODE
 #include <functional>
 #include <string>
-#ifdef NEW_CODE
-#include <limits>
-#endif // NEW_CODE
 
 #ifdef NEW_CODE
+#ifdef BIG_DATA
+// The integer type used for indexing the nodes in the octree
 typedef long long node_index_type;
+// The integer type used for indexing the entries of the matrix
 typedef int matrix_index_type;
+// The integer type used for storing the depth and offset within an octree node
+typedef unsigned int depth_and_offset_type;
+#else // !BIG_DATA
+typedef int node_index_type;
+typedef int matrix_index_type;
+typedef unsigned short depth_and_offset_type;
+#endif // BIG_DATA
 #endif // NEW_CODE
 
 template< unsigned int Dim , class Real > class FEMTree;
@@ -115,7 +120,11 @@ public:
 template< unsigned int Dim >
 class SortedTreeNodes
 {
+#ifdef NEW_CODE
+	typedef RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > TreeNode;
+#else // !NEW_CODE
 	typedef RegularTreeNode< Dim , FEMTreeNodeData > TreeNode;
+#endif // NEW_CODE
 protected:
 #ifdef NEW_CODE
 	Pointer( Pointer( node_index_type ) ) _sliceStart;
@@ -179,7 +188,11 @@ template< class Real , unsigned int Dim > struct DotFunctor< Point< Real , Dim >
 
 template< typename Pack > struct SupportKey{ };
 template< unsigned int ... Degrees >
+#ifdef NEW_CODE
+struct SupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData , depth_and_offset_type >::template NeighborKey< UIntPack< (-BSplineSupportSizes< Degrees >::SupportStart) ... > , UIntPack< BSplineSupportSizes< Degrees >::SupportEnd ... > >
+#else // !NEW_CODE
 struct SupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData >::template NeighborKey< UIntPack< (-BSplineSupportSizes< Degrees >::SupportStart) ... > , UIntPack< BSplineSupportSizes< Degrees >::SupportEnd ... > >
+#endif // NEW_CODE
 {
 	typedef UIntPack< (-BSplineSupportSizes< Degrees >::SupportStart ) ... > LeftRadii;
 	typedef UIntPack< ( BSplineSupportSizes< Degrees >::SupportEnd   ) ... > RightRadii;
@@ -187,7 +200,11 @@ struct SupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...
 };
 template< typename Pack > struct ConstSupportKey{ };
 template< unsigned int ... Degrees >
+#ifdef NEW_CODE
+struct ConstSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData , depth_and_offset_type >::template ConstNeighborKey< UIntPack< (-BSplineSupportSizes< Degrees >::SupportStart ) ... > , UIntPack< BSplineSupportSizes< Degrees >::SupportEnd ... > >
+#else // !NEW_CODE
 struct ConstSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData >::template ConstNeighborKey< UIntPack< (-BSplineSupportSizes< Degrees >::SupportStart ) ... > , UIntPack< BSplineSupportSizes< Degrees >::SupportEnd ... > >
+#endif // NEW_CODE
 {
 	typedef UIntPack< (-BSplineSupportSizes< Degrees >::SupportStart ) ... > LeftRadii;
 	typedef UIntPack< ( BSplineSupportSizes< Degrees >::SupportEnd   ) ... > RightRadii;
@@ -195,7 +212,11 @@ struct ConstSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< size
 };
 template< typename Pack > struct OverlapKey{ };
 template< unsigned int ... Degrees >
+#ifdef NEW_CODE
+struct OverlapKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData , depth_and_offset_type >::template NeighborKey< UIntPack< (-BSplineOverlapSizes< Degrees , Degrees >::OverlapStart ) ... > , UIntPack< BSplineOverlapSizes< Degrees , Degrees >::OverlapEnd ... > >
+#else // !NEW_CODE
 struct OverlapKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData >::template NeighborKey< UIntPack< (-BSplineOverlapSizes< Degrees , Degrees >::OverlapStart ) ... > , UIntPack< BSplineOverlapSizes< Degrees , Degrees >::OverlapEnd ... > >
+#endif // NEW_CODE
 {
 	typedef UIntPack< (-BSplineOverlapSizes< Degrees , Degrees >::OverlapStart ) ... > LeftRadii;
 	typedef UIntPack< ( BSplineOverlapSizes< Degrees , Degrees >::OverlapEnd   ) ... > RightRadii;
@@ -203,7 +224,11 @@ struct OverlapKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...
 };
 template< typename Pack > struct ConstOverlapKey{ };
 template< unsigned int ... Degrees >
+#ifdef NEW_CODE
+struct ConstOverlapKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData , depth_and_offset_type >::template ConstNeighborKey< UIntPack< (-BSplineOverlapSizes< Degrees , Degrees >::OverlapStart ) ... > , UIntPack< BSplineOverlapSizes< Degrees , Degrees >::OverlapEnd ... > >
+#else // !NEW_CODE
 struct ConstOverlapKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData >::template ConstNeighborKey< UIntPack< (-BSplineOverlapSizes< Degrees , Degrees >::OverlapStart ) ... > , UIntPack< BSplineOverlapSizes< Degrees , Degrees >::OverlapEnd ... > >
+#endif // NEW_CODE
 {
 	typedef UIntPack< (-BSplineOverlapSizes< Degrees , Degrees >::OverlapStart ) ... > LeftRadii;
 	typedef UIntPack< ( BSplineOverlapSizes< Degrees , Degrees >::OverlapEnd   ) ... > RightRadii;
@@ -212,7 +237,11 @@ struct ConstOverlapKey< UIntPack< Degrees ... > > : public RegularTreeNode< size
 
 template< typename Pack > struct PointSupportKey{ };
 template< unsigned int ... Degrees >
+#ifdef NEW_CODE
+struct PointSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData , depth_and_offset_type >::template NeighborKey< UIntPack< BSplineSupportSizes< Degrees >::SupportEnd ... > , UIntPack< (-BSplineSupportSizes< Degrees >::SupportStart ) ... > >
+#else // !NEW_CODE
 struct PointSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData >::template NeighborKey< UIntPack< BSplineSupportSizes< Degrees >::SupportEnd ... > , UIntPack< (-BSplineSupportSizes< Degrees >::SupportStart ) ... > >
+#endif // NEW_CODE
 {
 	typedef UIntPack< ( BSplineSupportSizes< Degrees >::SupportEnd   ) ... > LeftRadii;
 	typedef UIntPack< (-BSplineSupportSizes< Degrees >::SupportStart ) ... > RightRadii;
@@ -220,7 +249,11 @@ struct PointSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< size
 };
 template< typename Pack > struct ConstPointSupportKey{ };
 template< unsigned int ... Degrees >
+#ifdef NEW_CODE
+struct ConstPointSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData , depth_and_offset_type >::template ConstNeighborKey< UIntPack< BSplineSupportSizes< Degrees >::SupportEnd ... > , UIntPack< (-BSplineSupportSizes< Degrees >::SupportStart ) ... > >
+#else // !NEW_CODE
 struct ConstPointSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData >::template ConstNeighborKey< UIntPack< BSplineSupportSizes< Degrees >::SupportEnd ... > , UIntPack< (-BSplineSupportSizes< Degrees >::SupportStart ) ... > >
+#endif // NEW_CODE
 {
 	typedef UIntPack< ( BSplineSupportSizes< Degrees >::SupportEnd   ) ... > LeftRadii;
 	typedef UIntPack< (-BSplineSupportSizes< Degrees >::SupportStart ) ... > RightRadii;
@@ -229,7 +262,11 @@ struct ConstPointSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode<
 
 template< typename Pack > struct CornerSupportKey{ };
 template< unsigned int ... Degrees >
+#ifdef NEW_CODE
+struct CornerSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData , depth_and_offset_type >::template NeighborKey< UIntPack< BSplineSupportSizes< Degrees >::BCornerEnd ... > , UIntPack< ( -BSplineSupportSizes< Degrees >::BCornerStart + 1 ) ... > >
+#else // !NEW_CODE
 struct CornerSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData >::template NeighborKey< UIntPack< BSplineSupportSizes< Degrees >::BCornerEnd ... > , UIntPack< ( -BSplineSupportSizes< Degrees >::BCornerStart + 1 ) ... > >
+#endif // NEW_CODE
 {
 	typedef UIntPack< ( BSplineSupportSizes< Degrees >::BCornerEnd       ) ... > LeftRadii;
 	typedef UIntPack< (-BSplineSupportSizes< Degrees >::BCornerStart + 1 ) ... > RightRadii;
@@ -237,7 +274,11 @@ struct CornerSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< siz
 };
 template< typename Pack > struct ConstCornerSupportKey{ };
 template< unsigned int ... Degrees >
+#ifdef NEW_CODE
+struct ConstCornerSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData , depth_and_offset_type >::template ConstNeighborKey< UIntPack< BSplineSupportSizes< Degrees >::BCornerEnd ... > , UIntPack< ( -BSplineSupportSizes< Degrees >::BCornerStart + 1 ) ... > >
+#else // !NEW_CODE
 struct ConstCornerSupportKey< UIntPack< Degrees ... > > : public RegularTreeNode< sizeof...(Degrees) , FEMTreeNodeData >::template ConstNeighborKey< UIntPack< BSplineSupportSizes< Degrees >::BCornerEnd ... > , UIntPack< ( -BSplineSupportSizes< Degrees >::BCornerStart + 1 ) ... > >
+#endif // NEW_CODE
 {
 	typedef UIntPack< ( BSplineSupportSizes< Degrees >::BCornerEnd       ) ... > LeftRadii;
 	typedef UIntPack< (-BSplineSupportSizes< Degrees >::BCornerStart + 1 ) ... > RightRadii;
@@ -391,20 +432,27 @@ struct _SparseOrDenseNodeData< Data , UIntPack< FEMSigs ... > >
 #ifdef NEW_CODE
 	virtual const Data& operator[] ( size_t idx ) const = 0;
 	virtual Data& operator[] ( size_t idx ) = 0;
+
+	// Method for accessing (and inserting if necessary) using a node
+	virtual Data& operator[]( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > *node ) = 0;
+	// Methods for accessing using a node
+	virtual Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > *node ) = 0;
+	virtual const Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ) const = 0;
 #else // !NEW_CODE
 	virtual const Data& operator[] ( int idx ) const = 0;
 	virtual Data& operator[] ( int idx ) = 0;
-#endif // NEW_CODE
 
 	// Method for accessing (and inserting if necessary) using a node
 	virtual Data& operator[]( const RegularTreeNode< Dim , FEMTreeNodeData > *node ) = 0;
 	// Methods for accessing using a node
 	virtual Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData > *node ) = 0;
 	virtual const Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) const = 0;
+#endif // NEW_CODE
+
 
 #ifdef NEW_CODE
 	// Method for getting the actual index associated with a node
-	virtual node_index_type index( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) const = 0;
+	virtual node_index_type index( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ) const = 0;
 #endif // NEW_CODE
 };
 
@@ -425,13 +473,14 @@ struct SparseNodeData< Data , UIntPack< FEMSigs ... > > : public _SparseOrDenseN
 
 	void reserve( size_t sz ){ if( sz>_indices.size() ) _indices.resize( sz , -1 ); }
 #ifdef NEW_CODE
-	Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData >* node ){ return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(node_index_type)_indices.size() || _indices[ node->nodeData.nodeIndex ]==-1 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
-	const Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) const { return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(node_index_type)_indices.size() || _indices[ node->nodeData.nodeIndex ]==-1 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
+	Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ){ return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(node_index_type)_indices.size() || _indices[ node->nodeData.nodeIndex ]==-1 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
+	const Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ) const { return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(node_index_type)_indices.size() || _indices[ node->nodeData.nodeIndex ]==-1 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
+	Data& operator[]( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node )
 #else // !NEW_CODE
 	Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData >* node ){ return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(int)_indices.size() || _indices[ node->nodeData.nodeIndex ]<0 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
 	const Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) const { return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(int)_indices.size() || _indices[ node->nodeData.nodeIndex ]<0 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
-#endif // NEW_CODE
 	Data& operator[]( const RegularTreeNode< Dim , FEMTreeNodeData >* node )
+#endif // NEW_CODE
 	{
 		// If the node hasn't been indexed yet
 #ifdef NEW_CODE
@@ -441,17 +490,17 @@ struct SparseNodeData< Data , UIntPack< FEMSigs ... > > : public _SparseOrDenseN
 #endif // NEW_CODE
 #pragma omp critical( SparseNodeData__operator )
 #ifdef NEW_CODE
-			if( node->nodeData.nodeIndex>=(node_index_type)_indices.size() ) _indices.resize( (node_index_type)node->nodeData.nodeIndex+1 , -1 );
+			if( node->nodeData.nodeIndex>=(node_index_type)_indices.size() ) _indices.resize( node->nodeData.nodeIndex+1 , -1 );
 #else // !NEW_CODE
 			if( node->nodeData.nodeIndex>=(int)_indices.size() ) _indices.resize( node->nodeData.nodeIndex+1 , -1 );
 #endif // NEW_CODE
 
 		// If the node hasn't been allocated yet
 #ifdef NEW_CODE
-		if( _indices[ (node_index_type)node->nodeData.nodeIndex ]==-1 )
+		if( _indices[ node->nodeData.nodeIndex ]==-1 )
 #pragma omp critical( SparseNodeData__operator )
-			if( _indices[ (node_index_type)node->nodeData.nodeIndex ]==-1 ) _indices[ (node_index_type)node->nodeData.nodeIndex ] = (node_index_type)_data.push();
-		return _data[ (node_index_type)_indices[ (node_index_type)node->nodeData.nodeIndex ] ];
+			if( _indices[ node->nodeData.nodeIndex ]==-1 ) _indices[ node->nodeData.nodeIndex ] = (node_index_type)_data.push();
+		return _data[ _indices[ node->nodeData.nodeIndex ] ];
 #else // !NEW_CODE
 		if( _indices[ node->nodeData.nodeIndex ]==-1 )
 #pragma omp critical( SparseNodeData__operator )
@@ -460,9 +509,9 @@ struct SparseNodeData< Data , UIntPack< FEMSigs ... > > : public _SparseOrDenseN
 #endif // NEW_CODE
 	}
 #ifdef NEW_CODE
-	node_index_type index( const RegularTreeNode< Dim , FEMTreeNodeData > *node ) const
+	node_index_type index( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > *node ) const
 	{
-		if( !node || node->nodeData.nodeIndex<(node_index_type)0 || node->nodeData.nodeIndex>=(node_index_type)(node_index_type)_indices.size() ) return -1;
+		if( !node || node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(node_index_type)_indices.size() ) return -1;
 		else return _indices[ node->nodeData.nodeIndex ];
 	}
 #else // !NEW_CODE
@@ -481,7 +530,7 @@ protected:
 	{
 		BlockedVector< node_index_type > newIndices;
 		newIndices.resize( newNodeCount );
-		for( node_index_type i=0 ; i<(node_index_type)newNodeCount ; i++ ) newIndices[i] = (node_index_type)-1;
+		for( node_index_type i=0 ; i<(node_index_type)newNodeCount ; i++ ) newIndices[i] = -1;
 		for( node_index_type i=0 ; i<(node_index_type)_indices.size() ; i++ ) if( newNodeIndices[i]!=-1 && newNodeIndices[i]<(node_index_type)newNodeCount ) newIndices[ newNodeIndices[i] ] = _indices[i];
 		_indices = newIndices;
 	}
@@ -536,10 +585,10 @@ struct DenseNodeData< Data , UIntPack< FEMSigs ... > > : public _SparseOrDenseNo
 #endif // NEW_CODE
 	size_t size( void ) const { return _sz; }
 #ifdef NEW_CODE
-	Data& operator[]( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) { return _data[ node->nodeData.nodeIndex ]; }
-	Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) { return ( node==NULL || node->nodeData.nodeIndex>=(node_index_type)_sz ) ? NULL : &_data[ node->nodeData.nodeIndex ]; }
-	const Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) const { return ( node==NULL || node->nodeData.nodeIndex>=(node_index_type)_sz ) ? NULL : &_data[ node->nodeData.nodeIndex ]; }
-	node_index_type index( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) const { return ( !node || node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(node_index_type)_sz ) ? -1 : (node_index_type)(node_index_type)node->nodeData.nodeIndex; }
+	Data& operator[]( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ) { return _data[ node->nodeData.nodeIndex ]; }
+	Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ) { return ( node==NULL || node->nodeData.nodeIndex>=(node_index_type)_sz ) ? NULL : &_data[ node->nodeData.nodeIndex ]; }
+	const Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ) const { return ( node==NULL || node->nodeData.nodeIndex>=(node_index_type)_sz ) ? NULL : &_data[ node->nodeData.nodeIndex ]; }
+	node_index_type index( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ) const { return ( !node || node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(node_index_type)_sz ) ? -1 : node->nodeData.nodeIndex; }
 #else // !NEW_CODE
 	Data& operator[]( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) { return _data[ node->nodeData.nodeIndex ]; }
 	Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) { return ( node==NULL || node->nodeData.nodeIndex>=(int)_sz ) ? NULL : &_data[ node->nodeData.nodeIndex ]; }
@@ -1424,22 +1473,36 @@ public:
 
 //////////////////////////////////////////
 
+#ifdef NEW_CODE
+template< unsigned int Dim > inline void SetGhostFlag(       RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node , bool flag ){ if( node && node->parent ) node->parent->nodeData.setGhostFlag( flag ); }
+template< unsigned int Dim > inline bool GetGhostFlag( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ){ return node==NULL || node->parent==NULL || node->parent->nodeData.getGhostFlag( ); }
+template< unsigned int Dim > inline bool IsActiveNode( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ){ return !GetGhostFlag< Dim >( node ); }
+#else // !NEW_CODE
 template< unsigned int Dim > inline void SetGhostFlag(       RegularTreeNode< Dim , FEMTreeNodeData >* node , bool flag ){ if( node && node->parent ) node->parent->nodeData.setGhostFlag( flag ); }
 template< unsigned int Dim > inline bool GetGhostFlag( const RegularTreeNode< Dim , FEMTreeNodeData >* node ){ return node==NULL || node->parent==NULL || node->parent->nodeData.getGhostFlag( ); }
 template< unsigned int Dim > inline bool IsActiveNode( const RegularTreeNode< Dim , FEMTreeNodeData >* node ){ return !GetGhostFlag< Dim >( node ); }
+#endif // NEW_CODE
 
 template< unsigned int Dim , class Real , class Vertex > struct IsoSurfaceExtractor;
 
 template< unsigned int Dim , class Data >
 struct NodeSample
 {
+#ifdef NEW_CODE
+	RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node;
+#else // !NEW_CODE
 	RegularTreeNode< Dim , FEMTreeNodeData >* node;
+#endif // NEW_CODE
 	Data data;
 };
 template< unsigned int Dim , class Real >
 struct NodeAndPointSample
 {
+#ifdef NEW_CODE
+	RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node;
+#else // !NEW_CODE
 	RegularTreeNode< Dim , FEMTreeNodeData >* node;
+#endif // NEW_CODE
 	ProjectiveData< Point< Real , Dim > , Real > sample;
 };
 template< unsigned int Dim , class Real > using NodeSimplices = NodeSample< Dim , std::vector< Simplex< Real , Dim , Dim-1 > > >;
@@ -1508,7 +1571,11 @@ template< unsigned int Dim , class Real >
 class FEMTree
 {
 public:
+#ifdef NEW_CODE
+	typedef RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > FEMTreeNode;
+#else // !NEW_CODE
 	typedef RegularTreeNode< Dim , FEMTreeNodeData > FEMTreeNode;
+#endif // NEW_CODE
 	Allocator< FEMTreeNode >* nodeAllocator;
 protected:
 	template< unsigned int _Dim , class _Real , class Vertex > friend struct IsoSurfaceExtractor;
@@ -2234,13 +2301,13 @@ protected:
 	/////////////////////////////////////
 public:
 #ifdef NEW_CODE
-	template< unsigned int ... FEMSigs > void setMultiColorIndices( UIntPack< FEMSigs ... > , int depth , std::vector< std::vector< node_index_type > >& indices ) const;
+	template< unsigned int ... FEMSigs > void setMultiColorIndices( UIntPack< FEMSigs ... > , int depth , std::vector< std::vector< size_t > >& indices ) const;
 #else // !NEW_CODE
 	template< unsigned int ... FEMSigs > void setMultiColorIndices( UIntPack< FEMSigs ... > , int depth , std::vector< std::vector< int > >& indices ) const;
 #endif // NEW_CODE
 protected:
 #ifdef NEW_CODE
-	template< unsigned int ... FEMSigs > void _setMultiColorIndices( UIntPack< FEMSigs ... > , node_index_type start , node_index_type end , std::vector< std::vector< node_index_type > >& indices ) const;
+	template< unsigned int ... FEMSigs > void _setMultiColorIndices( UIntPack< FEMSigs ... > , node_index_type start , node_index_type end , std::vector< std::vector< size_t > >& indices ) const;
 #else // !NEW_CODE
 	template< unsigned int ... FEMSigs > void _setMultiColorIndices( UIntPack< FEMSigs ... > , int start , int end , std::vector< std::vector< int > >& indices ) const;
 #endif // NEW_CODE
@@ -2639,8 +2706,13 @@ public:
 	static double LocalMemoryUsage( void ){ return _LocalMemoryUsage; }
 	static void ResetLocalMemoryUsage( void ){ _LocalMemoryUsage = 0; }
 	static double MemoryUsage( void );
+#ifdef NEW_CODE
+	FEMTree( size_t blockSize );
+	FEMTree( FILE* fp , size_t blockSize );
+#else // !NEW_CODE
 	FEMTree( int blockSize );
 	FEMTree( FILE* fp , int blockSize );
+#endif // NEW_CODE
 	~FEMTree( void )
 	{
 		if( _tree ) for( int c=0 ; c<(1<<Dim) ; c++ ) _tree[c].cleanChildren( nodeAllocator );
@@ -2945,7 +3017,11 @@ public:
 	LocalDepth depth( void ) const { return _spaceRoot->maxDepth(); }
 	void resetNodeIndices( void ){ _nodeCount = 0 ; for( FEMTreeNode* node=_tree->nextNode() ; node ; node=_tree->nextNode( node ) ) _nodeInitializer( *node ) , node->nodeData.flags=0; }
 
+#ifdef NEW_CODE
+	std::vector< node_index_type > merge( FEMTree* tree );
+#else // !NEW_CODE
 	std::vector< int > merge( FEMTree* tree );
+#endif // NEW_CODE
 protected:
 	template< class Real1 , unsigned int _Dim > static bool _IsZero( Point< Real1 , _Dim > p );
 	template< class Real1 >                     static bool _IsZero( Real1 p );
@@ -3010,7 +3086,11 @@ struct IsoSurfaceExtractor
 template< unsigned int Dim , class Real >
 struct FEMTreeInitializer
 {
+#ifdef NEW_CODE
+	typedef RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > FEMTreeNode;
+#else // !NEW_CODE
 	typedef RegularTreeNode< Dim , FEMTreeNodeData > FEMTreeNode;
+#endif // NEW_CODE
 	typedef NodeAndPointSample< Dim , Real > PointSample;
 
 	template< class Data >
@@ -3021,31 +3101,53 @@ struct FEMTreeInitializer
 	};
 
 	// Initialize the tree using a refinement avatar
+#ifdef NEW_CODE
+	static size_t Initialize( FEMTreeNode& root , int maxDepth , std::function< bool ( int , int[] ) > Refine , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+#else // !NEW_CODE
 	static int Initialize( FEMTreeNode& root , int maxDepth , std::function< bool ( int , int[] ) > Refine , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+#endif // NEW_CODE
 
 	// Initialize the tree using a point stream
+#ifdef NEW_CODE
+	static size_t Initialize( FEMTreeNode& root , InputPointStream< Real , Dim >& pointStream , int maxDepth , std::vector< PointSample >& samplePoints , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+	template< class Data > static size_t Initialize( FEMTreeNode& root , InputPointStreamWithData< Real , Dim , Data >& pointStream , int maxDepth , std::vector< PointSample >& samplePoints , std::vector< Data >& sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim >& , Data& ) > ProcessData = []( const Point< Real , Dim >& , Data& ){ return (Real)1.; } );
+#else // !NEW_CODE
 	static int Initialize( FEMTreeNode& root , InputPointStream< Real , Dim >& pointStream , int maxDepth , std::vector< PointSample >& samplePoints , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
 	template< class Data > static int Initialize( FEMTreeNode& root , InputPointStreamWithData< Real , Dim , Data >& pointStream , int maxDepth , std::vector< PointSample >& samplePoints , std::vector< Data >& sampleData , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< Real ( const Point< Real , Dim >& , Data& ) > ProcessData = []( const Point< Real , Dim >& , Data& ){ return (Real)1.; } );
+#endif // NEW_CODE
 
 	// Initialize the tree using simplices
 #ifdef NEW_CODE
 	static void Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
 	static void Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& nodeSimplices , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+	template< class Data , class _Data , bool Dual=true >
+	static size_t Initialize( FEMTreeNode& root , ConstPointer( Data ) values , ConstPointer( int ) labels , int resolution[Dim] , std::vector< NodeSample< Dim , _Data > > derivatives[Dim] , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< _Data ( const Data& ) > DataConverter = []( const Data& d ){ return (_Data)d; }	);
+
+	template< bool Dual , class Data >
+	static unsigned int Initialize( FEMTreeNode& root , DerivativeStream< Data >& dStream , std::vector< NodeSample< Dim , Data > > derivatives[Dim] , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
 #else // !NEW_CODE
 	static void Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 > >& simplices , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
 	static void Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 > >& simplices , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& nodeSimplices , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
-#endif // NEW_CODE
 	template< class Data , class _Data , bool Dual=true >
 	static int Initialize( FEMTreeNode& root , ConstPointer( Data ) values , ConstPointer( int ) labels , int resolution[Dim] , std::vector< NodeSample< Dim , _Data > > derivatives[Dim] , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< _Data ( const Data& ) > DataConverter = []( const Data& d ){ return (_Data)d; }	);
 
 	template< bool Dual , class Data >
 	static unsigned int Initialize( FEMTreeNode& root , DerivativeStream< Data >& dStream , std::vector< NodeSample< Dim , Data > > derivatives[Dim] , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+#endif // NEW_CODE
+
 
 protected:
+#ifdef NEW_CODE
+	static size_t _AddSimplex( FEMTreeNode& root , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< PointSample >& samples , std::vector< node_index_type >* nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+	static size_t _AddSimplex( FEMTreeNode& root , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& simplices , std::vector< node_index_type >& nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+	static size_t _AddSimplex( FEMTreeNode* node , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< PointSample >& samples , std::vector< node_index_type >* nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+	static size_t _AddSimplex( FEMTreeNode* node , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& simplices , std::vector< node_index_type >& nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+#else // !NEW_CODE
 	static int _AddSimplex( FEMTreeNode& root , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< PointSample >& samples , std::vector< int >* nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
 	static int _AddSimplex( FEMTreeNode& root , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& simplices , std::vector< int >& nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
 	static int _AddSimplex( FEMTreeNode* node , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< PointSample >& samples , std::vector< int >* nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
 	static int _AddSimplex( FEMTreeNode* node , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& simplices , std::vector< int >& nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+#endif // NEW_CODE
 };
 template< unsigned int Dim , class Real >
 template< unsigned int ... SupportSizes >

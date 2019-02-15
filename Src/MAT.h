@@ -32,14 +32,14 @@ DAMAGE.
 
 #ifdef NEW_CODE
 template< typename Index , class Real , unsigned int Dim >
-std::vector< TriangleIndex< Index > > MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , Index vCount );
+std::vector< TriangleIndex< Index > > MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount );
 
 template< typename Index , class Real , unsigned int Dim >
 class _MinimalAreaTriangulation
 {
 	Pointer( Real ) _bestTriangulation;
 	Pointer( Index ) _midpoint;
-	Index _vCount;
+	size_t _vCount;
 	ConstPointer( Point< Real , Dim > ) _vertices;
 
 	void _set( void );
@@ -47,13 +47,13 @@ class _MinimalAreaTriangulation
 	void _addTriangles( Index i , Index j , std::vector< TriangleIndex< Index > >& triangles ) const;
 	Index _subPolygonIndex( Index i , Index j ) const;
 
-	_MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , Index vCount );
+	_MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount );
 	~_MinimalAreaTriangulation( void );
 	std::vector< TriangleIndex< Index > > getTriangulation( void );
-	friend std::vector< TriangleIndex< Index > > MinimalAreaTriangulation< Index , Real , Dim >( ConstPointer( Point< Real , Dim > ) vertices , Index vCount );
+	friend std::vector< TriangleIndex< Index > > MinimalAreaTriangulation< Index , Real , Dim >( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount );
 };
 template< typename Index , class Real , unsigned int Dim >
-std::vector< TriangleIndex< Index > > MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , Index vCount )
+std::vector< TriangleIndex< Index > > MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount )
 {
 	_MinimalAreaTriangulation< Index , Real , Dim > MAT( vertices , vCount );
 	return MAT.getTriangulation();

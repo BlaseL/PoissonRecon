@@ -25,6 +25,7 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING 
 ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
 DAMAGE.
 */
+#define NEW_CODE
 
 #undef SHOW_WARNINGS							// Display compilation warnings
 #undef USE_DOUBLE								// If enabled, double-precesion is used
@@ -343,15 +344,25 @@ void ExtractMesh( UIntPack< FEMSigs ... > , std::tuple< SampleData ... > , FEMTr
 		else                                                  sprintf( tempHeader , "%s%cPR_" , tempPath , FileSeparator );
 	}
 
+#ifdef NEW_CODE
+	CoredMeshData< Vertex , node_index_type > *mesh;
+	if( InCore.set ) mesh = new CoredVectorMeshData< Vertex , node_index_type >();
+	else             mesh = new CoredFileMeshData< Vertex , node_index_type >( tempHeader );
+#else // !NEW_CODE
 	CoredMeshData< Vertex > *mesh;
 	if( InCore.set ) mesh = new CoredVectorMeshData< Vertex >();
 	else             mesh = new CoredFileMeshData< Vertex >( tempHeader );
+#endif // NEW_CODE
 	profiler.start();
 	typename IsoSurfaceExtractor< Dim , Real , Vertex >::IsoStats isoStats;
 	if( sampleData )
 	{
 		SparseNodeData< ProjectiveData< TotalPointSampleData , Real > , IsotropicUIntPack< Dim , DataSig > > _sampleData = tree.template setDataField< DataSig , false >( *samples , *sampleData , (DensityEstimator*)NULL );
+#ifdef NEW_CODE
+		for( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* n = tree.tree().nextNode() ; n ; n=tree.tree().nextNode( n ) )
+#else // !NEW_CODE
 		for( const RegularTreeNode< Dim , FEMTreeNodeData >* n = tree.tree().nextNode() ; n ; n=tree.tree().nextNode( n ) )
+#endif // NEW_CODE
 		{
 			ProjectiveData< TotalPointSampleData , Real >* clr = _sampleData( n );
 			if( clr ) (*clr) *= (Real)pow( DataX.value , tree.depth( n ) );
@@ -371,7 +382,11 @@ void ExtractMesh( UIntPack< FEMSigs ... > , std::tuple< SampleData ... > , FEMTr
 	else                  profiler.dumpOutput2( comments , "#        Got triangles:" );
 
 	std::vector< std::string > noComments;
+#ifdef NEW_CODE
+	if( !PlyWritePolygons< Vertex , node_index_type , Real , Dim >( Out.value , mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NoComments.set ? noComments : comments , iXForm ) )
+#else // !NEW_CODE
 	if( !PlyWritePolygons< Vertex , Real , Dim >( Out.value , mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NoComments.set ? noComments : comments , iXForm ) )
+#endif // NEW_CODE
 		ERROR_OUT( "Could not write mesh to: " , Out.value );
 	delete mesh;
 }
@@ -498,7 +513,11 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 		Width.value = 0;
 	}
 
+#ifdef NEW_CODE
+	size_t pointCount;
+#else // !NEW_CODE
 	int pointCount;
+#endif // NEW_CODE
 
 	Real pointWeightSum;
 	std::vector< typename FEMTree< Dim , Real >::PointSample >* samples = new std::vector< typename FEMTree< Dim , Real >::PointSample >();
@@ -560,7 +579,11 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 		iXForm = xForm.inverse();
 		delete pointStream;
 
+#ifdef NEW_CODE
+		messageWriter( "Input Points / Samples: %llu / %llu\n" , pointCount , (unsigned long long)samples->size() );
+#else // !NEW_CODE
 		messageWriter( "Input Points / Samples: %d / %d\n" , pointCount , samples->size() );
+#endif // NEW_CODE
 		profiler.dumpOutput2( comments , "# Read input into tree:" );
 	}
 	int kernelDepth = KernelDepth.set ? KernelDepth.value : Depth.value-2;

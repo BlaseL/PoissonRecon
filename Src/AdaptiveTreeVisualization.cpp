@@ -25,6 +25,7 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING 
 ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
 DAMAGE.
 */
+#define NEW_CODE
 
 #undef ARRAY_DEBUG
 
@@ -170,7 +171,11 @@ void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 	{
 		double t = Time();
 		typedef PlyVertex< Real , Dim > Vertex;
+#ifdef NEW_CODE
+		CoredFileMeshData< Vertex , node_index_type > mesh;
+#else // !NEW_CODE
 		CoredFileMeshData< Vertex > mesh;
+#endif // NEW_CODE
 		std::function< void ( Vertex& , Point< Real , Dim > , Real , Real ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real , Real ){ v.point = p; };
 #if defined( __GNUC__ ) && __GNUC__ < 5
 		#warning "you've got me gcc version<5"
@@ -184,7 +189,11 @@ void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 		if( Verbose.set ) printf( "Vertices / Polygons: %d / %d\n" , (int)( mesh.outOfCorePointCount()+mesh.inCorePoints.size() ) , (int)mesh.polygonCount() );
 
 		std::vector< std::string > comments;
+#ifdef NEW_CODE
+		if( !PlyWritePolygons< Vertex , node_index_type , Real , Dim >( OutMesh.value , &mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , comments , XForm< Real , Dim+1 >::Identity() ) )
+#else // !NEW_CODE
 		if( !PlyWritePolygons< Vertex , Real , Dim >( OutMesh.value , &mesh , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , comments , XForm< Real , Dim+1 >::Identity() ) )
+#endif // NEW_CODE
 			ERROR_OUT( "Could not write mesh to: " , OutMesh.value );
 	}
 }
@@ -263,7 +272,11 @@ int main( int argc , char* argv[] )
 	FILE* fp = fopen( In.value , "rb" );
 	if( !fp ) ERROR_OUT( "Failed to open file for reading: " , In.value );
 	FEMTreeRealType realType ; int degree ; BoundaryType bType;
+#ifdef NEW_CODE
+	unsigned int dimension;
+#else // !NEW_CODE
 	int dimension;
+#endif // NEW_CODE
 	ReadFEMTreeParameter( fp , realType , dimension );
 	{
 		unsigned int dim = dimension;

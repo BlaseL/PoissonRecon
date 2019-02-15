@@ -1,3 +1,30 @@
+/*
+Copyright (c) 2006, Michael Kazhdan and Matthew Bolitho
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+Redistributions of source code must retain the above copyright notice, this list of
+conditions and the following disclaimer. Redistributions in binary form must reproduce
+the above copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the distribution. 
+
+Neither the name of the Johns Hopkins University nor the names of its contributors
+may be used to endorse or promote products derived from this software without specific
+prior written permission. 
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY
+EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO THE IMPLIED WARRANTIES 
+OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
+SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+TO, PROCUREMENT OF SUBSTITUTE  GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
+DAMAGE.
+*/
 
 template< class T , class const_iterator > size_t SparseMatrixInterface< T , const_iterator >::entries( void ) const
 {
@@ -46,9 +73,7 @@ template< class T , class const_iterator > double SparseMatrixInterface< T , con
 	return n;
 }
 #ifdef NEW_CODE_SPARSE_MATRIX
-template< class T , class const_iterator >
-template< typename Index >
-double SparseMatrixInterface< T , const_iterator >::squareASymmetricNorm( Index &idx1 , Index &idx2 ) const
+template< class T , class const_iterator > double SparseMatrixInterface< T , const_iterator >::squareASymmetricNorm( size_t &idx1 , size_t &idx2 ) const
 #else // !NEW_CODE_SPARSE_MATRIX
 template< class T , class const_iterator > double SparseMatrixInterface< T , const_iterator >::squareASymmetricNorm( int& idx1 , int& idx2 ) const
 #endif // NEW_CODE_SPARSE_MATRIX
@@ -78,11 +103,7 @@ template< class T , class const_iterator > double SparseMatrixInterface< T , con
 			}
 			double temp = (iter->Value-value) * (iter->Value-value);
 			n += temp;
-#ifdef NEW_CODE_SPARSE_MATRIX
-			if( temp>=max ) idx1 = (Index)i , idx2 = (Index)j , max = temp;
-#else // !NEW_CODE_SPARSE_MATRIX
 			if( temp>=max ) idx1 = i , idx2 = j , max=temp;
-#endif // NEW_CODE_SPARSE_MATRIX
 		}
 	}
 	return n;
@@ -238,8 +259,8 @@ void SparseMatrixInterface< T , const_iterator >::gsIteration( ConstPointer( T )
 }
 template< class T , class const_iterator >
 #ifdef NEW_CODE_SPARSE_MATRIX
-template< typename Index , class T2 >
-void SparseMatrixInterface< T , const_iterator >::gsIteration( const std::vector< Index >& multiColorIndices , ConstPointer( T ) diagonal , ConstPointer( T2 ) b , Pointer( T2 ) x , bool dReciprocal ) const
+template< class T2 >
+void SparseMatrixInterface< T , const_iterator >::gsIteration( const std::vector< size_t >& multiColorIndices , ConstPointer( T ) diagonal , ConstPointer( T2 ) b , Pointer( T2 ) x , bool dReciprocal ) const
 #else // !NEW_CODE_SPARSE_MATRIX
 template< class T2 >
 void SparseMatrixInterface< T , const_iterator >::gsIteration( const std::vector< int >& multiColorIndices , ConstPointer( T ) diagonal , ConstPointer( T2 ) b , Pointer( T2 ) x , bool dReciprocal ) const
@@ -254,7 +275,7 @@ void SparseMatrixInterface< T , const_iterator >::gsIteration( const std::vector
 #endif // NEW_CODE_SPARSE_MATRIX
 		{
 #ifdef NEW_CODE_SPARSE_MATRIX
-			Index jj = multiColorIndices[j];
+			size_t jj = multiColorIndices[j];
 #else // !NEW_CODE_SPARSE_MATRIX
 			int jj = multiColorIndices[j];
 #endif // NEW_CODE_SPARSE_MATRIX
@@ -272,7 +293,7 @@ void SparseMatrixInterface< T , const_iterator >::gsIteration( const std::vector
 #endif // NEW_CODE_SPARSE_MATRIX
 		{
 #ifdef NEW_CODE_SPARSE_MATRIX
-			Index jj = multiColorIndices[j];
+			size_t jj = multiColorIndices[j];
 #else // !NEW_CODE_SPARSE_MATRIX
 			int jj = multiColorIndices[j];
 #endif // NEW_CODE_SPARSE_MATRIX
@@ -285,13 +306,15 @@ void SparseMatrixInterface< T , const_iterator >::gsIteration( const std::vector
 
 template< class T , class const_iterator >
 #ifdef NEW_CODE_SPARSE_MATRIX
-template< typename Index , class T2 >
-void SparseMatrixInterface< T , const_iterator >::gsIteration( const std::vector< std::vector< Index > >& multiColorIndices , ConstPointer( T ) diagonal , ConstPointer( T2 ) b , Pointer( T2 ) x , bool forward , bool dReciprocal ) const
+template< class T2 >
+void SparseMatrixInterface< T , const_iterator >::gsIteration( const std::vector< std::vector< size_t > >& multiColorIndices , ConstPointer( T ) diagonal , ConstPointer( T2 ) b , Pointer( T2 ) x , bool forward , bool dReciprocal ) const
 #else // !NEW_CODE_SPARSE_MATRIX
 template< class T2 >
 void SparseMatrixInterface< T , const_iterator >::gsIteration( const std::vector< std::vector< int > >& multiColorIndices , ConstPointer( T ) diagonal , ConstPointer( T2 ) b , Pointer( T2 ) x , bool forward , bool dReciprocal ) const
 #endif // NEW_CODE_SPARSE_MATRIX
 {
+#ifdef NEW_THREADS
+#endif // NEW_THREADS
 #ifdef _WIN32
 #define SetOMPParallel __pragma( omp parallel for )
 #else // !_WIN32
@@ -304,7 +327,7 @@ void SparseMatrixInterface< T , const_iterator >::gsIteration( const std::vector
 #define ITERATE( indices )                                                                               \
 	{                                                                                                    \
 SetOMPParallel                                                                                           \
-		for( long long k=0 ; k<(long long)indices.size() ; k++ )                                       \
+		for( long long k=0 ; k<(long long)indices.size() ; k++ )                                         \
 		{                                                                                                \
 			long long jj = indices[k];                                                                   \
 			T2 _b = b[jj];                                                                               \
@@ -322,7 +345,7 @@ SetOMPParallel                                                                  
 #define ITERATE( indices )                                                                               \
 	{                                                                                                    \
 SetOMPParallel                                                                                           \
-		for( long long k=0 ; k<(long long)indices.size() ; k++ )                                       \
+		for( long long k=0 ; k<(long long)indices.size() ; k++ )                                         \
 		{                                                                                                \
 			long long jj = indices[k];                                                                   \
 			T2 _b = b[jj];                                                                               \
@@ -377,7 +400,7 @@ SetOMPParallel                                                                  
 #endif // NEW_CODE_SPARSE_MATRIX
 }
 #ifdef NEW_CODE_SPARSE_MATRIX
-template< class SPDFunctor , class T , typename Real , class TDotTFunctor > int SolveCG( const SPDFunctor& M , size_t dim , ConstPointer( T ) b , int iters , Pointer( T ) x , double eps , TDotTFunctor Dot )
+template< class SPDFunctor , class T , typename Real , class TDotTFunctor > size_t SolveCG( const SPDFunctor& M , size_t dim , ConstPointer( T ) b , size_t iters , Pointer( T ) x , double eps , TDotTFunctor Dot )
 #else // !NEW_CODE_SPARSE_MATRIX
 template< class SPDFunctor , class T , typename Real , class TDotTFunctor > int SolveCG( const SPDFunctor& M , int dim , ConstPointer( T ) b , int iters , Pointer( T ) x , double eps , TDotTFunctor Dot )
 #endif // NEW_CODE_SPARSE_MATRIX
@@ -404,7 +427,11 @@ template< class SPDFunctor , class T , typename Real , class TDotTFunctor > int 
 		FreePointer( q );
 		return 0;
 	}
+#ifdef NEW_CODE
+	size_t ii;
+#else // !NEW_CODE
 	int ii;
+#endif // NEW_CODE
 	for( ii=0 ; ii<iters && delta_new>eps*delta_0 ; ii++ )
 	{
 		M( ( ConstPointer( T ) )d , q );
@@ -458,7 +485,7 @@ template< class SPDFunctor , class T , typename Real , class TDotTFunctor > int 
 	return ii;
 }
 #ifdef NEW_CODE_SPARSE_MATRIX
-template< class SPDFunctor , class Preconditioner , class T , typename Real , class TDotTFunctor > int SolveCG( const SPDFunctor& M , const Preconditioner& P , size_t dim , ConstPointer( T ) b , int iters , Pointer( T ) x , double eps , TDotTFunctor Dot  )
+template< class SPDFunctor , class Preconditioner , class T , typename Real , class TDotTFunctor > size_t SolveCG( const SPDFunctor& M , const Preconditioner& P , size_t dim , ConstPointer( T ) b , size_t iters , Pointer( T ) x , double eps , TDotTFunctor Dot  )
 #else // !NEW_CODE_SPARSE_MATRIX
 template< class SPDFunctor , class Preconditioner , class T , typename Real , class TDotTFunctor > int SolveCG( const SPDFunctor& M , const Preconditioner& P , int dim , ConstPointer( T ) b , int iters , Pointer( T ) x , double eps , TDotTFunctor Dot  )
 #endif // NEW_CODE_SPARSE_MATRIX
@@ -496,7 +523,11 @@ template< class SPDFunctor , class Preconditioner , class T , typename Real , cl
 		FreePointer( temp );
 		return 0;
 	}
+#ifdef NEW_CODE
+	size_t ii;
+#else // !NEW_CODE
 	int ii;
+#endif // NEW_CODE
 	for( ii=0 ; ii<iters && delta_new>eps*delta_0 ; ii++ )
 	{
 		PM( ( ConstPointer( T ) )d , q );

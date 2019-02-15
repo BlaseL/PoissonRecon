@@ -34,11 +34,15 @@ DAMAGE.
 #include "Window.h"
 #include <functional>
 
+#ifdef NEW_CODE
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+#else // !NEW_CODE
 #ifdef USE_DEEP_TREE_NODES
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType=unsigned int >
 #else // !USE_DEEP_TREE_NODES
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType=unsigned short >
 #endif // USE_DEEP_TREE_NODES
+#endif // NEW_CODE
 struct RegularTreeNode
 {
 private:

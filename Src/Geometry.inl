@@ -268,12 +268,12 @@ Index CoredVectorMeshData< Vertex , Index >::nextPolygon( std::vector< CoredVert
 	}
 }
 template< class Vertex , typename Index >
-Index CoredVectorMeshData< Vertex , Index >::outOfCorePointCount( void ){ return (Index)oocPoints.size(); }
+size_t CoredVectorMeshData< Vertex , Index >::outOfCorePointCount( void ){ return oocPoints.size(); }
 template< class Vertex , typename Index >
-Index CoredVectorMeshData< Vertex , Index >::polygonCount( void )
+size_t CoredVectorMeshData< Vertex , Index >::polygonCount( void )
 {
-	Index count = 0;
-	for( int i=0 ; i<polygons.size() ; i++ ) count += (Index)polygons[i].size();
+	size_t count = 0;
+	for( size_t i=0 ; i<polygons.size() ; i++ ) count += polygons[i].size();
 	return count;
 }
 #else // !NEW_CODE
@@ -453,12 +453,12 @@ Index CoredFileMeshData< Vertex , Index >::nextPolygon( std::vector< CoredVertex
 	}
 }
 template< class Vertex , typename Index >
-Index CoredFileMeshData< Vertex , Index >::outOfCorePointCount( void ){ return oocPoints; }
+size_t CoredFileMeshData< Vertex , Index >::outOfCorePointCount( void ){ return oocPoints; }
 template< class Vertex , typename Index >
-Index CoredFileMeshData< Vertex , Index >::polygonCount( void )
+size_t CoredFileMeshData< Vertex , Index >::polygonCount( void )
 {
-	Index count = 0;
-	for( int i=0 ; i<polygons.size() ; i++ ) count += polygons[i];
+	size_t count = 0;
+	for( size_t i=0 ; i<polygons.size() ; i++ ) count += polygons[i];
 	return count;
 }
 #else // !NEW_CODE

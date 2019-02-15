@@ -27,10 +27,18 @@ DAMAGE.
 */
 #define NEW_CODE
 
+
+#ifdef NEW_CODE
+#define BIG_DATA								// Supports processing requiring more than 32-bit integers for indexing
+												// Note: enabling BIG_DATA generates .ply files using "longlong" for face indices instead of "int".
+												// These appear not to be standardly supported by .ply reading/writing applications.
+//#define NEW_THREADS								// Enabling this flag replaces the OpenMP implementation of parallelism with C++11's
+#endif // NEW_CODE
+
 #undef SHOW_WARNINGS							// Display compilation warnings
 #undef USE_DOUBLE								// If enabled, double-precesion is used
 #define FAST_COMPILE								// If enabled, only a single version of the reconstruction code is compiled
-#define ARRAY_DEBUG								// If enabled, array access is tested for validity
+#undef ARRAY_DEBUG								// If enabled, array access is tested for validity
 #define DATA_DEGREE 0							// The order of the B-Spline used to splat in data for color interpolation
 												// This can be changed to zero if more interpolatory performance is desired.
 #define WEIGHT_DEGREE 2							// The order of the B-Spline used to splat in the weights for density estimation
@@ -334,7 +342,11 @@ void ExtractMesh( UIntPack< FEMSigs ... > , std::tuple< SampleData ... > , FEMTr
 	if( sampleData )
 	{
 		SparseNodeData< ProjectiveData< TotalPointSampleData , Real > , IsotropicUIntPack< Dim , DataSig > > _sampleData = tree.template setDataField< DataSig , false >( *samples , *sampleData , (DensityEstimator*)NULL );
+#ifdef NEW_CODE
+		for( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* n = tree.tree().nextNode() ; n ; n=tree.tree().nextNode( n ) )
+#else // !NEW_CODE
 		for( const RegularTreeNode< Dim , FEMTreeNodeData >* n = tree.tree().nextNode() ; n ; n=tree.tree().nextNode( n ) )
+#endif // NEW_CODE
 		{
 			ProjectiveData< TotalPointSampleData , Real >* clr = _sampleData( n );
 			if( clr ) (*clr) *= (Real)pow( DataX.value , tree.depth( n ) );
@@ -486,7 +498,11 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 		Width.value = 0;
 	}
 
+#ifdef NEW_CODE
+	size_t pointCount;
+#else // !NEW_CODE
 	int pointCount;
+#endif // NEW_CODE
 
 	Real pointWeightSum;
 	std::vector< typename FEMTree< Dim , Real >::PointSample >* samples = new std::vector< typename FEMTree< Dim , Real >::PointSample >();
@@ -548,7 +564,11 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 		iXForm = xForm.inverse();
 		delete pointStream;
 
+#ifdef NEW_CODE
+		messageWriter( "Input Points / Samples: %llu / %llu\n" , (unsigned long long)pointCount , (unsigned long long)samples->size() );
+#else // !NEW_CODE
 		messageWriter( "Input Points / Samples: %d / %d\n" , pointCount , samples->size() );
+#endif // NEW_CODE
 		profiler.dumpOutput2( comments , "# Read input into tree:" );
 	}
 	int kernelDepth = KernelDepth.set ? KernelDepth.value : Depth.value-2;
@@ -784,6 +804,9 @@ int main( int argc , char* argv[] )
 #endif // ARRAY_DEBUG
 	cmdLineParse( argc-1 , &argv[1] , params );
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
+#ifdef NEW_THREADS
+	MKThread::Threads = std::max< unsigned int >( 1 , Threads.value );
+#endif // NEW_THREADS
 	omp_set_num_threads( Threads.value > 1 ? Threads.value : 1 );
 	messageWriter.echoSTDOUT = Verbose.set;
 	if( !In.set )

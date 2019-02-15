@@ -492,8 +492,8 @@ public:
 	virtual Index nextOutOfCorePoint( Vertex& p )=0;
 	virtual Index nextEdge( CoredVertexIndex< Index >& v1 , CoredVertexIndex< Index >& v2 ) = 0;
 
-	virtual Index outOfCorePointCount(void)=0;
-	virtual Index edgeCount( void ) = 0;
+	virtual size_t outOfCorePointCount(void)=0;
+	virtual size_t edgeCount( void ) = 0;
 };
 #else // !NEW_CODE
 template< class Vertex >
@@ -537,8 +537,8 @@ public:
 	virtual Index nextOutOfCorePoint( Vertex& p )=0;
 	virtual Index nextPolygon( std::vector< CoredVertexIndex< Index > >& vertices ) = 0;
 
-	virtual Index outOfCorePointCount( void )=0;
-	virtual Index polygonCount( void ) = 0;
+	virtual size_t outOfCorePointCount( void )=0;
+	virtual size_t polygonCount( void ) = 0;
 #else // !NEW_CODE
 	virtual int addOutOfCorePoint( const Vertex& p ) = 0;
 	virtual int addOutOfCorePoint_s( const Vertex& p ) = 0;
@@ -575,8 +575,8 @@ public:
 	Index nextOutOfCorePoint( Vertex& p );
 	Index nextEdge( CoredVertexIndex< Index > &v1 , CoredVertexIndex< Index > &v2 );
 
-	Index outOfCorePointCount( void );
-	Index edgeCount( void );
+	size_t outOfCorePointCount( void );
+	size_t edgeCount( void );
 };
 template< class Vertex , typename Index >
 class CoredVectorMeshData : public CoredMeshData< Vertex , Index >
@@ -599,8 +599,8 @@ public:
 	Index nextOutOfCorePoint( Vertex& p );
 	Index nextPolygon( std::vector< CoredVertexIndex< Index > >& vertices );
 
-	Index outOfCorePointCount( void );
-	Index polygonCount( void );
+	size_t outOfCorePointCount( void );
+	size_t polygonCount( void );
 };
 #else // !NEW_CODE
 template< class Vertex >
@@ -761,8 +761,8 @@ public:
 	Index nextOutOfCorePoint( Vertex& p );
 	Index nextEdge( CoredVertexIndex< Index > &v1 , CoredVertexIndex< Index > &v2 );
 
-	Index outOfCorePointCount( void );
-	Index edgeCount( void );
+	size_t outOfCorePointCount( void );
+	size_t edgeCount( void );
 };
 
 template< class Vertex , typename Index >
@@ -787,8 +787,8 @@ public:
 	Index nextOutOfCorePoint( Vertex& p );
 	Index nextPolygon( std::vector< CoredVertexIndex< Index > >& vertices );
 
-	Index outOfCorePointCount( void );
-	Index polygonCount( void );
+	size_t outOfCorePointCount( void );
+	size_t polygonCount( void );
 };
 #else // !NEW_CODE
 template< class Vertex >

@@ -33,37 +33,37 @@ class BinaryNode
 {
 public:
 #ifdef NEW_CODE
-	static inline size_t CenterCount( int depth ) { return  (size_t)1<<depth; }
-	static inline size_t CornerCount( int depth ) { return ((size_t)1<<depth)+1; }
-	static inline size_t CumulativeCenterCount( int maxDepth ) { return ((size_t)1<<(maxDepth+1))-1; }
-	static inline size_t CumulativeCornerCount( int maxDepth ) { return ((size_t)1<<(maxDepth+1))+maxDepth; }
-	static inline size_t CenterIndex( int depth , size_t offSet ) { return ((size_t)1<<depth)+offSet-1; }
-	static inline size_t CornerIndex( int depth , size_t offSet ) { return ((size_t)1<<depth)+offSet-1+depth; }
+	static inline size_t CenterCount( unsigned int depth ) { return  (size_t)1<<depth; }
+	static inline size_t CornerCount( unsigned int depth ) { return ((size_t)1<<depth)+1; }
+	static inline size_t CumulativeCenterCount( unsigned int maxDepth ) { return ((size_t)1<<(maxDepth+1))-1; }
+	static inline size_t CumulativeCornerCount( unsigned int maxDepth ) { return ((size_t)1<<(maxDepth+1))+maxDepth; }
+	static inline size_t CenterIndex( unsigned int depth , size_t offSet ) { return ((size_t)1<<depth)+offSet-1; }
+	static inline size_t CornerIndex( unsigned int depth , size_t offSet ) { return ((size_t)1<<depth)+offSet-1+depth; }
 
-	static inline size_t CornerIndex( int maxDepth , int depth , size_t offSet , int forwardCorner ){ return (offSet+forwardCorner)<<(maxDepth-depth); }
-	template< class Real > static inline Real Width( int depth ){ return Real(1.0/((size_t)1<<depth)); }
-	template< class Real > static inline void CenterAndWidth( int depth , size_t offset , Real& center , Real& width ){ width = Real (1.0/((size_t)1<<depth) ) , center = Real((0.5+offset)*width); }
-	template< class Real > static inline void CornerAndWidth( int depth , size_t offset , Real& corner , Real& width ){ width = Real(1.0/((size_t)1<<depth) ) , corner = Real(offset*width); }
+	static inline size_t CornerIndex( unsigned int maxDepth , unsigned int depth , size_t offSet , int forwardCorner ){ return (offSet+forwardCorner)<<(maxDepth-depth); }
+	template< class Real > static inline Real Width( unsigned int depth ){ return Real(1.0/((size_t)1<<depth)); }
+	template< class Real > static inline void CenterAndWidth( unsigned int depth , size_t offset , Real& center , Real& width ){ width = Real (1.0/((size_t)1<<depth) ) , center = Real((0.5+offset)*width); }
+	template< class Real > static inline void CornerAndWidth( unsigned int depth , size_t offset , Real& corner , Real& width ){ width = Real(1.0/((size_t)1<<depth) ) , corner = Real(offset*width); }
 	template< class Real > static inline void CenterAndWidth( size_t idx , Real& center , Real& width )
 	{
-		int depth;
+		unsigned int depth;
 		size_t offset;
 		CenterDepthAndOffset( idx , depth , offset );
 		CenterAndWidth( depth , offset , center , width );
 	}
 	template< class Real > static inline void CornerAndWidth( size_t idx , Real& corner , Real& width )
 	{
-		int depth;
+		unsigned int depth;
 		size_t offset;
 		CornerDepthAndOffset( idx , depth , offset );
 		CornerAndWidth( depth , offset , corner , width );
 	}
-	static inline void CenterDepthAndOffset( size_t idx , int& depth , size_t& offset )
+	static inline void CenterDepthAndOffset( size_t idx , unsigned int &depth , size_t &offset )
 	{
 		offset = idx , depth = 0;
 		while( offset>=((size_t)1<<depth) ) offset -= ((size_t)1<<depth) , depth++;
 	}
-	static inline void CornerDepthAndOffset( size_t idx , int& depth , size_t& offset )
+	static inline void CornerDepthAndOffset( size_t idx , unsigned int &depth , size_t &offset )
 	{
 		offset = idx , depth = 0;
 		while( offset>=( ((size_t)1<<depth)+1 ) ) offset -= ( ((size_t)1<<depth)+1 ) , depth++;

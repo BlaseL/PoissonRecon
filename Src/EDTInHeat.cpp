@@ -25,6 +25,7 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING 
 ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
 DAMAGE.
 */
+#define NEW_CODE
 
 #undef FAST_COMPILE				// If enabled, only a single version of the reconstruction code is compiled
 #undef USE_DOUBLE				// If enabled, double-precesion is used
@@ -265,7 +266,11 @@ void _Execute( int argc , char* argv[] )
 		profiler.start();
 		// Read the mesh
 		std::vector< Point< Real , Dim > > vertices;
+#ifdef NEW_CODE
+		std::vector< TriangleIndex< node_index_type > > triangles;
+#else // !NEW_CODE
 		std::vector< TriangleIndex > triangles;
+#endif // NEW_CODE
 		{
 			int file_type;
 			std::vector< PlyVertex< float , Dim > > _vertices;
@@ -370,22 +375,35 @@ void _Execute( int argc , char* argv[] )
 		profiler.start();
 
 		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< IsotropicUIntPack< Dim , FEMSig > , 0 > evaluator( &tree , heatSolution );
+#ifdef NEW_CODE
+		typedef typename RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >::template ConstNeighbors< IsotropicUIntPack< Dim , 3 > > OneRingNeighbors;
+		typedef typename RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >::template ConstNeighborKey< IsotropicUIntPack< Dim , 1 > , IsotropicUIntPack< Dim , 1 > > OneRingNeighborKey;
+#else // !NEW_CODE
 		typedef typename RegularTreeNode< Dim , FEMTreeNodeData >::template ConstNeighbors< IsotropicUIntPack< Dim , 3 > > OneRingNeighbors;
 		typedef typename RegularTreeNode< Dim , FEMTreeNodeData >::template ConstNeighborKey< IsotropicUIntPack< Dim , 1 > , IsotropicUIntPack< Dim , 1 > > OneRingNeighborKey;
+#endif // NEW_CODE
 		std::vector< OneRingNeighborKey > oneRingNeighborKeys( omp_get_max_threads() );
 		int treeDepth = tree.tree().maxDepth();
 		for( int i=0 ; i<oneRingNeighborKeys.size() ; i++ ) oneRingNeighborKeys[i].set( treeDepth );
 		DenseNodeData< Real , IsotropicUIntPack< Dim , FEMTrivialSignature > > leafCenterValues = tree.initDenseNodeData( IsotropicUIntPack< Dim , FEMTrivialSignature >() );
 
 #pragma omp parallel for
+#ifdef NEW_CODE
+		for( node_index_type i=tree.nodesBegin(0) ; i<tree.nodesEnd(Depth.value) ; i++ ) if( tree.isValidSpaceNode( tree.node(i) ) )
+#else // !NEW_CODE
 		for( int i=tree.nodesBegin(0) ; i<tree.nodesEnd(Depth.value) ; i++ ) if( tree.isValidSpaceNode( tree.node(i) ) )
+#endif // NEW_CODE
 		{
 			Point< Real , Dim > center ; Real width;
 			tree.centerAndWidth( i , center , width );
 			leafCenterValues[i] = evaluator.values( center , omp_get_thread_num() )[0];
 		}
 
+#ifdef NEW_CODE
+		auto CenterGradient = [&] ( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* leaf , int thread )
+#else // !NEW_CODE
 		auto CenterGradient = [&] ( const RegularTreeNode< Dim , FEMTreeNodeData >* leaf , int thread )
+#endif // NEW_CODE
 		{
 			int d , off[Dim] ; Point< Real , Dim > p ; Real width , _width = (Real)1./(1<<Depth.value);
 			tree.depthAndOffset( leaf , d , off ) , tree.centerAndWidth( leaf->nodeData.nodeIndex , p , width );
@@ -399,8 +417,13 @@ void _Execute( int argc , char* argv[] )
 				Real value1 , value2;
 				if( off[c]-1>=0  ) index1[c] = 0;
 				if( off[c]+1<res ) index2[c] = 2;
+#ifdef NEW_CODE
+				const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node1 = neighbors.neighbors().data[ GetWindowIndex( IsotropicUIntPack< Dim , 3 >() , index1 ) ];
+				const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node2 = neighbors.neighbors().data[ GetWindowIndex( IsotropicUIntPack< Dim , 3 >() , index2 ) ];
+#else // !NEW_CODE
 				const RegularTreeNode< Dim , FEMTreeNodeData >* node1 = neighbors.neighbors().data[ GetWindowIndex( IsotropicUIntPack< Dim , 3 >() , index1 ) ];
 				const RegularTreeNode< Dim , FEMTreeNodeData >* node2 = neighbors.neighbors().data[ GetWindowIndex( IsotropicUIntPack< Dim , 3 >() , index2 ) ];
+#endif // NEW_CODE
 				if( d==Depth.value && tree.isValidSpaceNode( node2 ) ) value2 = leafCenterValues[ node2->nodeData.nodeIndex ];
 				else
 				{
@@ -424,16 +447,32 @@ void _Execute( int argc , char* argv[] )
 			return g * _res;
 		};
 
+#ifdef NEW_CODE
+		for( node_index_type i=tree.nodesBegin(0) ; i<tree.nodesEnd(Depth.value) ; i++ ) if( tree.isValidSpaceNode( tree.node(i) ) && !tree.isValidSpaceNode( tree.node(i)->children ) )
+#else // !NEW_CODE
 		for( int i=tree.nodesBegin(0) ; i<tree.nodesEnd(Depth.value) ; i++ ) if( tree.isValidSpaceNode( tree.node(i) ) && !tree.isValidSpaceNode( tree.node(i)->children ) )
+#endif // NEW_CODE
 		{
+#ifdef NEW_CODE
+			RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* leaf = ( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* )tree.node(i);
+#else // !NEW_CODE
 			RegularTreeNode< Dim , FEMTreeNodeData >* leaf = ( RegularTreeNode< Dim , FEMTreeNodeData >* )tree.node(i);
+#endif // NEW_CODE
 			leafValues[leaf] *= 0;
 		}
 
 #pragma omp parallel for
+#ifdef NEW_CODE
+		for( node_index_type i=tree.nodesBegin(0) ; i<tree.nodesEnd(Depth.value) ; i++ ) if( tree.isValidSpaceNode( tree.node(i) ) && !tree.isValidSpaceNode( tree.node(i)->children ) )
+#else // !NEW_CODE
 		for( int i=tree.nodesBegin(0) ; i<tree.nodesEnd(Depth.value) ; i++ ) if( tree.isValidSpaceNode( tree.node(i) ) && !tree.isValidSpaceNode( tree.node(i)->children ) )
+#endif // NEW_CODE
 		{
+#ifdef NEW_CODE
+			RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* leaf = ( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* )tree.node(i);
+#else // !NEW_CODE
 			RegularTreeNode< Dim , FEMTreeNodeData >* leaf = ( RegularTreeNode< Dim , FEMTreeNodeData >* )tree.node(i);
+#endif // NEW_CODE
 			Point< Real , Dim > g = CenterGradient( leaf , omp_get_thread_num() );
 			Real len = (Real)Length( g );
 			if( len>GradientCutOff ) g /= len;
@@ -516,7 +555,11 @@ void _Execute( int argc , char* argv[] )
 			GetAverageValueAndError( &tree , edtSolution , average , error );
 			if( Verbose.set ) printf( "Interpolation average / error: %g / %g\n" , average , error );
 #pragma omp parallel for
+#ifdef NEW_CODE
+			for( node_index_type i=tree.nodesBegin(0) ; i<tree.nodesEnd(0) ; i++ ) edtSolution[i] -= (Real)average;
+#else // !NEW_CODE
 			for( int i=tree.nodesBegin(0) ; i<tree.nodesEnd(0) ; i++ ) edtSolution[i] -= (Real)average;
+#endif // NEW_CODE
 		}
 
 		if( Out.set )

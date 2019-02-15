@@ -312,7 +312,62 @@ namespace MKExceptions
 #endif // VERBOSE_MESSAGING
 
 #ifdef NEW_CODE
-#include <atomic>
+
+////////////////////
+// MKThread Stuff //
+////////////////////
+#include <thread>
+#include <mutex>
+#include <vector>
+
+// The assumption is that Kernel is the type of a function taking two arguments, the first is the index of the thread and the second is index of the iteration
+struct MKThread
+{
+	static unsigned int Threads;
+
+	template< typename Kernel , typename ... Args >
+	static void parallel_thread_for( size_t start , size_t end , Kernel kernel , Args ... args )
+	{
+		size_t range = end - start;
+
+		auto _functor = [&]( unsigned int t )
+		{
+			size_t _start = start + ( range * t ) / Threads;
+			size_t _end = start + ( range *(t+1) ) / Threads;
+			for( size_t i=_start ; i<_end ; i++ ) kernel( t , i , args ... );
+		};
+
+		std::vector< std::thread > threads( Threads );
+
+		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
+
+		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t].join();
+	}
+
+	template< typename Kernel , typename ... Args >
+	static void parallel_thread_block_for( size_t start , size_t end , size_t blockSize , Kernel kernel , Args ... args )
+	{
+		size_t range = end - start;
+		size_t blocks = ( range + blockSize - 1 ) / blockSize;
+		auto _functor = [&]( unsigned int t )
+		{
+			for( size_t b=t ; b<blocks ; b+=Threads )
+			{
+				size_t blockStart = start + ( range * b ) / blocks;
+				size_t blockEnd = start + ( range * (b+1) ) / blocks;
+				for( size_t i=blockStart ; i<blockEnd ; i++ ) kernel( t , i , args ... );
+			}
+		};
+
+		std::vector< std::thread > threads( Threads );
+
+		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
+
+		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t].join();
+	}
+};
+unsigned int MKThread::Threads = std::thread::hardware_concurrency();
+
 /////////////////////////
 // NumberWrapper Stuff //
 /////////////////////////

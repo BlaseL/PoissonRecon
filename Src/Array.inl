@@ -38,7 +38,12 @@ DAMAGE.
 #include <stddef.h>
 #ifdef ARRAY_NEW_CODE
 #include <type_traits>
+#include <cstddef>
 #endif // ARRAY_NEW_CODE
+
+
+#ifdef ARRAY_NEW_CODE
+#else // !ARRAY_NEW_CODE
 
 inline bool isfinitef( float fp ){ float f=fp; return ((*(unsigned *)&f)&0x7f800000)!=0x7f800000; }
 
@@ -56,6 +61,7 @@ template< >         inline bool IsValid< __m128 >( const __m128& m )
 	else                    return true;
 }
 template< class C > inline bool IsValid( const C& c ){ return true; }
+#endif // ARRAY_NEW_CODE
 
 
 template< class C >
@@ -65,7 +71,11 @@ class Array
 	template< class _C > friend class ConstArray;
 #endif // ARRAY_NEW_CODE_2
 	template< class D > friend class Array;
+#ifdef ARRAY_NEW_CODE
+	void _assertBounds( std::ptrdiff_t idx ) const
+#else // !ARRAY_NEW_CODE
 	void _assertBounds( long long idx ) const
+#endif // ARRAY_NEW_CODE
 	{
 #ifdef ARRAY_NEW_CODE_2
 		if( idx<min || idx>=max ) ERROR_OUT( "Array index out-of-bounds: " , min , " <= " , idx , " < " , max , "\nFile: " , _fileName , "; Line: " , _line , "; Function: " , _functionName );
@@ -75,15 +85,24 @@ class Array
 	}
 protected:
 	C *data , *_data;
+#ifdef ARRAY_NEW_CODE
+	std::ptrdiff_t min , max;
+#else // !ARRAY_NEW_CODE
 	long long min , max;
+#endif // ARRAY_NEW_CODE
 #ifdef ARRAY_NEW_CODE_2
 	std::string _fileName , _functionName;
 	std::string _line;
 #endif // ARRAY_NEW_CODE_2
 
 public:
+#ifdef ARRAY_NEW_CODE
+	std::ptrdiff_t minimum( void ) const { return min; }
+	std::ptrdiff_t maximum( void ) const { return max; }
+#else // !ARRAY_NEW_CODE
 	long long minimum( void ) const { return min; }
 	long long maximum( void ) const { return max; }
+#endif // ARRAY_NEW_CODE
 
 #ifdef ARRAY_NEW_CODE_2
 	static inline Array New( size_t size , std::string fileName , int line , std::string functionName )
@@ -97,7 +116,11 @@ public:
 #ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] Casting unsigned to signed" )
 #endif // SHOW_WARNINGS
+#ifdef ARRAY_NEW_CODE
+		a.max = (std::ptrdiff_t)size;
+#else // !ARRAY_NEW_CODE
 		a.max = ( long long ) size;
+#endif // ARRAY_NEW_CODE
 #ifdef ARRAY_NEW_CODE_2
 		a._fileName = fileName , a._line = line , a._functionName = functionName;
 #endif // ARRAY_NEW_CODE_2
@@ -116,7 +139,11 @@ public:
 #ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] Casting unsigned to signed" )
 #endif // SHOW_WARNINGS
+#ifdef ARRAY_NEW_CODE
+		a.max = (std::ptrdiff_t)size;
+#else // !ARRAY_NEW_CODE
 		a.max = ( long long ) size;
+#endif // ARRAY_NEW_CODE
 #ifdef ARRAY_NEW_CODE_2
 		a._fileName = fileName , a._line = line , a._functionName = functionName;
 #endif // ARRAY_NEW_CODE_2
@@ -137,7 +164,11 @@ public:
 #ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] Casting unsigned to signed" )
 #endif // SHOW_WARNINGS
+#ifdef ARRAY_NEW_CODE
+		a.max = (std::ptrdiff_t)size;
+#else // !ARRAY_NEW_CODE
 		a.max = ( long long ) size;
+#endif // ARRAY_NEW_CODE
 #ifdef ARRAY_NEW_CODE_2
 		a._fileName = fileName , a._line = line , a._functionName = functionName;
 #endif // ARRAY_NEW_CODE_2
@@ -158,7 +189,11 @@ public:
 #ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] Casting unsigned to signed" )
 #endif // SHOW_WARNINGS
+#ifdef ARRAY_NEW_CODE
+		_a.max = (std::ptrdiff_t)size;
+#else // !ARRAY_NEW_CODE
 		_a.max = ( long long ) size;
+#endif // ARRAY_NEW_CODE
 #ifdef ARRAY_NEW_CODE_2
 		a._fileName = fileName , a._line = line , a._functionName = functionName;
 #endif // ARRAY_NEW_CODE_2
@@ -182,8 +217,13 @@ public:
 		else
 		{
 			// [WARNING] Changing szC and szD to size_t causes some really strange behavior.
+#ifdef ARRAY_NEW_CODE
+			std::ptrdiff_t szC = (std::ptrdiff_t)sizeof( C );
+			std::ptrdiff_t szD = (std::ptrdiff_t)sizeof( D );
+#else // !ARRAY_NEW_CODE
 			long long szC = sizeof( C );
 			long long szD = sizeof( D );
+#endif // ARRAY_NEW_CODE
 			data = (C*)a.data;
 			min = ( a.minimum() * szD ) / szC;
 			max = ( a.maximum() * szD ) / szC;
@@ -195,7 +235,11 @@ public:
 #endif // ARRAY_NEW_CODE_2
 		}
 	}
+#ifdef ARRAY_NEW_CODE
+	static Array FromPointer( C* data , std::ptrdiff_t max )
+#else // !ARRAY_NEW_CODE
 	static Array FromPointer( C* data , long long max )
+#endif // ARRAY_NEW_CODE
 	{
 		Array a;
 		a._data = NULL;
@@ -204,7 +248,11 @@ public:
 		a.max = max;
 		return a;
 	}
+#ifdef ARRAY_NEW_CODE
+	static Array FromPointer( C* data , std::ptrdiff_t min , std::ptrdiff_t max )
+#else // !ARRAY_NEW_CODE
 	static Array FromPointer( C* data , long long min , long long max )
+#endif // ARRAY_NEW_CODE
 	{
 		Array a;
 		a._data = NULL;
@@ -355,7 +403,11 @@ public:
 	inline Array& operator ++ ( void  ) { return (*this) += 1; }
 	inline Array operator++( int ){ Array< C > temp = (*this) ; (*this) +=1 ; return temp; }
 	inline Array operator--( int ){ Array< C > temp = (*this) ; (*this) -=1 ; return temp; }
+#ifdef ARRAY_NEW_CODE
+	std::ptrdiff_t operator - ( const Array& a ) const { return data - a.data; }
+#else // !ARRAY_NEW_CODE
 	long long operator - ( const Array& a ) const { return ( long long )( data - a.data ); }
+#endif // ARRAY_NEW_CODE
 
 	void Free( void )
 	{
@@ -383,7 +435,11 @@ template< class C >
 class ConstArray
 {
 	template< class D > friend class ConstArray;
+#ifdef ARRAY_NEW_CODE
+	void _assertBounds( std::ptrdiff_t idx ) const
+#else // !ARRAY_NEW_CODE
 	void _assertBounds( long long idx ) const
+#endif // ARRAY_NEW_CODE
 	{
 #ifdef ARRAY_NEW_CODE_2
 		if( idx<min || idx>=max ) ERROR_OUT( "ConstArray index out-of-bounds: " , min , " <= " , idx , " < " , max , "\nFile: " , _fileName , "; Line: " , _line , "; Function: " , _functionName );
@@ -393,14 +449,23 @@ class ConstArray
 	}
 protected:
 	const C *data;
+#ifdef ARRAY_NEW_CODE
+	std::ptrdiff_t min , max;
+#else // !ARRAY_NEW_CODE
 	long long min , max;
+#endif // ARRAY_NEW_CODE
 #ifdef ARRAY_NEW_CODE_2
 	std::string _fileName , _functionName;
 	std::string _line;
 #endif // ARRAY_NEW_CODE_2
 public:
+#ifdef ARRAY_NEW_CODE
+	std::ptrdiff_t minimum( void ) const { return min; }
+	std::ptrdiff_t maximum( void ) const { return max; }
+#else // !ARRAY_NEW_CODE
 	long long minimum( void ) const { return min; }
 	long long maximum( void ) const { return max; }
+#endif // ARRAY_NEW_CODE
 
 	inline ConstArray( void )
 	{
@@ -423,8 +488,13 @@ public:
 	inline ConstArray( const Array< D >& a )
 	{
 		// [WARNING] Changing szC and szD to size_t causes some really strange behavior.
+#ifdef ARRAY_NEW_CODE
+		std::ptrdiff_t szC = (std::ptrdiff_t)sizeof( C );
+		std::ptrdiff_t szD = (std::ptrdiff_t)sizeof( D );
+#else // !ARRAY_NEW_CODE
 		long long szC = ( long long ) sizeof( C );
 		long long szD = ( long long ) sizeof( D );
+#endif // ARRAY_NEW_CODE
 		data = ( const C* )a.pointer( );
 		min = ( a.minimum() * szD ) / szC;
 		max = ( a.maximum() * szD ) / szC;
@@ -439,8 +509,13 @@ public:
 	inline ConstArray( const ConstArray< D >& a )
 	{
 		// [WARNING] Chaning szC and szD to size_t causes some really strange behavior.
+#ifdef ARRAY_NEW_CODE
+		std::ptrdiff_t szC = (std::ptrdiff_t)sizeof( C );
+		std::ptrdiff_t szD = (std::ptrdiff_t)sizeof( D );
+#else // !ARRAY_NEW_CODE
 		long long szC = sizeof( C );
 		long long szD = sizeof( D );
+#endif // ARRAY_NEW_CODE
 		data = ( const C*)a.pointer( );
 		min = ( a.minimum() * szD ) / szC;
 		max = ( a.maximum() * szD ) / szC;
@@ -451,7 +526,11 @@ public:
 		_functionName = a._functionName;
 #endif // ARRAY_NEW_CODE_2
 	}
+#ifdef ARRAY_NEW_CODE
+	static ConstArray FromPointer( const C* data , std::ptrdiff_t max )
+#else // !ARRAY_NEW_CODE
 	static ConstArray FromPointer( const C* data , long long max )
+#endif // ARRAY_NEW_CODE
 	{
 		ConstArray a;
 		a.data = data;
@@ -459,7 +538,11 @@ public:
 		a.max = max;
 		return a;
 	}
+#ifdef ARRAY_NEW_CODE
+	static ConstArray FromPointer( const C* data , std::ptrdiff_t min , std::ptrdiff_t max )
+#else // !ARRAY_NEW_CODE
 	static ConstArray FromPointer( const C* data , long long min , long long max )
+#endif // ARRAY_NEW_CODE
 	{
 		ConstArray a;
 		a.data = data;
@@ -585,8 +668,13 @@ public:
 	inline ConstArray& operator ++ ( void ) { return (*this) += 1; }
 	inline ConstArray operator++( int ){ ConstArray< C > temp = (*this) ; (*this) +=1 ; return temp; }
 	inline ConstArray operator--( int ){ ConstArray< C > temp = (*this) ; (*this) -=1 ; return temp; }
+#ifdef ARRAY_NEW_CODE
+	std::ptrdiff_t operator - ( const ConstArray& a ) const { return data - a.data; }
+	std::ptrdiff_t operator - ( const Array< C >& a ) const { return data - a.pointer(); }
+#else // !ARRAY_NEW_CODE
 	long long operator - ( const ConstArray& a ) const { return ( long long )( data - a.data ); }
 	long long operator - ( const Array< C >& a ) const { return ( long long )( data - a.pointer() ); }
+#endif // ARRAY_NEW_CODE
 
 	const C* pointer( void ) const { return data; }
 	bool operator !( void ) { return data==NULL; }

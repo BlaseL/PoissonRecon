@@ -614,8 +614,12 @@ Pointer( V ) FEMTree< Dim , Real >::regularGridEvaluate( const DenseNodeData< V 
 				offsets() , cornerValues()
 			);
 		}
-#pragma omp parallel for
+#ifdef NEW_THREADS
+		MKThread::parallel_thread_for( 0 , cellCount , [&]( unsigned int , size_t c )
+#else // !NEW_THREADS
+#pragma omp parallel for( 0 , cellCount , [&]( unsigned int , size_t c )
 		for( long long c=0 ; c<(long long)cellCount ; c++ )
+#endif // NEW_THREADS
 		{
 			V& value = values[c];
 			int idx[Dim];
@@ -661,6 +665,9 @@ Pointer( V ) FEMTree< Dim , Real >::regularGridEvaluate( const DenseNodeData< V 
 				);
 			}
 		}
+#ifdef NEW_THREADS
+		);
+#endif // NEW_THREADS
 		for( int d=0 ; d<Dim ; d++ ) delete evaluators[d];
 	}
 	else
@@ -699,8 +706,12 @@ Pointer( V ) FEMTree< Dim , Real >::regularGridEvaluate( const DenseNodeData< V 
 				offsets() , centerValues()
 			);
 		}
+#ifdef NEW_THREADS
+		MKThread::parallel_thread_for( 0 , cellCount , [&]( unsigned int , size_t c )
+#else // !NEW_THREADS
 #pragma omp parallel for
 		for( long long c=0 ; c<(long long)cellCount ; c++ )
+#endif // NEW_THREADS
 		{
 			V& value = values[c];
 			int idx[Dim];
@@ -743,6 +754,9 @@ Pointer( V ) FEMTree< Dim , Real >::regularGridEvaluate( const DenseNodeData< V 
 				);
 			}
 		}
+#ifdef NEW_THREADS
+		);
+#endif // NEW_THREADS
 		for( int d=0 ; d<Dim ; d++ ) delete evaluators[d];
 	}
 	MemoryUsage();
@@ -832,22 +846,32 @@ Pointer( V ) FEMTree< Dim , Real >::regularGridUpSample( const DenseNodeData< V 
 		for( int dd=0 ; dd<Dim ; dd++ ) count *= gridDimensions[_depth].dim[dd];
 		upSampledCoefficients = NewPointer< V >( count );
 		memset( upSampledCoefficients , 0 , sizeof( V ) * count );
+#ifdef NEW_THREADS
+		MKThread::parallel_thread_for( _sNodesBegin(_depth) , _sNodesEnd(_depth) , [&]( unsigned int , size_t i )
+#else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
-		for( node_index_type i=_sNodesBegin(_depth) ; i<_sNodesEnd(_depth) ; i++ ) if( !_outOfBounds( UIntPack< DataSigs ... >() , _sNodes.treeNodes[i] ) )
+		for( node_index_type i=_sNodesBegin(_depth) ; i<_sNodesEnd(_depth) ; i++ )
 #else // !NEW_CODE
-		for( int i=_sNodesBegin(_depth) ; i<_sNodesEnd(_depth) ; i++ ) if( !_outOfBounds( UIntPack< DataSigs ... >() , _sNodes.treeNodes[i] ) )
+		for( int i=_sNodesBegin(_depth) ; i<_sNodesEnd(_depth) ; i++ )
 #endif // NEW_CODE
+#endif // NEW_THREADS
 		{
-			LocalDepth _d ; LocalOffset _off;
-			_localDepthAndOffset( _sNodes.treeNodes[i] , _d , _off );
-			if( InBounds( _off , gridDimensions[_depth] ) )
+			if( !_outOfBounds( UIntPack< DataSigs ... >() , _sNodes.treeNodes[i] ) )
 			{
-				size_t idx = 0;
-				for( int d=0 ; d<Dim ; d++ ) idx += gridDimensions[_depth].dimMultiplier[d] * ( _off[d] - gridDimensions[_depth].begin[d] );
-				upSampledCoefficients[idx] = coefficients[i];
+				LocalDepth _d ; LocalOffset _off;
+				_localDepthAndOffset( _sNodes.treeNodes[i] , _d , _off );
+				if( InBounds( _off , gridDimensions[_depth] ) )
+				{
+					size_t idx = 0;
+					for( int d=0 ; d<Dim ; d++ ) idx += gridDimensions[_depth].dimMultiplier[d] * ( _off[d] - gridDimensions[_depth].begin[d] );
+					upSampledCoefficients[idx] = coefficients[i];
+				}
 			}
 		}
+#ifdef NEW_THREADS
+		);
+#endif // NEW_THREADS
 	}
 	// Up-sample and add in the existing coefficients
 	for( LocalDepth _depth=1 ; _depth<=depth ; _depth++ )
@@ -857,22 +881,32 @@ Pointer( V ) FEMTree< Dim , Real >::regularGridUpSample( const DenseNodeData< V 
 		Pointer( V ) _coefficients = NewPointer< V >( count );
 		memset( _coefficients , 0 , sizeof( V ) * count );
 		if( _depth<=_maxDepth )
+#ifdef NEW_THREADS
+			MKThread::parallel_thread_for( _sNodesBegin(_depth) , _sNodesEnd(_depth) , [&]( unsigned int , size_t i )
+#else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
-			for( node_index_type i=_sNodesBegin(_depth) ; i<_sNodesEnd(_depth) ; i++ ) if( !_outOfBounds( UIntPack< DataSigs ... >() , _sNodes.treeNodes[i] ) )
+			for( node_index_type i=_sNodesBegin(_depth) ; i<_sNodesEnd(_depth) ; i++ )
 #else // !NEW_CODE
-			for( int i=_sNodesBegin(_depth) ; i<_sNodesEnd(_depth) ; i++ ) if( !_outOfBounds( UIntPack< DataSigs ... >() , _sNodes.treeNodes[i] ) )
+			for( int i=_sNodesBegin(_depth) ; i<_sNodesEnd(_depth) ; i++ )
 #endif // NEW_CODE
+#endif // NEW_THREADS
 			{
-				LocalDepth _d ; LocalOffset _off;
-				_localDepthAndOffset( _sNodes.treeNodes[i] , _d , _off );
-				if( InBounds( _off , gridDimensions[_depth] ) )
+				if( !_outOfBounds( UIntPack< DataSigs ... >() , _sNodes.treeNodes[i] ) )
 				{
-					size_t idx = 0;
-					for( int d=0 ; d<Dim ; d++ ) idx += gridDimensions[_depth].dimMultiplier[d] * ( _off[d] - gridDimensions[_depth].begin[d] );
-					_coefficients[idx] = coefficients[i];
+					LocalDepth _d ; LocalOffset _off;
+					_localDepthAndOffset( _sNodes.treeNodes[i] , _d , _off );
+					if( InBounds( _off , gridDimensions[_depth] ) )
+					{
+						size_t idx = 0;
+						for( int d=0 ; d<Dim ; d++ ) idx += gridDimensions[_depth].dimMultiplier[d] * ( _off[d] - gridDimensions[_depth].begin[d] );
+						_coefficients[idx] = coefficients[i];
+					}
 				}
 			}
+#ifdef NEW_THREADS
+		);
+#endif // NEW_THREADS
 		_RegularGridUpSample< XMajor >( UIntPack< DataSigs ... >() , gridDimensions[_depth-1].begin , gridDimensions[_depth-1].end , gridDimensions[_depth].begin , gridDimensions[_depth].end , _depth , ( ConstPointer(V) )upSampledCoefficients , _coefficients );
 		DeletePointer( upSampledCoefficients );
 		upSampledCoefficients = _coefficients;
@@ -892,7 +926,11 @@ template< class V , unsigned int ... DataSigs >
 V FEMTree< Dim , Real >::average( const DenseNodeData< V , UIntPack< DataSigs ... > >& coefficients , const Real begin[Dim] , const Real end[Dim] ) const
 {
 	_setFEM1ValidityFlags( UIntPack< DataSigs ... >() );
+#ifdef NEW_THREADS
+	std::vector< V > avgs( MKThread::Threads );
+#else // !NEW_THREADS
 	std::vector< V > avgs( omp_get_max_threads() );
+#endif // NEW_THREADS
 	for( int i=0 ; i<avgs.size() ; i++ ) avgs[i] = {};
 	double _begin[Dim] , _end[Dim];
 	for( int d=0 ; d<Dim ; d++ ) _begin[d] = begin[d] , _end[d] = end[d];
@@ -903,18 +941,33 @@ V FEMTree< Dim , Real >::average( const DenseNodeData< V , UIntPack< DataSigs ..
 		double __begin[Dim] , __end[Dim];
 		for( int dd=0 ; dd<Dim ; dd++ ) off[dd] = center , __begin[dd] = 0 , __end[dd] = 1;
 		double integral = FEMIntegrator::Integral( UIntPack< DataSigs ... >() , d , off , __begin , __end );
+#ifdef NEW_THREADS
+		MKThread::parallel_thread_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
+#else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
-		for( node_index_type i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ ) if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
+		for( node_index_type i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ )
 #else //!NEW_CODE
-		for( int i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ ) if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
+		for( int i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ )
 #endif // NEW_CODE
+#endif // NEW_THREADS
 		{
-			int d , off[Dim];
-			_localDepthAndOffset( _sNodes.treeNodes[i] , d , off );
-			if( BaseFEMIntegrator::IsInteriorlySupported( UIntPack< FEMSignature< DataSigs >::Degree ... >() , d , off , _begin , _end ) ) avgs[ omp_get_thread_num() ] += (V)( coefficients[i] * (Real)integral );
-			else                                                                                                                           avgs[ omp_get_thread_num() ] += (V)( coefficients[i] * (Real)FEMIntegrator::Integral( UIntPack< DataSigs ... >() , d , off , _begin , _end ) );
+			if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
+			{
+				int d , off[Dim];
+				_localDepthAndOffset( _sNodes.treeNodes[i] , d , off );
+#ifdef NEW_THREADS
+				if( BaseFEMIntegrator::IsInteriorlySupported( UIntPack< FEMSignature< DataSigs >::Degree ... >() , d , off , _begin , _end ) ) avgs[ thread ] += (V)( coefficients[i] * (Real)integral );
+				else                                                                                                                           avgs[ thread ] += (V)( coefficients[i] * (Real)FEMIntegrator::Integral( UIntPack< DataSigs ... >() , d , off , _begin , _end ) );
+#else // !NEW_THREADS
+				if( BaseFEMIntegrator::IsInteriorlySupported( UIntPack< FEMSignature< DataSigs >::Degree ... >() , d , off , _begin , _end ) ) avgs[ omp_get_thread_num() ] += (V)( coefficients[i] * (Real)integral );
+				else                                                                                                                           avgs[ omp_get_thread_num() ] += (V)( coefficients[i] * (Real)FEMIntegrator::Integral( UIntPack< DataSigs ... >() , d , off , _begin , _end ) );
+#endif // NEW_THREADS
+			}
 		}
+#ifdef NEW_THREADS
+		);
+#endif // NEW_THREADS
 	}
 	V avg = {};
 	for( int i=0 ; i<avgs.size() ; i++ ) avg += avgs[i];
@@ -935,23 +988,41 @@ SparseNodeData< CumulativeDerivativeValues< Real , Dim , PointD > , IsotropicUIn
 	evaluator.set( maxDepth );
 	for( LocalDepth d=maxDepth ; d>=0 ; d-- )
 	{
+#ifdef NEW_THREADS
+		std::vector< ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > > > neighborKeys( MKThread::Threads );
+#else // !NEW_THREADS
 		std::vector< ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > > > neighborKeys( omp_get_max_threads() );
+#endif // NEW_THREADS
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( d ) );
+#ifdef NEW_THREADS
+		MKThread::parallel_thread_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
+#else // !NEW_THREADS
 #ifdef NEW_CODE
-		for( node_index_type i=_sNodesBegin(d) ; i<(node_index_type)_sNodesEnd(d) ; i++ ) if( _isValidSpaceNode( _sNodes.treeNodes[i] ) )
+		for( node_index_type i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ )
 #else // !NEW_CODE
-		for( int i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ ) if( _isValidSpaceNode( _sNodes.treeNodes[i] ) )
+		for( int i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ )
 #endif // NEW_CODE
+#endif // NEW_THREADS
 		{
-			ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& neighborKey = neighborKeys[ omp_get_thread_num() ];
-			FEMTreeNode* node = _sNodes.treeNodes[i];
-			if( !IsActiveNode< Dim >( node->children ) || d==maxDepth )
+			if( _isValidSpaceNode( _sNodes.treeNodes[i] ) )
 			{
-				neighborKey.getNeighbors( node );
-				bool isInterior = _isInteriorlySupported( UIntPack< FEMSignature< FEMSigs >::Degree ... >() , node->parent );
-				values[ node ] = _getCenterValues< Real , PointD >( neighborKey , node , coefficients() , _coefficients() , evaluator , maxDepth , isInterior );
+#ifdef NEW_THREADS
+				ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& neighborKey = neighborKeys[ thread ];
+#else // !NEW_THREADS
+				ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& neighborKey = neighborKeys[ omp_get_thread_num() ];
+#endif // NEW_THREADS
+				FEMTreeNode* node = _sNodes.treeNodes[i];
+				if( !IsActiveNode< Dim >( node->children ) || d==maxDepth )
+				{
+					neighborKey.getNeighbors( node );
+					bool isInterior = _isInteriorlySupported( UIntPack< FEMSignature< FEMSigs >::Degree ... >() , node->parent );
+					values[ node ] = _getCenterValues< Real , PointD >( neighborKey , node , coefficients() , _coefficients() , evaluator , maxDepth , isInterior );
+				}
 			}
 		}
+#ifdef NEW_THREADS
+		);
+#endif // NEW_THREADS
 	}
 	return values;
 }

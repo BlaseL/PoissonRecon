@@ -91,8 +91,8 @@ template< class C > ConstArray< C > GetPointer( const std::vector< C >& v ){ ret
 #ifdef ARRAY_NEW_CODE
 template< class C >      Array< C > GetPointer(       C* c , size_t sz ) { return      Array< C >::FromPointer( c , sz ); }
 template< class C > ConstArray< C > GetPointer( const C* c , size_t sz ) { return ConstArray< C >::FromPointer( c , sz ); }
-template< class C >      Array< C > GetPointer(       C* c , long long start , long long end ) { return      Array< C >::FromPointer( c , start , end ); }
-template< class C > ConstArray< C > GetPointer( const C* c , long long start , long long end ) { return ConstArray< C >::FromPointer( c , start , end ); }
+template< class C >      Array< C > GetPointer(       C* c , std::ptrdiff_t start , std::ptrdiff_t end ) { return      Array< C >::FromPointer( c , start , end ); }
+template< class C > ConstArray< C > GetPointer( const C* c , std::ptrdiff_t start , std::ptrdiff_t end ) { return ConstArray< C >::FromPointer( c , start , end ); }
 #else // !ARRAY_NEW_CODE
 template< class C >      Array< C > GetPointer(       C* c , int sz ) { return      Array< C >::FromPointer( c , sz ); }
 template< class C > ConstArray< C > GetPointer( const C* c , int sz ) { return ConstArray< C >::FromPointer( c , sz ); }
@@ -126,8 +126,8 @@ template< class C > const C* GetPointer( const std::vector< C >& v ){ return &v[
 #ifdef NEW_CODE
 template< class C >       C* GetPointer(       C* c , size_t sz ) { return c; }
 template< class C > const C* GetPointer( const C* c , size_t sz ) { return c; }
-template< class C >       C* GetPointer(       C* c , long long start , long long end ) { return c; }
-template< class C > const C* GetPointer( const C* c , long long start , long long end ) { return c; }
+template< class C >       C* GetPointer(       C* c , std::ptrdiff_t start , std::ptrdiff_t end ) { return c; }
+template< class C > const C* GetPointer( const C* c , std::ptrdiff_t start , std::ptrdiff_t end ) { return c; }
 #else // !NEW_CODE
 template< class C >       C* GetPointer(       C* c , int sz ) { return c; }
 template< class C > const C* GetPointer( const C* c , int sz ) { return c; }

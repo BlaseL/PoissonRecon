@@ -25,6 +25,7 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING 
 ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
 DAMAGE.
 */
+#define NEW_CODE
 
 #undef ARRAY_DEBUG
 #undef FAST_COMPILE
@@ -320,7 +321,11 @@ void _Execute( void )
 			for( int i=0 ; i<derivatives[1].size() ; i++ ) nodes.push_back( derivatives[1][i].node );
 			tree.template thicken< 1 , 0 >( &nodes[0] , (int)nodes.size() );
 		}
+#ifdef NEW_CODE
+		tree.template finalizeForMultigrid< Degree >( FullDepth.value , []( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* ){ return true; } );
+#else // !NEW_CODE
 		tree.template finalizeForMultigrid< Degree >( FullDepth.value , []( const RegularTreeNode< Dim , FEMTreeNodeData >* ){ return true; } );
+#endif // NEW_CODE
 		if( Verbose.set )
 		{
 			printf( "Valid FEM Nodes / Edges: %d %d\n" , (int)tree.validFEMNodes( IsotropicUIntPack< Dim , FEMSig >() ) , (int)( derivatives[0].size() + derivatives[1].size() ) );

@@ -25,6 +25,7 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING 
 ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
 DAMAGE.
 */
+#define NEW_CODE
 
 #undef ARRAY_DEBUG
 #define DIMENSION 3
@@ -54,12 +55,18 @@ cmdLineParameter< float >
 	IslandAreaRatio( "aRatio" , 0.001f );
 cmdLineReadable
 	PolygonMesh( "polygonMesh" ) ,
+#ifdef NEW_CODE
+	Long( "long" ) ,
+#endif // NEW_CODE
 	Verbose( "verbose" );
 
 
 cmdLineReadable* params[] =
 {
 	&In , &Out , &Trim , &PolygonMesh , &Smooth , &IslandAreaRatio , &Verbose ,
+#ifdef NEW_CODE
+	&Long ,
+#endif // NEW_CODE
 	NULL
 };
 
@@ -72,14 +79,28 @@ void ShowUsage( char* ex )
 	printf( "\t[--%s <smoothing iterations>=%d]\n" , Smooth.name , Smooth.value );
 	printf( "\t[--%s <relative area of islands>=%f]\n" , IslandAreaRatio.name , IslandAreaRatio.value );
 	printf( "\t[--%s]\n" , PolygonMesh.name );
+#ifdef NEW_CODE
+	printf( "\t[--%s]\n" , Long.name );
+#endif // NEW_CODE
 	printf( "\t[--%s]\n" , Verbose.name );
 }
 
+#ifdef NEW_CODE
+template< typename Index >
+struct EdgeKey
+{
+	Index key1 , key2;
+	EdgeKey( Index k1=0 , Index k2=0 ) : key1(k1) , key2(k2) {}
+	bool operator == ( const EdgeKey &key ) const  { return key1==key.key1 && key2==key.key2; }
+	struct Hasher{ size_t operator()( const EdgeKey &key ) const { return key.key1 ^ key.key2; } };
+};
+#else // !NEW_CODE
 long long EdgeKey( int key1 , int key2 )
 {
 	if( key1<key2 ) return ( ( (long long)key1 )<<32 ) | ( (long long)key2 );
 	else            return ( ( (long long)key2 )<<32 ) | ( (long long)key1 );
 }
+#endif // NEW_CODE
 
 template< typename Real , typename ... VertexData >
 PlyVertexWithData< float , DIMENSION , MultiPointStreamData< float , PointStreamValue< float > , VertexData ... > > InterpolateVertices( const PlyVertexWithData< float , DIMENSION , MultiPointStreamData< float , PointStreamValue< float > , VertexData ... > >& v1 , const PlyVertexWithData< float , DIMENSION , MultiPointStreamData< float , PointStreamValue< float > , VertexData ... > >& v2 , Real value )
@@ -88,8 +109,14 @@ PlyVertexWithData< float , DIMENSION , MultiPointStreamData< float , PointStream
 	Real dx = ( std::get<0>( v1.data.data ).data-value ) / ( std::get<0>( v1.data.data ).data-std::get<0>( v2.data.data ).data );
 	return v1*(1.f-dx) + v2*dx;
 }
+
+#ifdef NEW_CODE
+template< typename Real , typename Index , typename ... VertexData >
+void SmoothValues( std::vector< PlyVertexWithData< float , DIMENSION , MultiPointStreamData< float , PointStreamValue< float > , VertexData ... > > >& vertices , const std::vector< std::vector< Index > >& polygons )
+#else // !NEW_CODE
 template< typename Real , typename ... VertexData >
 void SmoothValues( std::vector< PlyVertexWithData< float , DIMENSION , MultiPointStreamData< float , PointStreamValue< float > , VertexData ... > > >& vertices , const std::vector< std::vector< int > >& polygons )
+#endif // NEW_CODE
 {
 	std::vector< int > count( vertices.size() );
 	std::vector< Real > sums( vertices.size() , 0 );
@@ -99,23 +126,41 @@ void SmoothValues( std::vector< PlyVertexWithData< float , DIMENSION , MultiPoin
 		for( int j=0 ; j<sz ; j++ )
 		{
 			int j1 = j , j2 = (j+1)%sz;
+#ifdef NEW_CODE
+			Index v1 = polygons[i][j1] , v2 = polygons[i][j2];
+#else // !NEW_CODE
 			int v1 = polygons[i][j1] , v2 = polygons[i][j2];
+#endif // NEW_CODE
 			count[v1]++ , count[v2]++;
 			sums[v1] += std::get< 0 >( vertices[v2].data.data ).data , sums[v2] += std::get< 0 >( vertices[v1].data.data ).data;
 		}
 	}
 	for( size_t i=0 ; i<vertices.size() ; i++ ) std::get< 0 >( vertices[i].data.data ).data = ( sums[i] + std::get< 0 >( vertices[i].data.data ).data ) / ( count[i] + 1 );
 }
+
+#ifdef NEW_CODE
+template< class Real , typename Index , typename ... VertexData >
+void SplitPolygon
+(
+	const std::vector< Index >& polygon ,
+	std::vector< PlyVertexWithData< float , DIMENSION , MultiPointStreamData< float , PointStreamValue< float > , VertexData ... > > >& vertices ,
+	std::vector< std::vector< Index > >* ltPolygons , std::vector< std::vector< Index > >* gtPolygons ,
+	std::vector< bool >* ltFlags , std::vector< bool >* gtFlags ,
+	std::unordered_map< EdgeKey< Index > , Index , typename EdgeKey< Index >::Hasher >& vertexTable,
+	Real trimValue
+)
+#else // !NEW_CODE
 template< class Real , typename ... VertexData >
 void SplitPolygon
-	(
+(
 	const std::vector< int >& polygon ,
 	std::vector< PlyVertexWithData< float , DIMENSION , MultiPointStreamData< float , PointStreamValue< float > , VertexData ... > > >& vertices ,
 	std::vector< std::vector< int > >* ltPolygons , std::vector< std::vector< int > >* gtPolygons ,
 	std::vector< bool >* ltFlags , std::vector< bool >* gtFlags ,
 	std::unordered_map< long long, int >& vertexTable,
 	Real trimValue
-	)
+)
+#endif // NEW_CODE
 {
 	int sz = int( polygon.size() );
 	std::vector< bool > gt( sz );
@@ -133,17 +178,30 @@ void SplitPolygon
 		for( start=0 ; start<sz ; start++ ) if( gt[start] && !gt[(start+sz-1)%sz] ) break;
 
 		bool gtFlag = true;
+#ifdef NEW_CODE
+		std::vector< Index > poly;
+#else // !NEW_CODE
 		std::vector< int > poly;
+#endif // NEW_CODE
 
 		// Add the initial vertex
 		{
 			int j1 = (start+int(sz)-1)%sz , j2 = start;
+#ifdef NEW_CODE
+			Index v1 = polygon[j1] , v2 = polygon[j2] , vIdx;
+			typename std::unordered_map< EdgeKey< Index > , Index , typename EdgeKey< Index >::Hasher >::iterator iter = vertexTable.find( EdgeKey< Index >(v1,v2) );
+#else // !NEW_CODE
 			int v1 = polygon[j1] , v2 = polygon[j2];
 			int vIdx;
-			std::unordered_map< long long, int >::iterator iter = vertexTable.find(EdgeKey(v1, v2));
+			std::unordered_map< long long, int >::iterator iter = vertexTable.find( EdgeKey(v1,v2) );
+#endif // NEW_CODE
 			if( iter==vertexTable.end() )
 			{
+#ifdef NEW_CODE
+				vertexTable[ EdgeKey< Index >(v1,v2) ] = vIdx = (Index)vertices.size();
+#else // !NEW_CODE
 				vertexTable[ EdgeKey( v1 , v2 ) ] = vIdx = int( vertices.size() );
+#endif // NEW_CODE
 				vertices.push_back( InterpolateVertices( vertices[v1] , vertices[v2] , trimValue ) );
 			}
 			else vIdx = iter->second;
@@ -153,10 +211,23 @@ void SplitPolygon
 		for( int _j=0  ; _j<=sz ; _j++ )
 		{
 			int j1 = (_j+start+sz-1)%sz , j2 = (_j+start)%sz;
+#ifdef NEW_CODE
+			Index v1 = polygon[j1] , v2 = polygon[j2];
+#else // !NEW_CODE
 			int v1 = polygon[j1] , v2 = polygon[j2];
+#endif // NEW_CODE
 			if( gt[j2]==gtFlag ) poly.push_back( v2 );
 			else
 			{
+#ifdef NEW_CODE
+				Index vIdx;
+				typename std::unordered_map< EdgeKey< Index > , Index , typename EdgeKey< Index >::Hasher >::iterator iter = vertexTable.find( EdgeKey< Index >(v1,v2) );
+				if( iter==vertexTable.end() )
+				{
+					vertexTable[ EdgeKey< Index >(v1,v2) ] = vIdx = (Index)vertices.size();
+					vertices.push_back( InterpolateVertices( vertices[v1] , vertices[v2] , trimValue ) );
+				}
+#else // !NEW_CODE
 				int vIdx;
 				std::unordered_map< long long, int >::iterator iter = vertexTable.find(EdgeKey(v1, v2));
 				if( iter==vertexTable.end() )
@@ -164,6 +235,7 @@ void SplitPolygon
 					vertexTable[ EdgeKey( v1 , v2 ) ] = vIdx = int( vertices.size() );
 					vertices.push_back( InterpolateVertices( vertices[v1] , vertices[v2] , trimValue ) );
 				}
+#endif // NEW_CODE
 				else vIdx = iter->second;
 				poly.push_back( vIdx );
 				if( gtFlag ){ if( gtPolygons ) gtPolygons->push_back( poly ) ; if( ltFlags ) ltFlags->push_back( true ); }
@@ -174,8 +246,14 @@ void SplitPolygon
 		}
 	}
 }
+
+#ifdef NEW_CODE
+template< class Real , typename Index , class Vertex >
+void Triangulate( const std::vector< Vertex >& vertices , const std::vector< std::vector< Index > >& polygons , std::vector< std::vector< Index > >& triangles )
+#else // !NEW_CODE
 template< class Real , class Vertex >
 void Triangulate( const std::vector< Vertex >& vertices , const std::vector< std::vector< int > >& polygons , std::vector< std::vector< int > >& triangles )
+#endif // NEW_CODE
 {
 	triangles.clear();
 	for( size_t i=0 ; i<polygons.size() ; i++ )
@@ -183,7 +261,11 @@ void Triangulate( const std::vector< Vertex >& vertices , const std::vector< std
 		{
 			std::vector< Point< Real , DIMENSION > > _vertices( polygons[i].size() );
 			for( int j=0 ; j<int( polygons[i].size() ) ; j++ ) _vertices[j] = vertices[ polygons[i][j] ].point;
+#ifdef NEW_CODE
+			std::vector< TriangleIndex< Index > > _triangles = MinimalAreaTriangulation< Index , Real , DIMENSION >( ( ConstPointer( Point< Real , DIMENSION > ) )GetPointer( _vertices ) , _vertices.size() );
+#else // !NEW_CODE
 			std::vector< TriangleIndex > _triangles = MinimalAreaTriangulation< Real , DIMENSION >( ( ConstPointer( Point< Real , DIMENSION > ) )GetPointer( _vertices ) , _vertices.size() );
+#endif // NEW_CODE
 
 			// Add the triangles to the mesh
 			size_t idx = triangles.size();
@@ -196,8 +278,14 @@ void Triangulate( const std::vector< Vertex >& vertices , const std::vector< std
 		}
 		else if( polygons[i].size()==3 ) triangles.push_back( polygons[i] );
 }
+
+#ifdef NEW_CODE
+template< class Real , typename Index , class Vertex >
+double PolygonArea( const std::vector< Vertex >& vertices , const std::vector< Index >& polygon )
+#else // !NEW_CODE
 template< class Real , class Vertex >
 double PolygonArea( const std::vector< Vertex >& vertices , const std::vector< int >& polygon )
+#endif // NEW_CODE
 {
 	if( polygon.size()<3 ) return 0.;
 	else if( polygon.size()==3 ) return Area( vertices[polygon[0]].point , vertices[polygon[1]].point , vertices[polygon[2]].point );
@@ -212,85 +300,175 @@ double PolygonArea( const std::vector< Vertex >& vertices , const std::vector< i
 	}
 }
 
+#ifdef NEW_CODE
+template< typename Index , class Vertex >
+void RemoveHangingVertices( std::vector< Vertex >& vertices , std::vector< std::vector< Index > >& polygons )
+#else // !NEW_CODE
 template< class Vertex >
 void RemoveHangingVertices( std::vector< Vertex >& vertices , std::vector< std::vector< int > >& polygons )
+#endif // NEW_CODE
 {
+#ifdef NEW_CODE
+	std::unordered_map< Index, Index > vMap;
+#else // !NEW_CODE
 	std::unordered_map< int, int > vMap;
+#endif // NEW_CODE
 	std::vector< bool > vertexFlags( vertices.size() , false );
 	for( size_t i=0 ; i<polygons.size() ; i++ ) for( size_t j=0 ; j<polygons[i].size() ; j++ ) vertexFlags[ polygons[i][j] ] = true;
+#ifdef NEW_CODE
+	Index vCount = 0;
+	for( Index i=0 ; i<(Index)vertices.size() ; i++ ) if( vertexFlags[i] ) vMap[i] = vCount++;
+#else // !NEW_CODE
 	int vCount = 0;
 	for( int i=0 ; i<int(vertices.size()) ; i++ ) if( vertexFlags[i] ) vMap[i] = vCount++;
+#endif // NEW_CODE
 	for( size_t i=0 ; i<polygons.size() ; i++ ) for( size_t j=0 ; j<polygons[i].size() ; j++ ) polygons[i][j] = vMap[ polygons[i][j] ];
 
 	std::vector< Vertex > _vertices( vCount );
+#ifdef NEW_CODE
+	for( Index i=0 ; i<(Index)vertices.size() ; i++ ) if( vertexFlags[i] ) _vertices[ vMap[i] ] = vertices[i];
+#else // !NEW_CODE
 	for( int i=0 ; i<int(vertices.size()) ; i++ ) if( vertexFlags[i] ) _vertices[ vMap[i] ] = vertices[i];
+#endif // NEW_CODE
 	vertices = _vertices;
 }
+
+#ifdef NEW_CODE
+template< typename Index >
+void SetConnectedComponents( const std::vector< std::vector< Index > >& polygons , std::vector< std::vector< Index > >& components )
+#else // !NEW_CODE
 void SetConnectedComponents( const std::vector< std::vector< int > >& polygons , std::vector< std::vector< int > >& components )
+#endif // NEW_CODE
 {
+#ifdef NEW_CODE
+	std::vector< Index > polygonRoots( polygons.size() );
+	for( size_t i=0 ; i<polygons.size() ; i++ ) polygonRoots[i] = (Index)i;
+	std::unordered_map< EdgeKey< Index > , Index , typename EdgeKey< Index >::Hasher > edgeTable;
+#else // !NEW_CODE
 	std::vector< int > polygonRoots( polygons.size() );
 	for( size_t i=0 ; i<polygons.size() ; i++ ) polygonRoots[i] = int(i);
 	std::unordered_map< long long, int > edgeTable;
+#endif // NEW_CODE
 	for( size_t i=0 ; i<polygons.size() ; i++ )
 	{
 		int sz = int( polygons[i].size() );
 		for( int j=0 ; j<sz ; j++ )
 		{
 			int j1 = j , j2 = (j+1)%sz;
+#ifdef NEW_CODE
+			Index v1 = polygons[i][j1] , v2 = polygons[i][j2];
+			EdgeKey< Index > eKey = EdgeKey< Index >(v1,v2);
+			typename std::unordered_map< EdgeKey< Index > , Index , typename EdgeKey< Index >::Hasher >::iterator iter = edgeTable.find(eKey);
+			if( iter==edgeTable.end() ) edgeTable[ eKey ] = (Index)i;
+#else // !NEW_CODE
 			int v1 = polygons[i][j1] , v2 = polygons[i][j2];
 			long long eKey = EdgeKey( v1 , v2 );
 			std::unordered_map< long long, int >::iterator iter = edgeTable.find(eKey);
 			if( iter==edgeTable.end() ) edgeTable[ eKey ] = int(i);
+#endif // NEW_CODE
 			else
 			{
+#ifdef NEW_CODE
+				Index p = iter->second;
+#else // !NEW_CODE
 				int p = iter->second;
+#endif // NEW_CODE
 				while( polygonRoots[p]!=p )
 				{
+#ifdef NEW_CODE
+					Index temp = polygonRoots[p];
+					polygonRoots[p] = (Index)i;
+#else // !NEW_CODE
 					int temp = polygonRoots[p];
 					polygonRoots[p] = int(i);
+#endif // NEW_CODE
 					p = temp;
 				}
+#ifdef NEW_CODE
+				polygonRoots[p] = (Index)i;
+#else // !NEW_CODE
 				polygonRoots[p] = int(i);
+#endif // NEW_CODE
 			}
 		}
 	}
 	for( size_t i=0 ; i<polygonRoots.size() ; i++ )
 	{
+#ifdef NEW_CODE
+		Index p = (Index)i;
+#else // !NEW_CODE
 		int p = int(i);
+#endif // NEW_CODE
 		while( polygonRoots[p]!=p ) p = polygonRoots[p];
+#ifdef NEW_CODE
+		Index root = p;
+		p = (Index)i;
+#else // !NEW_CODE
 		int root = p;
 		p = int(i);
+#endif // NEW_CODE
 		while( polygonRoots[p]!=p )
 		{
+#ifdef NEW_CODE
+			Index temp = polygonRoots[p];
+#else // !NEW_CODE
 			int temp = polygonRoots[p];
+#endif // NEW_CODE
 			polygonRoots[p] = root;
 			p = temp;
 		}
 	}
 	int cCount = 0;
+#ifdef NEW_CODE
+	std::unordered_map< Index , Index > vMap;
+	for( Index i=0 ; i<(Index)polygonRoots.size() ; i++ ) if( polygonRoots[i]==i ) vMap[i] = cCount++;
+#else // !NEW_CODE
 	std::unordered_map< int , int > vMap;
-	for( int i= 0 ; i<int(polygonRoots.size()) ; i++ ) if( polygonRoots[i]==i ) vMap[i] = cCount++;
+	for( int i=0 ; i<int(polygonRoots.size()) ; i++ ) if( polygonRoots[i]==i ) vMap[i] = cCount++;
+#endif //  NEW_CODE
 	components.resize( cCount );
+#ifdef NEW_CODE
+	for( Index i=0 ; i<(Index)polygonRoots.size() ; i++ ) components[ vMap[ polygonRoots[i] ] ].push_back(i);
+#else // !NEW_CODE
 	for( int i=0 ; i<int(polygonRoots.size()) ; i++ ) components[ vMap[ polygonRoots[i] ] ].push_back(i);
+#endif // NEW_CODE
 }
+
+#ifdef NEW_CODE
+template< typename Index , typename ... VertexData >
+#else // !NEW_CODE
 template< typename ... VertexData >
+#endif // NEW_CODE
 int Execute( void )
 {
 	typedef PlyVertexWithData< float , DIMENSION , MultiPointStreamData< float , PointStreamValue< float > , VertexData ... > > Vertex;
 	float min , max;
 	std::vector< Vertex > vertices;
+#ifdef NEW_CODE
+	std::vector< std::vector< Index > > polygons;
+#else // !NEW_CODE
 	std::vector< std::vector< int > > polygons;
+#endif // NEW_CODE
 
 	int ft;
 	std::vector< std::string > comments;
 	PlyReadPolygons< Vertex >( In.value , vertices , polygons , Vertex::PlyReadProperties() , Vertex::PlyReadNum , ft , comments );
 
+#ifdef NEW_CODE
+	for( int i=0 ; i<Smooth.value ; i++ ) SmoothValues< float , Index >( vertices , polygons );
+#else // !NEW_CODE
 	for( int i=0 ; i<Smooth.value ; i++ ) SmoothValues< float >( vertices , polygons );
+#endif // NEW_CODE
 	min = max = std::get< 0 >( vertices[0].data.data ).data;
 	for( size_t i=0 ; i<vertices.size() ; i++ ) min = std::min< float >( min , std::get< 0 >( vertices[i].data.data ).data ) , max = std::max< float >( max , std::get< 0 >( vertices[i].data.data ).data );
 
+#ifdef NEW_CODE
+	std::unordered_map< EdgeKey< Index > , Index , typename EdgeKey< Index >::Hasher > vertexTable;
+	std::vector< std::vector< Index > > ltPolygons , gtPolygons;
+#else // !NEW_CODE
 	std::unordered_map< long long, int > vertexTable;
 	std::vector< std::vector< int > > ltPolygons , gtPolygons;
+#endif // NEW_CODE
 	std::vector< bool > ltFlags , gtFlags;
 
 	messageWriter( comments , "*********************************************\n" );
@@ -312,8 +490,13 @@ int Execute( void )
 	for( size_t i=0 ; i<polygons.size() ; i++ ) SplitPolygon( polygons[i] , vertices , &ltPolygons , &gtPolygons , &ltFlags , &gtFlags , vertexTable , Trim.value );
 	if( IslandAreaRatio.value>0 )
 	{
+#ifdef NEW_CODE
+		std::vector< std::vector< Index > > _ltPolygons , _gtPolygons;
+		std::vector< std::vector< Index > > ltComponents , gtComponents;
+#else // !NEW_CODE
 		std::vector< std::vector< int > > _ltPolygons , _gtPolygons;
 		std::vector< std::vector< int > > ltComponents , gtComponents;
+#endif // NEW_CODE
 		SetConnectedComponents( ltPolygons , ltComponents );
 		SetConnectedComponents( gtPolygons , gtComponents );
 		std::vector< double > ltAreas( ltComponents.size() , 0. ) , gtAreas( gtComponents.size() , 0. );
@@ -323,7 +506,11 @@ int Execute( void )
 		{
 			for( size_t j=0 ; j<ltComponents[i].size() ; j++ )
 			{
+#ifdef NEW_CODE
+				ltAreas[i] += PolygonArea< float , Index , Vertex >( vertices , ltPolygons[ ltComponents[i][j] ] );
+#else // !NEW_CODE
 				ltAreas[i] += PolygonArea< float , Vertex >( vertices , ltPolygons[ ltComponents[i][j] ] );
+#endif // NEW_CODE
 				ltComponentFlags[i] = ( ltComponentFlags[i] || ltFlags[ ltComponents[i][j] ] );
 			}
 			area += ltAreas[i];
@@ -332,7 +519,11 @@ int Execute( void )
 		{
 			for( size_t j=0 ; j<gtComponents[i].size() ; j++ )
 			{
+#ifdef NEW_CODE
+				gtAreas[i] += PolygonArea< float , Index , Vertex >( vertices , gtPolygons[ gtComponents[i][j] ] );
+#else // !NEW_CODE
 				gtAreas[i] += PolygonArea< float , Vertex >( vertices , gtPolygons[ gtComponents[i][j] ] );
+#endif // NEW_CODE
 				gtComponentFlags[i] = ( gtComponentFlags[i] || gtFlags[ gtComponents[i][j] ] );
 			}
 			area += gtAreas[i];
@@ -352,12 +543,22 @@ int Execute( void )
 	if( !PolygonMesh.set )
 	{
 		{
+#ifdef NEW_CODE
+			std::vector< std::vector< Index > > polys = ltPolygons;
+			Triangulate< float , Index , Vertex >( vertices , ltPolygons , polys ) , ltPolygons = polys;
+#else // !NEW_CODE
 			std::vector< std::vector< int > > polys = ltPolygons;
 			Triangulate< float , Vertex >( vertices , ltPolygons , polys ) , ltPolygons = polys;
+#endif // NEW_CODE
 		}
 		{
+#ifdef NEW_CODE
+			std::vector< std::vector< Index > > polys = gtPolygons;
+			Triangulate< float  , Index , Vertex >( vertices , gtPolygons , polys ) , gtPolygons = polys;
+#else // !NEW_CODE
 			std::vector< std::vector< int > > polys = gtPolygons;
 			Triangulate< float  , Vertex >( vertices , gtPolygons , polys ) , gtPolygons = polys;
+#endif // NEW_CODE
 		}
 	}
 
@@ -392,10 +593,27 @@ int main( int argc , char* argv[] )
 
 	if( !hasValue ) ERROR_OUT( "Ply file does not contain values" );
 
+#ifdef NEW_CODE
+	if( Long.set )
+		if( hasColor )
+			if( hasNormal ) return Execute< long long , PointStreamNormal< float , DIMENSION > , PointStreamColor< float > >();
+			else            return Execute< long long ,                                          PointStreamColor< float > >();
+		else
+			if( hasNormal ) return Execute< long long , PointStreamNormal< float , DIMENSION >                             >();
+			else            return Execute< long long                                                                      >();
+	else
+		if( hasColor )
+			if( hasNormal ) return Execute< int , PointStreamNormal< float , DIMENSION > , PointStreamColor< float > >();
+			else            return Execute< int ,                                          PointStreamColor< float > >();
+		else
+			if( hasNormal ) return Execute< int , PointStreamNormal< float , DIMENSION >                             >();
+			else            return Execute< int                                                                      >();
+#else // !NEW_CODE
 	if( hasColor )
 		if( hasNormal ) return Execute< PointStreamNormal< float , DIMENSION > , PointStreamColor< float > >();
 		else            return Execute<                                          PointStreamColor< float > >();
 	else
 		if( hasNormal ) return Execute< PointStreamNormal< float , DIMENSION >                             >();
 		else            return Execute<                                                                    >();
+#endif // NEW_CODE
 }

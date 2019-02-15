@@ -31,7 +31,7 @@ DAMAGE.
 //////////////////////////////
 #ifdef NEW_CODE
 template< typename Index , class Real , unsigned int Dim >
-_MinimalAreaTriangulation< Index , Real , Dim >::_MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , Index vCount ) : _vertices( vertices ) , _vCount( vCount )
+_MinimalAreaTriangulation< Index , Real , Dim >::_MinimalAreaTriangulation( ConstPointer( Point< Real , Dim > ) vertices , size_t vCount ) : _vertices( vertices ) , _vCount( vCount )
 {
 	_bestTriangulation = NullPointer( Real );
 	_midpoint = NullPointer( Index );
@@ -97,13 +97,17 @@ void _MinimalAreaTriangulation< Index , Real , Dim >::_set( void )
 }
 
 template< typename Index , class Real , unsigned int Dim >
-Index _MinimalAreaTriangulation< Index , Real , Dim >::_subPolygonIndex( Index i , Index j ) const { return i*_vCount+j; }
+Index _MinimalAreaTriangulation< Index , Real , Dim >::_subPolygonIndex( Index i , Index j ) const { return (Index)( i*_vCount+j ); }
 
 template< typename Index , class Real , unsigned int Dim >
 void _MinimalAreaTriangulation< Index , Real , Dim >::_addTriangles( Index i , Index j , std::vector< TriangleIndex< Index > >& triangles ) const
 {
 	TriangleIndex< Index > tIndex;
+#ifdef NEW_CODE
+	if( j<i ) j += (Index)_vCount;
+#else // !NEW_CODE
 	if( j<i ) j += _vCount;
+#endif // NEW_CODE
 	if( i==j || i+1==j ) return;
 	Index mid = _midpoint[ _subPolygonIndex( i , j%_vCount ) ];
 	if( mid!=-1 )
@@ -124,7 +128,11 @@ Real _MinimalAreaTriangulation< Index , Real , Dim >::_subPolygonArea( Index i ,
 	Index idx = _subPolygonIndex( i , j );
 	if( _midpoint[idx]!=-1 ) return _bestTriangulation[idx];
 	Real a = FLT_MAX , temp;
+#ifdef NEW_CODE
+	if( j<i ) j += (Index)_vCount;
+#else // !NEW_CODE
 	if( j<i ) j += _vCount;
+#endif // NEW_CODE
 	// If either i==j or i+1=j, the polygon has trivial area
 	if( i==j || i+1==j )
 	{
