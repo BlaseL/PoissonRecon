@@ -49,8 +49,8 @@ cmdLineReadable* params[] = { &In , &Out , NULL };
 void ShowUsage( char* ex )
 {
 	printf( "Usage: %s\n" , ex );
-	printf( "\t--%s <input polygon mesh>\n" , In.name );
-	printf( "\t--%s <ouput polygon mesh>\n" , Out.name );
+	printf( "\t --%s <input polygon mesh>\n" , In.name );
+	printf( "\t[--%s <ouput polygon mesh>]\n" , Out.name );
 }
 
 
@@ -66,29 +66,45 @@ int Execute( void )
 	PlyReadPolygons< Vertex >( In.value , vertices , inPolygons , Vertex::PlyReadProperties() , Vertex::PlyReadNum , ft , comments );
 	printf( "Vertices / Polygons: %llu / %llu\n" , (unsigned long long)vertices.size() , (unsigned long long)inPolygons.size() );
 
-	if( vertices.size()>std::numeric_limits< int >::max() )
+	Point< float , DIMENSION > min , max;
+	min = max = vertices[0].point;
+	for( size_t i=0 ; i<vertices.size() ; i++ ) for( unsigned int d=0 ; d<DIMENSION ; d++ )
 	{
-		if( vertices.size()>std::numeric_limits< unsigned int >::max() ) ERROR_OUT( "more vertices than can be indexed by an unsigned int: %llu" , (unsigned long long)vertices.size() );
-		WARN( "more vertices than can be indexed by an int, using unsigned int instead: %llu" , (unsigned long long)vertices.size() );
-		std::vector< std::vector< unsigned int > > outPolygons;
-		outPolygons.resize( inPolygons.size() );
-		for( size_t i=0 ; i<inPolygons.size() ; i++ )
-		{
-			outPolygons[i].resize( inPolygons[i].size() );
-			for( int j=0 ; j<inPolygons[i].size() ; j++ ) outPolygons[i][j] = (unsigned int)inPolygons[i][j];
-		}
-		if( !PlyWritePolygons< Vertex >( Out.value , vertices , outPolygons , Vertex::PlyWriteProperties() , Vertex::PlyWriteNum , ft , comments ) ) ERROR_OUT( "Could not write mesh to: " , Out.value );
+		min[d] = std::min< float >( min[d] , vertices[i].point[d] );
+		max[d] = std::max< float >( max[d] , vertices[i].point[d] );
 	}
-	else
+	printf( "min / max: [" );
+	for( unsigned int d=0 ; d<DIMENSION ; d++ ) printf( " %f" , min[d] );
+	printf( " ] [" );
+	for( unsigned int d=0 ; d<DIMENSION ; d++ ) printf( " %f" , max[d] );
+	printf( " ]\n" );
+
+	if( Out.set )
 	{
-		std::vector< std::vector< int > > outPolygons;
-		outPolygons.resize( inPolygons.size() );
-		for( size_t i=0 ; i<inPolygons.size() ; i++ )
+		if( vertices.size()>std::numeric_limits< int >::max() )
 		{
-			outPolygons[i].resize( inPolygons[i].size() );
-			for( int j=0 ; j<inPolygons[i].size() ; j++ ) outPolygons[i][j] = (int)inPolygons[i][j];
+			if( vertices.size()>std::numeric_limits< unsigned int >::max() ) ERROR_OUT( "more vertices than can be indexed by an unsigned int: %llu" , (unsigned long long)vertices.size() );
+			WARN( "more vertices than can be indexed by an int, using unsigned int instead: %llu" , (unsigned long long)vertices.size() );
+			std::vector< std::vector< unsigned int > > outPolygons;
+			outPolygons.resize( inPolygons.size() );
+			for( size_t i=0 ; i<inPolygons.size() ; i++ )
+			{
+				outPolygons[i].resize( inPolygons[i].size() );
+				for( int j=0 ; j<inPolygons[i].size() ; j++ ) outPolygons[i][j] = (unsigned int)inPolygons[i][j];
+			}
+			if( !PlyWritePolygons< Vertex >( Out.value , vertices , outPolygons , Vertex::PlyWriteProperties() , Vertex::PlyWriteNum , ft , comments ) ) ERROR_OUT( "Could not write mesh to: " , Out.value );
 		}
-		if( !PlyWritePolygons< Vertex >( Out.value , vertices , outPolygons , Vertex::PlyWriteProperties() , Vertex::PlyWriteNum , ft , comments ) ) ERROR_OUT( "Could not write mesh to: " , Out.value );
+		else
+		{
+			std::vector< std::vector< int > > outPolygons;
+			outPolygons.resize( inPolygons.size() );
+			for( size_t i=0 ; i<inPolygons.size() ; i++ )
+			{
+				outPolygons[i].resize( inPolygons[i].size() );
+				for( int j=0 ; j<inPolygons[i].size() ; j++ ) outPolygons[i][j] = (int)inPolygons[i][j];
+			}
+			if( !PlyWritePolygons< Vertex >( Out.value , vertices , outPolygons , Vertex::PlyWriteProperties() , Vertex::PlyWriteNum , ft , comments ) ) ERROR_OUT( "Could not write mesh to: " , Out.value );
+		}
 	}
 	return EXIT_SUCCESS;
 }
@@ -96,7 +112,7 @@ int main( int argc , char* argv[] )
 {
 	cmdLineParse( argc-1 , &argv[1] , params );
 
-	if( !In.set || !Out.set )
+	if( !In.set )
 	{
 		ShowUsage( argv[0] );
 		return EXIT_FAILURE;
