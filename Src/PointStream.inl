@@ -431,7 +431,11 @@ PLYOutputPointStreamWithData< Real , Dim , Data >::PLYOutputPointStreamWithData(
 	_pIdx = 0;
 	_pCount = count;
 	_ply->element_count( "vertex" , _pCount );
+#ifdef NEW_CODE
+	for( int i=0 ; i<PlyVertex< Real , Dim >::PlyWriteNum ; i++ ) _ply->describe_property( "vertex" , &PlyVertex< Real , Dim >::PlyWriteProperties()[i] );
+#else // !NEW_CODE
 	for( int i=0 ; i<PlyVertex< Real , Dim >::WriteComponents ; i++ ) _ply->describe_property( "vertex" , &PlyVertex< Real , Dim >::Properties()[i] );
+#endif // NEW_CODE
 	for( int i=0 ; i<dataPropertiesCount ; i++ )
 	{
 		PlyProperty prop = dataProperties[i];

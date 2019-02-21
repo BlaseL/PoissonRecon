@@ -272,6 +272,9 @@ protected:
 template< typename Real , unsigned int Degree >
 void _Execute( void )
 {
+#ifdef NEW_THREADS
+	ThreadPool tp;
+#endif // NEW_THREADS
 	int w , h;
 	{
 		unsigned int _w , _h , _c;
@@ -322,13 +325,21 @@ void _Execute( void )
 			tree.template thicken< 1 , 0 >( &nodes[0] , (int)nodes.size() );
 		}
 #ifdef NEW_CODE
+#ifdef NEW_THREADS
+		tree.template finalizeForMultigrid< Degree >( tp , FullDepth.value , []( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* ){ return true; } );
+#else // !NEW_THREADS
 		tree.template finalizeForMultigrid< Degree >( FullDepth.value , []( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* ){ return true; } );
+#endif // NEW_THREADS
 #else // !NEW_CODE
 		tree.template finalizeForMultigrid< Degree >( FullDepth.value , []( const RegularTreeNode< Dim , FEMTreeNodeData >* ){ return true; } );
 #endif // NEW_CODE
 		if( Verbose.set )
 		{
+#ifdef NEW_CODE
+			printf( "Valid FEM Nodes / Edges: %llu %llu\n" , (unsigned long long)tree.validFEMNodes( IsotropicUIntPack< Dim , FEMSig >() ) , (unsigned long long)( derivatives[0].size() + derivatives[1].size() ) );
+#else // !NEW_CODE
 			printf( "Valid FEM Nodes / Edges: %d %d\n" , (int)tree.validFEMNodes( IsotropicUIntPack< Dim , FEMSig >() ) , (int)( derivatives[0].size() + derivatives[1].size() ) );
+#endif // NEW_CODE
 			printf( "Set tree [%d]: " , maxDepth ) , p.print( true );
 		}
 	}
@@ -349,7 +360,11 @@ void _Execute( void )
 			unsigned int derivatives1[] = { 1 , 0 } , derivatives2[] = { 0 , 0 };
 			typename FEMIntegrator::template Constraint< FEMSignature , FEMDerivative , CSignature , CDerivative , 1 > F;
 			F.weights[0][ TensorDerivatives< FEMDerivative >::Index( derivatives1 ) ][ TensorDerivatives< CDerivative >::Index( derivatives2 ) ] = 1;
+#ifdef NEW_THREADS
+			tree.addFEMConstraints( tp , F , partialX , constraints , maxDepth );
+#else // !NEW_THREADS
 			tree.addFEMConstraints( F , partialX , constraints , maxDepth );
+#endif // NEW_THREADS
 		}
 		// Generate the partial-y constraints
 		{
@@ -363,7 +378,11 @@ void _Execute( void )
 			unsigned int derivatives1[] = { 0 , 1 } , derivatives2[] = { 0 , 0 };
 			typename FEMIntegrator::template Constraint< FEMSignature , FEMDerivative , CSignature , CDerivative , 1 > F;
 			F.weights[0][ TensorDerivatives< FEMDerivative >::Index( derivatives1 ) ][ TensorDerivatives< CDerivative >::Index( derivatives2 ) ] = 1;
+#ifdef NEW_THREADS
+			tree.addFEMConstraints( tp , F , partialY , constraints , maxDepth );
+#else // !NEW_THREADS
 			tree.addFEMConstraints( F , partialY , constraints , maxDepth );
+#endif // NEW_THREADS
 		}
 		if( Verbose.set ) printf( "Set constraints: " ) , p.print( true );
 	}
@@ -382,7 +401,11 @@ void _Execute( void )
 		sInfo.wCycle = false;
 		typename FEMIntegrator::template System< IsotropicUIntPack< Dim , FEMSig > , IsotropicUIntPack< Dim , 1 > > F( { 0. , 1. } );
 		DenseNodeData< Point< Real , Colors > , IsotropicUIntPack< Dim , FEMSig > > _constraints = tree.template initDenseNodeData< Point< Real , Colors > >( IsotropicUIntPack< Dim , FEMSig >() );
+#ifdef NEW_THREADS
+		tree.solveSystem( IsotropicUIntPack< Dim , FEMSig >() , tp , F , constraints , solution , Point< Real , Colors >::Dot , maxDepth , sInfo );
+#else // !NEW_THREADS
 		tree.solveSystem( IsotropicUIntPack< Dim , FEMSig >() , F , constraints , solution , Point< Real , Colors >::Dot , maxDepth , sInfo );
+#endif // NEW_THREADS
 		if( Verbose.set ) printf( "Solved system: " ) , p.print( true );
 	}
 
@@ -390,7 +413,11 @@ void _Execute( void )
 	{
 		Profiler p;
 		Real begin[] = { 0 , 0 } , end[] = { (Real)w/(1<<maxDepth) , (Real)h/(1<<maxDepth) };
+#ifdef NEW_THREADS
+		average = tree.average( tp , solution , begin , end );
+#else // !NEW_THREADS
 		average = tree.average( solution , begin , end );
+#endif // NEW_THREADS
 		if( Verbose.set ) printf( "Got average: " ) , p.print( true );
 	}
 	// Stitch the image
@@ -455,7 +482,11 @@ void _Execute( void )
 
 					// Expand the next block of values
 					begin[0] = 0 , begin[1] = rStart , end[0] = w , end[1] = rEnd;
+#ifdef NEW_THREADS
+					Pointer( Point< Real , Colors > ) outBlock = tree.template regularGridUpSample< true >( tp , solution , begin , end );
+#else // !NEW_THREADS
 					Pointer( Point< Real , Colors > ) outBlock = tree.template regularGridUpSample< true >( solution , begin , end );
+#endif // NEW_THREADS
 					int size = (rEnd-rStart)*w;
 #pragma omp parallel for
 					for( int ii=0 ; ii<size ; ii++ )

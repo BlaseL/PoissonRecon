@@ -229,7 +229,11 @@ int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPoint
 }
 template< unsigned int Dim , class Real >
 #ifdef NEW_CODE
+#ifdef NEW_THREADS
+void FEMTreeInitializer< Dim , Real >::Initialize( ThreadPool &tp , FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
+#else // !NEW_THREADS
 void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
+#endif // NEW_THREADS
 #else // !NEW_CODE
 void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 > >& simplices , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
 #endif // NEW_CODE
@@ -240,7 +244,7 @@ void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std
 	std::vector< int > nodeToIndexMap;
 #endif // NEW_CODE
 #ifdef NEW_THREADS
-	MKThread::parallel_thread_for( 0 , simplices.size() , [&]( unsigned int , size_t  i )
+	tp.parallel_for( 0 , simplices.size() , [&]( unsigned int , size_t  i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -316,8 +320,16 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode& root , Simplex< 
 		int d=0;
 		while( d<maxDepth )
 		{
+#ifdef NEW_THREADS
+			{
+				static std::mutex m;
+				std::lock_guard< std::mutex > lock( m );
+				if( !node->children ) node->initChildren( nodeAllocator , NodeInitializer );
+			}
+#else // !NEW_THREADS
 #pragma omp critical
 			if( !node->children ) node->initChildren( nodeAllocator , NodeInitializer );
+#endif // NEW_THREADS
 			int cIndex = FEMTreeNode::ChildIndex( center , p );
 			node = node->children + cIndex;
 			d++;
@@ -384,8 +396,14 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode* node , Simplex< 
 #else // !NEW_CODE
 				int nodeIndex = node->nodeData.nodeIndex;
 #endif // NEW_CODE
+#ifdef NEW_THREADS
+				{
+					static std::mutex m;
+					std::lock_guard< std::mutex > lock(m);
+#else // !NEW_THREADS
 #pragma omp critical
 				{
+#endif // NEW_THREADS
 					if( nodeIndex>=(node_index_type)nodeToIndexMap->size() ) nodeToIndexMap->resize( nodeIndex+1 , -1 );
 #ifdef NEW_CODE
 					node_index_type idx = (*nodeToIndexMap)[ nodeIndex ];
@@ -408,8 +426,14 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode* node , Simplex< 
 			}
 			else
 			{
+#ifdef NEW_THREADS
+				{
+					static std::mutex m;
+					std::lock_guard< std::mutex > lock(m);
+#else // !NEW_THREADS
 #pragma omp critical
 				{
+#endif // NEW_THREADS
 #ifdef NEW_CODE
 					node_index_type idx = (node_index_type)samples.size();
 #else // !NEW_CODE
@@ -430,8 +454,16 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode* node , Simplex< 
 #else // !NEW_CODE
 		int sCount = 0;
 #endif // NEW_CODE
+#ifdef NEW_THREADS
+		{
+			static std::mutex m;
+			std::lock_guard< std::mutex > lock(m);
+			if( !node->children ) node->initChildren( nodeAllocator , NodeInitializer );
+		}
+#else // !NEW_THREADS
 #pragma omp critical
 		if( !node->children ) node->initChildren( nodeAllocator , NodeInitializer );
+#endif // NEW_THREADS
 
 		// Split up the simplex and pass the parts on to the children
 		Point< Real , Dim > center;

@@ -39,6 +39,9 @@ SparseMatrix< T , IndexType , 0 >::SparseMatrix( void )
 	rowSizes = NullPointer( size_t );
 	rowNum = 0;
 	_entries = NullPointer( Pointer( MatrixEntry< T , IndexType > ) );
+#ifdef USE_THREADS
+	threadPool = NULL;
+#endif // USE_THREADS
 }
 
 template< class T , class IndexType >
@@ -48,6 +51,9 @@ SparseMatrix< T , IndexType , 0 >::SparseMatrix( size_t rowNum )
 	rowSizes = NullPointer( size_t );
 	_entries= NullPointer( Pointer( MatrixEntry< T , IndexType > ) );
 	resize( rowNum );
+#ifdef USE_THREADS
+	threadPool = NULL;
+#endif // USE_THREADS
 }
 template< class T , class IndexType >
 SparseMatrix< T , IndexType , 0 >::SparseMatrix( const SparseMatrix& M )
@@ -69,6 +75,10 @@ SparseMatrix< T , IndexType , 0 >::SparseMatrix( const SparseMatrix& M )
 		for( int j=0 ; j<rowSizes[i] ; j++ ) _entries[i][j] = M._entries[i][j];
 #endif // NEW_CODE_SPARSE_MATRIX
 	}
+#ifdef USE_THREADS
+	threadPool = NULL;
+#endif // USE_THREADS
+
 }
 template< class T , class IndexType >
 SparseMatrix< T , IndexType , 0 >::SparseMatrix( SparseMatrix&& M )
@@ -78,6 +88,9 @@ SparseMatrix< T , IndexType , 0 >::SparseMatrix( SparseMatrix&& M )
 	_entries = NullPointer( Pointer( MatrixEntry< T , IndexType > ) );
 
 	Swap( *this , M );
+#ifdef USE_THREADS
+	threadPool = NULL;
+#endif // USE_THREADS
 }
 template< class T , class IndexType >
 template< class T2 , class IndexType2 >
@@ -100,6 +113,9 @@ SparseMatrix< T , IndexType , 0 >::SparseMatrix( const SparseMatrix< T2 , IndexT
 		for( int j=0 ; j<rowSizes[i] ; j++ ) _entries[i][j] = MatrixEntry< T , IndexType >( M._entries[i][j].N , T( M._entries[i][j].Value ) );
 #endif // NEW_CODE_SPARSE_MATRIX
 	}
+#ifdef USE_THREADS
+	threadPool = NULL;
+#endif // USE_THREADS
 }
 
 template< class T , class IndexType >
@@ -253,12 +269,16 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::Identity( s
 template< class T , class IndexType >
 SparseMatrix< T , IndexType , 0 >& SparseMatrix< T , IndexType , 0 >::operator *= ( T s )
 {
+#ifdef NEW_THREADS
+	_parallel_for( 0 , rowNum , [&]( unsigned int , size_t i ){ for( size_t j=0 ; j<rowSizes[i] ; j++ ) _entries[i][j].Value *= s; } );
+#else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
 	for( long long i=0 ; i<(long long)rowNum ; i++ ) for( size_t j=0 ; j<rowSizes[i] ; j++ ) _entries[i][j].Value *= s;
 #else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<rowNum ; i++ ) for( int j=0 ; j<rowSizes[i] ; j++ ) _entries[i][j].Value *= s;
 #endif // NEW_CODE_SPARSE_MATRIX
+#endif // NEW_THREADS
 	return *this;
 }
 template< class T , class IndexType >
@@ -293,13 +313,6 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::operator * 
 template< class T , class IndexType >
 SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::operator / ( T s ) const { return (*this) * ( (T)1. / s ); }
 template< class T , class IndexType >
-Pointer( T ) SparseMatrix< T , IndexType , 0 >::operator * ( const Pointer( T ) in ) const
-{
-	Pointer( T ) out = AllocPointer< T >( rowNum );
-	MultiplyParallel( in , out , omp_get_num_procs() , 0 );
-	return out;
-}
-template< class T , class IndexType >
 SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::operator * ( const SparseMatrix< T , IndexType , 0 >& B ) const
 {
 	SparseMatrix out;
@@ -320,12 +333,16 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::operator * 
 #else // !NEW_CODE_SPARSE_MATRIX
 	out.resize( (int)aRows );
 #endif // NEW_CODE_SPARSE_MATRIX
+#ifdef NEW_THREADS
+	_parallel_for( 0 , aRows , [&]( unsigned int , size_t i )
+#else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
 	for( long long i=0 ; i<(long long)aRows ; i++ )
 #else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<aRows ; i++ )
 #endif // NEW_CODE_SPARSE_MATRIX
+#endif // NEW_THREADS
 	{
 		std::unordered_map< IndexType , T > row;
 #ifdef NEW_CODE_SPARSE_MATRIX
@@ -357,6 +374,9 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::operator * 
 		out.rowSizes[i] = 0;
 		for( typename std::unordered_map< IndexType , T >::iterator iter=row.begin() ; iter!=row.end() ; iter++ ) out[i][ out.rowSizes[i]++ ] = MatrixEntry< T , IndexType >( iter->first , iter->second );
 	}
+#ifdef NEW_THREADS
+	);
+#endif // NEW_THREADS
 	return out;
 }
 template< class T , class IndexType >
@@ -367,12 +387,16 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::operator + 
 	SparseMatrix out;
 
 	out.resize( rowNum );
+#ifdef NEW_THREADS
+	_parallel_for( 0 , rowNum , [&]( unsigned int , size_t i )
+#else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
 	for( long long i=0 ; i<(long long)rowNum ; i++ )
 #else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<rowNum ; i++ )
 #endif // NEW_CODE_SPARSE_MATRIX
+#endif // NEW_THREADS
 	{
 		std::unordered_map< IndexType , T > row;
 		if( i<A.rowNum )
@@ -403,6 +427,9 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::operator + 
 		out.rowSizes[i] = 0;
 		for( typename std::unordered_map< IndexType , T >::iterator iter=row.begin() ; iter!=row.end() ; iter++ ) out[i][ out.rowSizes[i]++ ] = MatrixEntry< T , IndexType >( iter->first , iter->second );
 	}
+#ifdef NEW_THREADS
+	);
+#endif // NEW_THREADS
 	return out;
 }
 template< class T , class IndexType >
@@ -413,12 +440,16 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::operator - 
 	SparseMatrix out;
 
 	out.resize( rowNum );
+#ifdef NEW_THREADS
+	_parallel_for( 0 , rowNum , [&]( unsigned int , size_t i )
+#else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
 	for( long long i=0 ; i<(long long)rowNum ; i++ )
 #else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<rowNum ; i++ )
 #endif // NEW_CODE_SPARSE_MATRIX
+#endif // NEW_THREADS
 	{
 		std::unordered_map< IndexType , T > row;
 		if( i<A.rowNum )
@@ -453,6 +484,9 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::operator - 
 		out.rowSizes[i] = 0;
 		for( typename std::unordered_map< IndexType , T >::iterator iter=row.begin() ; iter!=row.end() ; iter++ ) out[i][ out.rowSizes[i]++ ] = MatrixEntry< T , IndexType >( iter->first , iter->second );
 	}
+#ifdef NEW_THREADS
+	);
+#endif // NEW_THREADS
 	return out;
 }
 
@@ -469,29 +503,55 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::transpose( 
 #endif // NEW_CODE_SPARSE_MATRIX
 
 	A.resize( aRows );
+#ifdef NEW_THREADS
+	const size_t One = 1;
+	for( size_t i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;
+	_parallel_for( 0 , At.rowNum , [&]( unsigned int , size_t i )
+#else // !NEW_THREADS
 #ifdef NEW_CODE_SPARSE_MATRIX
 	for( size_t i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;
 #pragma omp parallel for
-	for( long long i=0 ; i<(long long)At.rowNum ; i++ ) for( size_t j=0 ; j<At.rowSizes[i] ; j++ )
+	for( long long i=0 ; i<(long long)At.rowNum ; i++ )
 #else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;
 #pragma omp parallel for
-	for( int i=0 ; i<At.rowNum ; i++ ) for( int j=0 ; j<At.rowSizes[i] ; j++ )
+	for( int i=0 ; i<At.rowNum ; i++ )
 #endif // NEW_CODE_SPARSE_MATRIX
+#endif // NEW_THREADS
+	{
+		for( size_t j=0 ; j<At.rowSizes[i] ; j++ )
+		{
+#ifdef NEW_CODE
+			AddAtomic( A.rowSizes[ At[i][j].N ] , One );
+#else // !NEW_CODE
 #pragma omp atomic
-		A.rowSizes[ At[i][j].N ]++;
+			A.rowSizes[ At[i][j].N ]++;
+#endif // NEW_CODE
+		}
+	}
+#ifdef NEW_THREADS
+	);
+#endif // NEW_THREADS
+
+#ifdef NEW_THREADS
+	_parallel_for( 0 , A.rowNum , [&]( unsigned int , size_t i )
+#else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
 	for( long long i=0 ; i<(long long)A.rowNum ; i++ )
 #else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<A.rowNum ; i++ )
 #endif // NEW_CODE_SPARSE_MATRIX
+#endif // NEW_THREADS
 	{
 		size_t t = A.rowSizes[i];
 		A.rowSizes[i] = 0;
 		A.setRowSize( i , t );
 		A.rowSizes[i] = 0;
 	}
+#ifdef NEW_THREADS
+	);
+#endif // NEW_THREADS
 #ifdef NEW_CODE_SPARSE_MATRIX
 	if( TransposeFunction ) for( size_t i=0 ; i<At.rowNum ; i++ ) for( size_t j=0 ; j<At.rowSizes[i] ; j++ )
 	{
@@ -531,29 +591,50 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::transpose( 
 	if( _aRows>aRows ) ERROR_OUT( "Prescribed output dimension too low: " , aRows , " < " , _aRows );
 
 	A.resize( aRows );
+#ifdef NEW_THREADS
+	for( size_t i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;
+	_parallel_for( 0 , At.rowNum , [&]( unsigned int , size_t i )
+#else // !NEW_THREADS
 #ifdef NEW_CODE_SPARSE_MATRIX
 	for( size_t i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;
 #pragma omp parallel for
-	for( size_t i=0 ; i<At.rowNum ; i++ ) for( size_t j=0 ; j<At.rowSizes[i] ; j++ )
+	for( size_t i=0 ; i<At.rowNum ; i++ )
 #else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;
 #pragma omp parallel for
-	for( int i=0 ; i<At.rowNum ; i++ ) for( int j=0 ; j<At.rowSizes[i] ; j++ )
+	for( int i=0 ; i<At.rowNum ; i++ )
 #endif // NEW_CODE_SPARSE_MATRIX
+#endif // NEW_THREADS
+	{
+		for( size_t j=0 ; j<At.rowSizes[i] ; j++ )
+		{
 #pragma omp atomic
-		A.rowSizes[ At[i][j].N ]++;
+			A.rowSizes[ At[i][j].N ]++;
+		}
+	}
+#ifdef NEW_THREADS
+	);
+#endif // NEW_THREADS
+
+#ifdef NEW_THREADS
+	_parallel_for( 0 , A.rowNum , [&]( unsigned int , size_t i )
+#else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
 	for( long long i=0 ; i<(long long)A.rowNum ; i++ )
 #else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<A.rowNum ; i++ )
 #endif // NEW_CODE_SPARSE_MATRIX
+#endif // NEW_THREADS
 	{
 		size_t t = A.rowSizes[i];
 		A.rowSizes[i] = 0;
 		A.setRowSize( i , t );
 		A.rowSizes[i] = 0;
 	}
+#ifdef NEW_THREADS
+	);
+#endif // NEW_THREADS
 #ifdef NEW_CODE_SPARSE_MATRIX
 	if( TransposeFunction )
 		for( size_t i=0 ; i<At.rowNum ; i++ ) for( size_t j=0 ; j<At.rowSizes[i] ; j++ )
@@ -605,12 +686,17 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::Multiply( c
 #else // !NEW_CODE_SPARSE_MATRIX
 	M.resize( (int)aRows );
 #endif // NEW_CODE_SPARSE_MATRIX
+
+#ifdef NEW_THREADS
+	_parallel_for( 0 , aRows , [&]( unsigned int , size_t i )
+#else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
 	for( size_t i=0 ; i<aRows ; i++ )
 #else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<aRows ; i++ )
 #endif // NEW_CODE_SPARSE_MATRIX
+#endif // NEW_THREADS
 	{
 		std::unordered_map< IndexType , T > row;
 		for( A_const_iterator iterA=A.begin(i) ; iterA!=A.end(i) ; iterA++ )
@@ -636,6 +722,9 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::Multiply( c
 		for( typename std::unordered_map< IndexType , T >::iterator iter=row.begin() ; iter!=row.end() ; iter++ )
 			M[i][ M.rowSizes[i]++ ] = MatrixEntry< T , IndexType >( iter->first , iter->second );
 	}
+#ifdef NEW_THREADS
+	);
+#endif // NEW_THREADS
 	return M;
 }
 template< class T , class IndexType >
@@ -860,12 +949,16 @@ void SparseMatrix< T , IndexType , MaxRowSize >::resetRowSize( size_t row , size
 template< class T , class IndexType , size_t MaxRowSize >
 SparseMatrix< T , IndexType , MaxRowSize >& SparseMatrix< T , IndexType , MaxRowSize >::operator *= ( T s )
 {
+#ifdef NEW_THREADS
+	_parallel_for( 0 , _rowNum*MaxRowSize , [&]( unsigned int , size_t i ){ _entries[i].Value *= s; } );
+#else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
 	for( long long i=0 ; i<(long long)_rowNum*MaxRowSize ; i++ ) _entries[i].Value *= s;
 #else // !NEW_CODE_SPARSE_MATRIX
 	for( int i=0 ; i<_rowNum*MaxRowSize ; i++ ) _entries[i].Value *= s;
 #endif // NEW_CODE_SPARSE_MATRIX
+#endif // NEW_THREADS
 	return *this;
 }
 
@@ -881,11 +974,3 @@ SparseMatrix< T , IndexType , MaxRowSize > SparseMatrix< T , IndexType , MaxRowS
 
 template< class T , class IndexType , size_t MaxRowSize >
 SparseMatrix< T , IndexType , MaxRowSize > SparseMatrix< T , IndexType , MaxRowSize >::operator / ( T s ) const { return (*this) * ( (T)1. / s ); }
-
-template< class T , class IndexType , size_t MaxRowSize >
-Pointer( T ) SparseMatrix< T , IndexType , MaxRowSize >::operator * ( const Pointer( T ) in ) const
-{
-	Pointer( T ) out = AllocPointer< T >( _rowNum );
-	MultiplyParallel( in , out , omp_get_num_procs() , 0 );
-	return out;
-}

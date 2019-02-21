@@ -53,6 +53,23 @@ protected:
 		for( int i=UIntPack< Begin ... >::First ; i<UIntPack< End ... >::First ; i++ ){ updateState( WindowDimension - CurrentDimension , i ) ; _WindowLoop< WindowDimension , IterationDimensions , CurrentIteration-1 >::Run( typename UIntPack< Begin ... >::Rest() , typename UIntPack< End ... >::Rest() , updateState , function , w[i] ... ); }
 	}
 
+#ifdef NEW_THREADS
+	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
+	static void RunParallel( ThreadPool &tp , int begin , int end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
+	{
+		tp.parallel_for( begin , end , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; _WindowLoop< WindowDimension , IterationDimensions , CurrentIteration-1 >::RunThread( begin , end , thread , updateState , function , w[i] ... ); } );
+	}
+	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
+	static void RunParallel( ThreadPool &tp , const int* begin , const int* end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
+	{
+		tp.parallel_for( begin[0] , end[0] , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; _WindowLoop< WindowDimension , IterationDimensions , CurrentIteration-1 >::RunThread( begin+1 , end+1 , thread , updateState , function , w[i] ... ); } );
+	}
+	template< unsigned int ... Begin , unsigned int ... End , typename UpdateFunction , typename ProcessFunction , class ... Windows >
+	static void RunParallel( ThreadPool &tp , UIntPack< Begin ... > begin , UIntPack< End ... > end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
+	{
+		tp.parallel_for( UIntPack< Begin ... >::First , UIntPack< End ... >::First , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; _WindowLoop< WindowDimension , IterationDimensions , CurrentIteration-1 >::RunThread( typename UIntPack< Begin ... >::Rest() , typename UIntPack< End ... >::Rest() , thread , updateState , function , w[i] ... ); } );
+	}
+#else // !NEW_THREADS
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunParallel( int begin , int end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
 	{
@@ -71,6 +88,7 @@ protected:
 #pragma omp parallel for
 		for( int i=UIntPack< Begin ... >::First ; i<UIntPack< End ... >::First ; i++ ){ int thread = omp_get_thread_num() ; updateState( thread , WindowDimension - CurrentDimension , i ) ; _WindowLoop< WindowDimension , IterationDimensions , CurrentIteration-1 >::RunThread( typename UIntPack< Begin ... >::Rest() , typename UIntPack< End ... >::Rest() , thread , updateState , function , w[i] ... ); }
 	}
+#endif // NEW_THREADS
 
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunThread( int begin , int end , int thread , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
@@ -116,6 +134,23 @@ protected:
 		for( int i=UIntPack< Begin ... >::First ; i<UIntPack< End ... >::First ; i++ ){ updateState( WindowDimension - CurrentDimension , i ) ; _WindowLoop< WindowDimension , IterationDimensions , CurrentIteration-1 >::Run( typename UIntPack< Begin ... >::Rest() , typename UIntPack< End ... >::Rest() , updateState , function , w[i] ... ); }
 	}
 
+#ifdef NEW_THREADS
+	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
+	static void RunParallel( ThreadPool &tp , int begin , int end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
+	{
+		tp.parallel_for( begin , end , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; _WindowLoop< WindowDimension , IterationDimensions , CurrentIteration-1 >::RunThread( begin , end , thread , updateState , function , w[i] ... ); } );
+	}
+	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
+	static void RunParallel( ThreadPool &tp , const int* begin , const int* end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
+	{
+		tp.parallel_for( begin[0] , end[0] , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; _WindowLoop< WindowDimension , IterationDimensions , CurrentIteration-1 >::RunThread( begin+1 , end+1 , thread , updateState , function , w[i] ... ); } );
+	}
+	template< unsigned int ... Begin , unsigned int ... End , typename UpdateFunction , typename ProcessFunction , class ... Windows >
+	static void RunParallel( ThreadPool &tp , UIntPack< Begin ... > begin , UIntPack< End ... > end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
+	{
+		tp.parallel_for( UIntPack< Begin ... >::First , UIntPack< End ... >::First , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; _WindowLoop< WindowDimension , IterationDimensions , CurrentIteration-1 >::RunThread( typename UIntPack< Begin ... >::Rest() , typename UIntPack< End ... >::Rest() , thread , updateState , function , w[i] ... ); } );
+	}
+#else // !NEW_THREADS
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunParallel( int begin , int end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
 	{
@@ -134,6 +169,7 @@ protected:
 #pragma omp parallel for
 		for( int i=UIntPack< Begin ... >::First ; i<UIntPack< End ... >::First ; i++ ){ int thread = omp_get_thread_num() ; updateState( thread , WindowDimension - CurrentDimension , i ) ; _WindowLoop< WindowDimension , IterationDimensions , CurrentIteration-1 >::RunThread( typename UIntPack< Begin ... >::Rest() , typename UIntPack< End ... >::Rest() , thread , updateState , function , w[i] ... ); }
 	}
+#endif // NEW_THREADS
 
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunThread( int begin , int end , int thread , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
@@ -179,6 +215,23 @@ protected:
 		for( int i=UIntPack< Begin ... >::First ; i<UIntPack< End ... >::First ; i++ ){ updateState( WindowDimension - CurrentDimension , i ) ; function( w[i] ... ); }
 	}
 
+#ifdef NEW_THREADS
+	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
+	static void RunParallel( ThreadPool &tp , int begin , int end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
+	{
+		tp.parallel_for( begin , end , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
+	}
+	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
+	static void RunParallel( ThreadPool &tp , const int* begin , const int* end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
+	{
+		tp.parallel_for( begin[0] , end[0] , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
+	}
+	template< unsigned int ... Begin , unsigned int ... End , typename UpdateFunction , typename ProcessFunction , class ... Windows >
+	static void RunParallel( ThreadPool &tp , UIntPack< Begin ... > begin , UIntPack< End ... > end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
+	{
+		tp.parallel_for( UIntPack< Begin ... >::First , UIntPack< End ... >::First , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
+	}
+#else // !NEW_THREADS
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunParallel( int begin , int end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
 	{
@@ -197,6 +250,7 @@ protected:
 #pragma omp parallel for
 		for( int i=UIntPack< Begin ... >::First ; i<UIntPack< End ... >::First ; i++ ){ int thread = omp_get_thread_num() ; updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); }
 	}
+#endif // NEW_THREADS
 
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunThread( int begin , int end , int thread , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
@@ -243,6 +297,23 @@ protected:
 		for( int i=UIntPack< Begin ... >::First ; i<UIntPack< End ... >::First ; i++ ){ updateState( WindowDimension - CurrentDimension , i ) ; function( w[i] ... ); }
 	}
 
+#ifdef NEW_THREADS
+	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
+	static void RunParallel( ThreadPool &tp , int begin , int end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
+	{
+		tp.parallel_for( begin , end , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
+	}
+	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
+	static void RunParallel( ThreadPool &tp , const int* begin , const int* end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
+	{
+		tp.parallel_for( begin[0] , end[0] , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
+	}
+	template< unsigned int ... Begin , unsigned int ... End , typename UpdateFunction , typename ProcessFunction , class ... Windows >
+	static void RunParallel( ThreadPool &tp , UIntPack< Begin ... > begin , UIntPack< End ... > end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
+	{
+		tp.parallel_for( UIntPack< Begin ... >::First , UIntPack< End ... >::First , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
+	}
+#else // !NEW_THREADS
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunParallel( int begin , int end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
 	{
@@ -261,6 +332,7 @@ protected:
 #pragma omp parallel for
 		for( int i=UIntPack< Begin ... >::First ; i<UIntPack< End ... >::First ; i++ ){ int thread = omp_get_thread_num() ; updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); }
 	}
+#endif // NEW_THREADS
 
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunThread( int begin , int end , int thread , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
@@ -308,6 +380,24 @@ protected:
 		for( int i=UIntPack< Begin ... >::First ; i<UIntPack< End ... >::First ; i++ ){ updateState( WindowDimension - CurrentDimension , i ) ; function( w[i] ... ); }
 	}
 
+#ifdef NEW_THREADS
+	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
+	static void RunParallel( ThreadPool &tp , int begin , int end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
+	{
+		tp.parallel_for( begin , end , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
+	}
+	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
+	static void RunParallel( ThreadPool &tp , const int* begin , const int* end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
+	{
+		tp.parallel_for( begin[0] , end[0] , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
+	}
+	template< unsigned int ... Begin , unsigned int ... End , typename UpdateFunction , typename ProcessFunction , class ... Windows >
+	static void RunParallel( ThreadPool &tp , UIntPack< Begin ... > begin , UIntPack< End ... > end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
+	{
+		tp.parallel_for( UIntPack< Begin ... >::First , UIntPack< End ... >::First , [&]( unsigned int thread , size_t i ){ updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); } );
+	}
+
+#else // !NEW_THREADS
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunParallel( int begin , int end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
 	{
@@ -326,6 +416,7 @@ protected:
 #pragma omp parallel for
 		for( int i=UIntPack< Begin ... >::First ; i<UIntPack< End ... >::First ; i++ ){ int thread = omp_get_thread_num() ; updateState( thread , WindowDimension - CurrentDimension , i ) ; function( thread , w[i] ... ); }
 	}
+#endif // NEW_THREADS
 
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunThread( int begin , int end , int thread , UpdateFunction& updateState , ProcessFunction& function , Windows ... w )
@@ -362,12 +453,21 @@ protected:
 	template< unsigned int ... Begin , unsigned int ... End , typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void Run( UIntPack< Begin ... > begin , UIntPack< End ... > end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ ERROR_OUT( "Shouldn't be here" ); }
 
+#ifdef NEW_THREADS
+	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
+	static void RunParallel( ThreadPool &tp , int begin , int end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ ERROR_OUT( "Shouldn't be here" ); }
+	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
+	static void RunParallel( ThreadPool &tp , const int* begin , const int* end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ ERROR_OUT( "Shouldn't be here" ); }
+	template< unsigned int ... Begin , unsigned int ... End , typename UpdateFunction , typename ProcessFunction , class ... Windows >
+	static void RunParallel( ThreadPool &tp , UIntPack< Begin ... > begin , UIntPack< End ... > end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ ERROR_OUT( "Shouldn't be here" ); }
+#else // !NEW_THREADS
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunParallel( int begin , int end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ ERROR_OUT( "Shouldn't be here" ); }
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunParallel( const int* begin , const int* end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ ERROR_OUT( "Shouldn't be here" ); }
 	template< unsigned int ... Begin , unsigned int ... End , typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunParallel( UIntPack< Begin ... > begin , UIntPack< End ... > end , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ ERROR_OUT( "Shouldn't be here" ); }
+#endif // NEW_THREADS
 
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunThread( int begin , int end , int thread , UpdateFunction& updateState , ProcessFunction& function , Windows ... w ){ ERROR_OUT( "Shouldn't be here" ); }

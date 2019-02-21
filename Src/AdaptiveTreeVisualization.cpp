@@ -92,7 +92,11 @@ void ShowUsage( char* ex )
 }
 
 template< typename Real , unsigned int Dim >
+#ifdef NEW_THREADS
+void WriteGrid( ThreadPool &tp , ConstPointer( Real ) values , int res , const char *fileName )
+#else // !NEW_THREADS
 void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
+#endif // NEW_THREADS
 {
 	int resolution = 1;
 	for( int d=0 ; d<Dim ; d++ ) resolution *= res;
@@ -102,26 +106,45 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 	if( Dim==2 && ImageWriter::ValidExtension( ext ) )
 	{
 		Real avg = 0;
+#ifdef NEW_THREADS
+		std::vector< Real > avgs( tp.threadNum() , 0 );
+		tp.parallel_for( 0 , resolution , [&]( unsigned int thread , size_t i ){ avgs[thread] += values[i]; } );
+		for( unsigned int t=0 ; t<tp.threadNum() ; t++ ) avg += avgs[t];
+#else // !NEW_THREADS
 #pragma omp parallel for reduction( + : avg )
 		for( int i=0 ; i<resolution ; i++ ) avg += values[i];
+#endif // NEW_THREADS
 		avg /= (Real)resolution;
 
 		Real std = 0;
+#ifdef NEW_THREADS
+		std::vector< Real > stds( tp.threadNum() , 0 );
+		tp.parallel_for( 0 , resolution , [&]( unsigned int thread , size_t i ){ stds[thread] += ( values[i] - avg ) * ( values[i] - avg ); } );
+		for( unsigned int t=0 ; t<tp.threadNum() ; t++ ) std += stds[t];
+#else // !NEW_THREADS
 #pragma omp parallel for reduction( + : std )
 		for( int i=0 ; i<resolution ; i++ ) std += ( values[i] - avg ) * ( values[i] - avg );
+#endif // NEW_THREADS
 		std = (Real)sqrt( std / resolution );
 
 		if( Verbose.set ) printf( "Grid to image: [%.2f,%.2f] -> [0,255]\n" , avg - 2*std , avg + 2*std );
 
 		unsigned char *pixels = new unsigned char[ resolution*3 ];
+#ifdef NEW_THREADS
+		tp.parallel_for( 0 , resolution , [&]( unsigned int , size_t i )
+#else // !NEW_THREADS
 #pragma omp parallel for
 		for( int i=0 ; i<resolution ; i++ )
+#endif // NEW_THREADS
 		{
 			Real v = (Real)std::min< Real >( (Real)1. , std::max< Real >( (Real)-1. , ( values[i] - avg ) / (2*std ) ) );
 			v = (Real)( ( v + 1. ) / 2. * 256. );
 			unsigned char color = (unsigned char )std::min< Real >( (Real)255. , std::max< Real >( (Real)0. , v ) );
 			for( int c=0 ; c<3 ; c++ ) pixels[i*3+c ] = color;
 		}
+#ifdef NEW_THREADS
+		);
+#endif // NEW_THREADS
 		ImageWriter::Write( fileName , pixels , res , res , 3 );
 		delete[] pixels;
 	}
@@ -150,6 +173,9 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 template< unsigned int Dim , class Real , unsigned int FEMSig >
 void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 {
+#ifdef NEW_THREADS
+	ThreadPool tp;
+#endif // NEW_THREADS
 	static const unsigned int Degree = FEMSignature< FEMSig >::Degree;
 	DenseNodeData< Real , IsotropicUIntPack< Dim , FEMSig > > coefficients;
 
@@ -160,9 +186,17 @@ void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 	{
 		int res = 0;
 		double t = Time();
+#ifdef NEW_THREADS
+		Pointer( Real ) values = tree->template regularGridEvaluate< true >( tp , coefficients , res , -1 , PrimalGrid.set );
+#else // !NEW_THREADS
 		Pointer( Real ) values = tree->template regularGridEvaluate< true >( coefficients , res , -1 , PrimalGrid.set );
+#endif // NEW_THREADS
 		if( Verbose.set ) printf( "Got grid: %.2f(s)\n" , Time()-t );
+#ifdef NEW_THREADS
+		WriteGrid< Real , Dim >( tp , values , res , OutGrid.value );
+#else // !NEW_THREADS
 		WriteGrid< Real , Dim >( values , res , OutGrid.value );
+#endif // NEW_THREADS
 		DeletePointer( values );
 	}
 
@@ -186,7 +220,11 @@ void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 #endif // __GNUC__ || __GNUC__ < 4
 
 		if( Verbose.set ) printf( "Got iso-surface: %.2f(s)\n" , Time()-t );
+#ifdef NEW_CODE
+		if( Verbose.set ) printf( "Vertices / Polygons: %llu / %llu\n" , (unsigned long long)( mesh.outOfCorePointCount()+mesh.inCorePoints.size() ) , (unsigned long long)mesh.polygonCount() );
+#else // !NEW_CODE
 		if( Verbose.set ) printf( "Vertices / Polygons: %d / %d\n" , (int)( mesh.outOfCorePointCount()+mesh.inCorePoints.size() ) , (int)mesh.polygonCount() );
+#endif // NEW_CODE
 
 		std::vector< std::string > comments;
 #ifdef NEW_CODE
@@ -204,7 +242,11 @@ void Execute( FILE* fp , int degree , BoundaryType bType )
 {
 	FEMTree< Dim , Real > tree( fp , MEMORY_ALLOCATOR_BLOCK_SIZE );
 
+#ifdef NEW_CODE
+	if( Verbose.set ) printf( "Leaf Nodes / Active Nodes / Ghost Nodes: %llu / %llu / %llu\n" , (unsigned long long)tree.leaves() , (unsigned long long)tree.nodes() , (unsigned long long)tree.ghostNodes() );
+#else // !NEW_CODE
 	if( Verbose.set ) printf( "Leaf Nodes / Active Nodes / Ghost Nodes: %d / %d / %d\n" , (int)tree.leaves() , (int)tree.nodes() , (int)tree.ghostNodes() );
+#endif // NEW_CODE
 
 	switch( bType )
 	{

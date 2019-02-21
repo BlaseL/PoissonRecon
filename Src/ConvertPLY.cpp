@@ -26,34 +26,34 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 #define NEW_CODE
+#define NEW_THREADS
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <float.h>
 #include <algorithm>
 #include <limits>
 #include <sstream>
 #include <unordered_map>
-#include "FEMTree.h"
 #include "MyMiscellany.h"
 #include "CmdLineParser.h"
-#include "MAT.h"
 #include "Geometry.h"
 #include "Ply.h"
+#include "PointStream.h"
 #include "PointStreamData.h"
 
 cmdLineParameter< char* > In( "in" ) , Out( "out" );
-cmdLineParameter< float > ChunkWidth( "width" , -1.f );
+cmdLineParameter< float > Width( "width" , -1.f ) , PadRadius( "radius" , 0.f );
 cmdLineReadable ASCII( "ascii" );
 
-cmdLineReadable* params[] = { &In , &Out , &ChunkWidth , &ASCII , NULL };
+cmdLineReadable* params[] = { &In , &Out , &Width , &PadRadius , &ASCII , NULL };
 
 void ShowUsage( char* ex )
 {
 	printf( "Usage: %s\n" , ex );
 	printf( "\t --%s <input polygon mesh>\n" , In.name );
 	printf( "\t[--%s <ouput polygon mesh name/header>]\n" , Out.name );
-	printf( "\t[--%s <chunk width>]\n" , ChunkWidth.name );
+	printf( "\t[--%s <chunk width>=%f]\n" , Width.name , Width.value );
+	printf( "\t[--%s <padding radius>=%f]\n" , PadRadius.name , PadRadius.value );
 	printf( "\t[--%s]\n" , ASCII.name );
 }
 
@@ -65,6 +65,17 @@ void PrintBoundingBox( Point< float , 3 > min , Point< float , 3 > max )
 	for( unsigned int d=0 ; d<3 ; d++ ) printf( " %f" , max[d] );
 	printf( " ]" );
 }
+
+template< typename ... VertexData >
+void WritePoints( const char *fileName , int ft , const std::vector< PlyVertexWithData< float , 3 , MultiPointStreamData< float , VertexData ... > > > &vertices , const std::vector< std::string > &comments )
+{
+	typedef PlyVertexWithData< float , 3 , MultiPointStreamData< float , VertexData ... > > Vertex;
+	typedef MultiPointStreamData< float , VertexData ... > StreamData;
+
+	PLYOutputPointStreamWithData< float , 3 , StreamData > pointStream( fileName , vertices.size() , ft , StreamData::PlyWriteProperties() , StreamData::PlyReadNum );
+	for( size_t i=0 ; i<vertices.size() ; i++ ) pointStream.nextPoint( vertices[i].point , vertices[i].data );
+}
+
 
 template< typename ... VertexData >
 void WriteMesh( const char *fileName , int ft , const std::vector< PlyVertexWithData< float , 3 , MultiPointStreamData< float , VertexData ... > > > &vertices , const std::vector< std::vector< long long > > &polygons , const std::vector< std::string > &comments )
@@ -95,7 +106,6 @@ void WriteMesh( const char *fileName , int ft , const std::vector< PlyVertexWith
 		}
 		if( !PlyWritePolygons< Vertex >( fileName , vertices , outPolygons , Vertex::PlyWriteProperties() , Vertex::PlyWriteNum , ft , comments ) ) ERROR_OUT( "Could not write mesh to: " , fileName );
 	}
-
 }
 
 template< typename Vertex >
@@ -110,33 +120,33 @@ void GetBoundingBox( const std::vector< Vertex > &vertices , Point< float , 3 > 
 }
 
 template< typename Vertex >
+void GetSubPoints( const std::vector< Vertex > &vertices , Point< float , 3 > min , Point< float , 3 > max , std::vector< Vertex > &subVertices )
+{
+	subVertices.resize( 0 );
+
+	for( size_t i=0 ; i<vertices.size() ; i++ )
+	{
+		bool inside = true;
+		for( unsigned int d=0 ; d<3 ; d++ ) if( vertices[i].point[d]<min[d] || vertices[i].point[d]>=max[d] ) inside = false;
+		if( inside ) subVertices.push_back( vertices[i] );
+	}
+}
+
+template< typename Vertex >
 void GetSubMesh( const std::vector< Vertex > &vertices , const std::vector< std::vector< long long > > &polygons , Point< float , 3 > min , Point< float , 3 > max , std::vector< Vertex > &subVertices , std::vector< std::vector< long long > > &subPolygons )
 {
-printf("a\n" );
 	subVertices.resize( 0 );
 	subPolygons.resize( 0 );
 
-printf( "Vertices: %d\n" , (int)vertices.size() );
 	for( size_t i=0 ; i<polygons.size() ; i++ )
 	{
-printf( "processing polygon: %d / %d\n" , (int)i , (int)polygons.size() );
-for( int j=0 ; j<polygons[i].size() ; j++ ) printf( " %d" , (int)polygons[i][j] );
-printf( "\n" );
 		Point< float , 3 > center;
-printf( "1\n ");
-		for( size_t j=0 ; j<polygons[i].size() ; j++ )
-		{
-printf( "processing corner %d / %d: %llu\n" , (int)j , (int)polygons[i].size() , (unsigned long long)polygons[i][j] );
-			center += vertices[ polygons[i][j] ].point;
-		}
-printf( "2\n ");
+		for( size_t j=0 ; j<polygons[i].size() ; j++ ) center += vertices[ polygons[i][j] ].point;
 		center /= (float)polygons[i].size();
-printf( "Center: %f %f %f\n" , center[0] , center[1] , center[2] );
 		bool inside = true;
 		for( unsigned int d=0 ; d<3 ; d++ ) if( center[d]<min[d] || center[d]>=max[d] ) inside = false;
 		if( inside ) subPolygons.push_back( polygons[i] );
 	}
-printf("b\n" );
 
 	long long count = 0;
 	std::unordered_map< long long , long long > vMap;
@@ -146,7 +156,6 @@ printf("b\n" );
 		if( iter==vMap.end() ) vMap[ subPolygons[i][j] ] = count++;
 	}
 
-printf("c\n" );
 	subVertices.resize( vMap.size() );
 	for( size_t i=0 ; i<subPolygons.size() ; i++ ) for( size_t j=0 ; j<subPolygons[i].size() ; j++ )
 	{
@@ -155,7 +164,6 @@ printf("c\n" );
 		subVertices[ newIdx ] = vertices[ oldIdx ];
 		subPolygons[i][j] = newIdx;
 	}
-printf("d\n" );
 }
 
 template< typename ... VertexData >
@@ -174,41 +182,65 @@ int Execute( void )
 	GetBoundingBox( vertices , min , max );
 	PrintBoundingBox( min , max ) ; printf( "\n" );
 
-
-	for( unsigned int d=0 ; d<3 ; d++ ) max[d] += ( max[d]-min[d] ) / 1000.f;
-
-	float width = 0;
-	for( unsigned int d=0 ; d<3 ; d++ ) width = std::max< float >( width , max[d]-min[d] );
-	if( ChunkWidth.value>=width ) WARN( "width is large enough, outputting mesh as a single file" ) , ChunkWidth.value = -1.f;
-	width = ChunkWidth.value;
+	float width = Width.value;
 
 	if( Out.set )
 	{
 		if( width>0 )
 		{
-			float xMin , yMin , zMin;
-			int i , j , k;
-			for( i=0 , xMin=min[0] ; xMin<=max[0] ; xMin += width , i++ )
-				for( j=0 , yMin=min[1] ; yMin<=max[1] ; yMin += width , j++ )
-					for( k=0 , zMin=min[2] ; zMin<=max[2] ; zMin += width , k++ )
+			size_t vCount=0 , pCount=0;
+			for( unsigned int d=0 ; d<3 ; d++ ) min[d] -= width/10000.f , max[d] += width/10000.f;
+			int begin[] = { (int)floor( min[0]/width ) , (int)floor( min[1]/width ) , (int)floor( min[2]/width ) };
+			int end  [] = { (int)ceil ( max[0]/width ) , (int)ceil ( max[1]/width ) , (int)ceil ( max[2]/width ) };
+			for( int i=begin[0] ; i<end[0] ; i++ ) for( int j=begin[1] ; j<end[1] ; j++ ) for( int k=begin[2] ; k<end[2] ; k++ )
+			{
+				std::vector< std::vector< long long > > subPolygons;
+				std::vector< Vertex > subVertices;
+				Point< float , 3 > _min( (i+0)*width - PadRadius.value , (j+0)*width - PadRadius.value , (k+0)*width - PadRadius.value );
+				Point< float , 3 > _max( (i+1)*width + PadRadius.value , (j+1)*width + PadRadius.value , (k+1)*width + PadRadius.value );
+				if( polygons.size() )
+				{
+					GetSubMesh( vertices , polygons , _min , _max , subVertices , subPolygons );
+					if( subPolygons.size() )
 					{
-						std::vector< std::vector< long long > > subPolygons;
-						std::vector< Vertex > subVertices;
-						GetSubMesh( vertices , polygons , Point< float , 3 >( xMin , yMin , zMin ) , Point< float , 3 >( xMin+width , yMin+width , zMin+width ) , subVertices , subPolygons );
-						if( subPolygons.size() )
-						{
-							printf( "\t[%d %d %d]Vertices / Polygons: %llu / %llu\n" , i , j , k , (unsigned long long)subVertices.size() , (unsigned long long)subPolygons.size() );
+						std::stringstream stream;
+						stream << Out.value << "." << i << "." << j << "." << k << ".ply";
 
-							Point< float , 3 > _min , _max;
-							GetBoundingBox( subVertices , _min , _max );
-							printf( "\t[%d %d %d] " , i , j , k ) ; PrintBoundingBox( _min , _max ) ; printf( "\n" );
-							std::stringstream stream;
-							stream << Out.value << "." << i << "." << j << "." << k << ".ply";
-							WriteMesh( stream.str().c_str() , ASCII.set ? PLY_ASCII : ft , subVertices , subPolygons , comments );
-						}
+						printf( "\t%s\n" , stream.str().c_str() );
+						printf( "\t\tVertices / Polygons: %llu / %llu\n" , (unsigned long long)subVertices.size() , (unsigned long long)subPolygons.size() );
+						printf( "\t\t" ) ; PrintBoundingBox( _min , _max ) ; printf( "\n" );
+
+						WriteMesh( stream.str().c_str() , ASCII.set ? PLY_ASCII : ft , subVertices , subPolygons , comments );
+
+						vCount += subVertices.size() , pCount += subPolygons.size();
 					}
+				}
+				else
+				{
+					GetSubPoints( vertices , _min , _max , subVertices );
+					if( subVertices.size() )
+					{
+						std::stringstream stream;
+						stream << Out.value << "." << i << "." << j << "." << k << ".ply";
+
+						printf( "\t%s\n" , stream.str().c_str() );
+						printf( "\t\tPoints: %llu\n" , (unsigned long long)subVertices.size() );
+						printf( "\t\t" ) ; PrintBoundingBox( _min , _max ) ; printf( "\n" );
+
+						WritePoints( stream.str().c_str() , ASCII.set ? PLY_ASCII : ft , subVertices , comments );
+
+						vCount += subVertices.size();
+					}
+				}
+			}
+			if( vCount!=vertices.size() ) WARN( "vertex counts don't match" , vertices.size() , vCount );
+			if( pCount!=polygons.size() ) WARN( "polygon counts don't match" , polygons.size() , pCount );
 		}
-		else WriteMesh( Out.value , ASCII.set ? PLY_ASCII : ft , vertices , polygons , comments );
+		else
+		{
+			if( polygons.size() ) WriteMesh( Out.value , ASCII.set ? PLY_ASCII : ft , vertices , polygons , comments );
+			else WritePoints( Out.value , ASCII.set ? PLY_ASCII : ft , vertices , comments );
+		}
 	}
 
 	return EXIT_SUCCESS;

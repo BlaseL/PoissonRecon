@@ -30,6 +30,9 @@ DAMAGE.
 #define WINDOW_INCLUDED
 
 #include <functional>
+#ifdef NEW_THREADS
+#include "MyMiscellany.h"
+#endif // NEW_THREADS
 #include "Allocator.h"
 #include "Array.h"
 
@@ -413,6 +416,23 @@ struct WindowLoop
 		_WindowLoop< WindowDimension , IterationDimensions , IterationDimensions >::Run( begin , end , updateState , function , w ... ); 
 	}
 
+#ifdef NEW_THREADS
+	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
+	static void RunParallel( ThreadPool &tp , int begin , int end , UpdateFunction updateState , ProcessFunction function , Windows ... w )
+	{
+		_WindowLoop< WindowDimension , IterationDimensions , IterationDimensions >::RunParallel( tp , begin , end , updateState , function , w ... ); 
+	}
+	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
+	static void RunParallel( ThreadPool &tp , const int* begin , const int* end , UpdateFunction updateState , ProcessFunction function , Windows ... w )
+	{
+		_WindowLoop< WindowDimension , IterationDimensions , IterationDimensions >::RunParallel( tp , begin , end , updateState , function , w ... ); 
+	}
+	template< unsigned int ... Begin , unsigned int ... End , typename UpdateFunction , typename ProcessFunction , class ... Windows >
+	static void RunParallel( ThreadPool &tp , UIntPack< Begin ... > begin , UIntPack< End ... > end , UpdateFunction updateState , ProcessFunction function , Windows ... w )
+	{
+		_WindowLoop< WindowDimension , IterationDimensions , IterationDimensions >::RunParallel( tp , begin , end , updateState , function , w ... ); 
+	}
+#else // !NEW_THREADS
 	template< typename UpdateFunction , typename ProcessFunction , class ... Windows >
 	static void RunParallel( int begin , int end , UpdateFunction updateState , ProcessFunction function , Windows ... w )
 	{
@@ -428,6 +448,7 @@ struct WindowLoop
 	{
 		_WindowLoop< WindowDimension , IterationDimensions , IterationDimensions >::RunParallel( begin , end , updateState , function , w ... ); 
 	}
+#endif // NEW_THREADS
 };
 
 #include "Window.inl"

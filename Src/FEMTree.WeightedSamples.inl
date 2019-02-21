@@ -69,7 +69,13 @@ void FEMTree< Dim , Real >::_addWeightContribution( DensityEstimator< WeightDegr
 	(
 		IsotropicUIntPack< Dim , 0 >() , IsotropicUIntPack< Dim , BSplineSupportSizes< WeightDegree >::SupportSize >() ,
 		[&]( int d , int i ){ scratch[d+1] = scratch[d] * values[d][i]; } ,
-		[&]( FEMTreeNode* node ){ if( node ) AddAtomic( densityWeights[ node ] , (Real)scratch[Dim] ); } ,
+		[&]( FEMTreeNode* node )
+	{
+		if( node )
+		{
+			AddAtomic( densityWeights[ node ] , (Real)scratch[Dim] );
+		}
+	} ,
 		neighbors.neighbors()
 	);
 }
@@ -164,7 +170,10 @@ void FEMTree< Dim , Real >::_splatPointData( FEMTreeNode* node , Point< Real , D
 		[&]( int d , int i ){ scratch[d+1] = scratch[d] * values[d][i]; } ,
 		[&]( FEMTreeNode* node )
 	{
-		if( IsActiveNode< Dim >( node ) )	AddAtomic( dataInfo[ node ] , v * (Real)scratch[Dim] );
+		if( IsActiveNode< Dim >( node ) )
+		{
+			AddAtomic( dataInfo[ node ] , v * (Real)scratch[Dim] );
+		}
 	} ,
 		neighbors.neighbors()
 	);

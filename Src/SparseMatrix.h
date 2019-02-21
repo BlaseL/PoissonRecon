@@ -37,7 +37,25 @@ template< class T , class IndexType > class SparseMatrix< T , IndexType , 0 > : 
 {
 	template< class T2 , class IndexType2 , size_t MaxRowSize2 > friend class SparseMatrix;
 	Pointer( Pointer( MatrixEntry< T , IndexType > ) ) _entries;
+#ifdef NEW_THREADS
+	void _parallel_for( size_t begin , size_t end , std::function< void ( unsigned int , size_t ) > iterationFunction ) const
+	{
+		if( threadPool )
+		{
+			ThreadPool *_threadPool = const_cast< ThreadPool * >( threadPool );
+			_threadPool->parallel_for( begin , end , iterationFunction );
+		}
+		else
+		{
+			ThreadPool tp;
+			tp.parallel_for( begin , end , iterationFunction );
+		}
+	}
+#endif // NEW_THREADS
 public:
+#ifdef NEW_THREADS
+	ThreadPool *threadPool;
+#endif // NEW_THREADS
 	static void Swap( SparseMatrix& M1 , SparseMatrix& M2 )
 	{
 		std::swap( M1.rowNum , M2.rowNum );
@@ -82,6 +100,7 @@ public:
 	static SparseMatrix Identity( size_t dim );
 	SparseMatrix transpose(                  T (*TransposeFunction)( const T& )=NULL ) const;
 	SparseMatrix transpose( size_t outRows , T (*TransposeFunction)( const T& )=NULL ) const;
+#ifdef NEW_THREADS
 	SparseMatrix  operator *  ( T s ) const;
 	SparseMatrix  operator /  ( T s ) const;
 	SparseMatrix  operator *  ( const SparseMatrix& M ) const;
@@ -92,8 +111,18 @@ public:
 	SparseMatrix& operator *= ( const SparseMatrix& M );
 	SparseMatrix& operator += ( const SparseMatrix& M );
 	SparseMatrix& operator -= ( const SparseMatrix& M );
-
-	Pointer( T ) operator * ( const Pointer( T ) in ) const;
+#else // !NEW_THRADS
+	SparseMatrix  operator *  ( T s ) const;
+	SparseMatrix  operator /  ( T s ) const;
+	SparseMatrix  operator *  ( const SparseMatrix& M ) const;
+	SparseMatrix  operator +  ( const SparseMatrix& M ) const;
+	SparseMatrix  operator -  ( const SparseMatrix& M ) const;
+	SparseMatrix& operator *= ( T s );
+	SparseMatrix& operator /= ( T s );
+	SparseMatrix& operator *= ( const SparseMatrix& M );
+	SparseMatrix& operator += ( const SparseMatrix& M );
+	SparseMatrix& operator -= ( const SparseMatrix& M );
+#endif // NEW_THREADS
 
 	template< class A_const_iterator , class B_const_iterator >
 	static SparseMatrix Multiply( const SparseMatrixInterface< T , A_const_iterator >& A , const SparseMatrixInterface< T , B_const_iterator >& B );
@@ -110,7 +139,25 @@ template< class T , class IndexType , size_t MaxRowSize > class SparseMatrix : p
 	size_t _rowNum;
 	Pointer( size_t ) _rowSizes;
 	size_t _maxRows;
+#ifdef NEW_THREADS
+	void _parallel_for( size_t begin , size_t end , std::function< void ( unsigned int , size_t ) > iterationFunction ) const
+	{
+		if( threadPool )
+		{
+			ThreadPool *_threadPool = const_cast< ThreadPool * >( threadPool );
+			_threadPool->parallel_for( begin , end , iterationFunction );
+		}
+		else
+		{
+			ThreadPool tp;
+			tp.parallel_for( begin , end , iterationFunction );
+		}
+	}
+#endif // NEW_THREADS
 public:
+#ifdef NEW_THREADS
+	ThreadPool *threadPool;
+#endif // NEW_THREADS
 	static void Swap( SparseMatrix& M1 , SparseMatrix& M2 )
 	{
 		std::swap( M1._rowNum , M2._rowNum );
@@ -150,8 +197,6 @@ public:
 	SparseMatrix  operator /  ( T s ) const;
 	SparseMatrix& operator *= ( T s );
 	SparseMatrix& operator /= ( T s );
-
-	Pointer( T ) operator * ( const Pointer( T ) in ) const;
 };
 
 #include "SparseMatrix.inl"

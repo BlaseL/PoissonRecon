@@ -39,6 +39,8 @@ DAMAGE.
 //        1. Have the evaluator store stencils for all depths [DONE]
 //        2. When testing centers/corners, don't use generic evaluation
 
+// -- [TODO] Remove the versions without ThreadPool to check that everything gets passed as it should
+
 #ifndef FEM_TREE_INCLUDED
 #define FEM_TREE_INCLUDED
 
@@ -482,29 +484,46 @@ struct SparseNodeData< Data , UIntPack< FEMSigs ... > > : public _SparseOrDenseN
 	Data& operator[]( const RegularTreeNode< Dim , FEMTreeNodeData >* node )
 #endif // NEW_CODE
 	{
+#ifdef NEW_THREADS
+		static std::mutex m;
+#endif // NEW_THREADS
 		// If the node hasn't been indexed yet
 #ifdef NEW_CODE
 		if( node->nodeData.nodeIndex>=(node_index_type)_indices.size() )
 #else // !NEW_CODE
 		if( node->nodeData.nodeIndex>=(int)_indices.size() )
 #endif // NEW_CODE
+		{
+#ifdef NEW_THREADS
+			std::lock_guard< std::mutex > lock(m);
+#else // !NEW_THREADS
 #pragma omp critical( SparseNodeData__operator )
+#endif // NEW_THREADS
 #ifdef NEW_CODE
 			if( node->nodeData.nodeIndex>=(node_index_type)_indices.size() ) _indices.resize( node->nodeData.nodeIndex+1 , -1 );
 #else // !NEW_CODE
 			if( node->nodeData.nodeIndex>=(int)_indices.size() ) _indices.resize( node->nodeData.nodeIndex+1 , -1 );
 #endif // NEW_CODE
+		}
 
 		// If the node hasn't been allocated yet
 #ifdef NEW_CODE
 		if( _indices[ node->nodeData.nodeIndex ]==-1 )
+		{
+#ifdef NEW_THREADS
+			std::lock_guard< std::mutex > lock(m);
+#else // !NEW_THREADS
 #pragma omp critical( SparseNodeData__operator )
+#endif // NEW_THREADS
 			if( _indices[ node->nodeData.nodeIndex ]==-1 ) _indices[ node->nodeData.nodeIndex ] = (node_index_type)_data.push();
+		}
 		return _data[ _indices[ node->nodeData.nodeIndex ] ];
 #else // !NEW_CODE
 		if( _indices[ node->nodeData.nodeIndex ]==-1 )
+		{
 #pragma omp critical( SparseNodeData__operator )
 			if( _indices[ node->nodeData.nodeIndex ]==-1 ) _indices[ node->nodeData.nodeIndex ] = (int)_data.push();
+		}
 		return _data[ _indices[ node->nodeData.nodeIndex ] ];
 #endif // NEW_CODE
 	}
@@ -1534,27 +1553,72 @@ struct WindowLoopData< UIntPack< Sizes ... > >
 	}
 };
 
-template< class Data >
-void AddAtomic( Data& a , const Data& b )
-{
-#pragma omp critical
-	a += b;
-}
 template< class Real , unsigned int Dim >
 void AddAtomic( Point< Real , Dim >& a , const Point< Real , Dim >& b )
 {
 	for( int d=0 ; d<Dim ; d++ ) AddAtomic( a[d] , b[d] );
 }
+
+#ifdef NEW_CODE
+#else // !NEW_CODE
+template< class Data >
+void AddAtomic( Data& a , const Data& b )
+{
+	WARN_ONCE( "should not use this function: " , sizeof(Data) );
+#ifdef NEW_THREADS
+	static std::mutex m;
+	std::lock_guard< std::mutex > lock(m);
+	a += b;
+#else // !NEW_THREADS
+#pragma omp critical
+	a += b;
+#endif // NEW_THREADS
+}
+
 void AddAtomic( float& a , const float& b )
 {
+#ifdef NEW_THREADS
+#if defined( _WIN32 ) || defined( _WIN64 )
+	float current = a;
+	float sum = current+b;
+	long &_current = *(long *)&current;
+	long &_sum = *(long *)&sum;
+	while( InterlockedCompareExchange( (long*)&a , _sum , _current )!=_current ) current = a , sum = a+b;
+#else // !_WIN32 && !_WIN64
+	float current = a;
+	float sum = current+b;
+	uint32_t &_current = *(uint32_t *)&current;
+	uint32_t &_sum = *(uint32_t *)&sum;
+	while( __sync_val_compare_and_swap( (uint32_t *)&a , _current , _sum )!=_current ) current = a , sum = a+b;
+#endif // _WIN32 || _WIN64
+#else // !NEW_THREADS
 #pragma omp atomic
 	a += b;
+#endif // NEW_THREADS
 }
 void AddAtomic( double& a , const double& b )
 {
+#ifdef NEW_THREADS
+#if defined( _WIN32 ) || defined( _WIN64 )
+	double current = a;
+	double sum = current+b;
+	__int64 &_current = *(__int64 *)&current;
+	__int64 &_sum = *(__int64 *)&sum;
+	while( InterlockedCompareExchange64( (__int64*)&a , _sum , _current )!=_current ) current = a , sum = a+b;
+#else // !_WIN32 && !_WIN64
+	double current = a;
+	double sum = current+b;
+	uint64_t &_current = *(uint64_t *)&current;
+	uint64_t &_sum = *(uint64_t *)&sum;
+	while( __sync_val_compare_and_swap( (uint64_t*)&a , _current , _sum )!=_current ) current = a , sum = a+b;
+#endif // _WIN32 || _WIN64
+#else // !NEW_THREADS
 #pragma omp atomic
 	a += b;
+#endif // NEW_THREADS
 }
+#endif // NEW_CODE
+
 template< class Data >
 bool IsZero( const Data& data ){ return false; }
 template< class Real , unsigned int Dim >
@@ -1956,7 +2020,11 @@ public:
 
 		ExactPointInterpolationInfo( ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm ) : _constraintDual( constraintDual ) , _systemDual( systemDual ) , _constrainsDCTerm( constrainsDCTerm ) { }
 	protected:
+#ifdef NEW_THREADS
+		void _init( ThreadPool &tp , const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , bool noRescale );
+#else // !NEW_THREADS
 		void _init( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , bool noRescale );
+#endif // NEW_THREADS
 
 #ifdef NEW_CODE
 		std::vector< std::pair< node_index_type , node_index_type > > _sampleSpan;
@@ -1988,7 +2056,11 @@ public:
 
 		ExactPointInterpolationInfo( ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm ) : _constraintDual( constraintDual ) , _systemDual( systemDual ) , _constrainsDCTerm( constrainsDCTerm ) { }
 	protected:
+#ifdef NEW_THREADS
+		void _init( ThreadPool &tp , const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , bool noRescale );
+#else // !NEW_THREADS
 		void _init( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , bool noRescale );
+#endif // NEW_THREADS
 
 #ifdef NEW_CODE
 		std::vector< std::pair< node_index_type , node_index_type > > _sampleSpan;
@@ -2007,7 +2079,11 @@ public:
 	{
 		_ExactPointAndDataInterpolationInfo( ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm ) : _constraintDual( constraintDual ) , _systemDual( systemDual ) , _constrainsDCTerm( constrainsDCTerm ) { }
 	protected:
+#ifdef NEW_THREADS
+		void _init( ThreadPool &tp , const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , bool noRescale );
+#else // !NEW_THREADS
 		void _init( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , bool noRescale );
+#endif // NEW_THREADS
 
 #ifdef NEW_CODE
 		std::vector< std::pair< node_index_type , node_index_type > > _sampleSpan;
@@ -2066,6 +2142,64 @@ public:
 		ExactPointAndDataInterpolationInfo( ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm ) : _ExactPointAndDataInterpolationInfo< double , Data , PointD , ConstraintDual , SystemDual >( constraintDual , systemDual , constrainsDCTerm ) { }
 	};
 
+#ifdef NEW_THREADS
+#if !defined( FORCE_PARALLEL )
+	template< typename T , unsigned int PointD , typename ConstraintDual , typename SystemDual >
+	static ApproximatePointInterpolationInfo< T , PointD , ConstraintDual , SystemDual >* InitializeApproximatePointInterpolationInfo( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm , int adaptiveExponent )
+	{
+		ThreadPool tp;
+		return InitializeApproximatePointInterpolationInfo( tp , tree , samples , constraintDual , systemDual , constrainsDCTerm , adaptiveExponent );
+	}
+	template< typename T , typename Data , unsigned int PointD , typename ConstraintDual , typename SystemDual >
+	static ApproximatePointAndDataInterpolationInfo< T , Data , PointD , ConstraintDual , SystemDual >* InitializeApproximatePointAndDataInterpolationInfo( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm , int adaptiveExponent )
+	{
+		ThreadPool tp;
+		return InitializeApproximatePointAndDataInterpolationInfo( tp , tree , samples , sampleData , constraintDual , systemDual , constrainsDCTerm , adaptiveExponent );
+	}
+	template< typename T , unsigned int PointD , typename ConstraintDual , typename SystemDual >
+	static ApproximateChildPointInterpolationInfo< T , PointD , ConstraintDual , SystemDual >* InitializeApproximateChildPointInterpolationInfo( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm , bool noRescale  )
+	{
+		ThreadPool tp;
+		return InitializeApproximateChildPointInterpolationInfo( tp , tree , samples , constraintDual , systemDual , constrainsDCTerm , noRescale  );
+	}
+	template< typename T , typename Data , unsigned int PointD , typename ConstraintDual , typename SystemDual >
+	static ApproximateChildPointAndDataInterpolationInfo< T , Data , PointD , ConstraintDual , SystemDual >* InitializeApproximateChildPointAndDataInterpolationInfo( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm , bool noRescale  )
+	{
+		ThreadPool tp;
+		return InitializeApproximateChildPointAndDataInterpolationInfo( tp , tree , samples , sampleData , constraintDual , systemDual , constrainsDCTerm , noRescale );
+	}
+#endif // !FORCE_PARALLEL
+
+	template< typename T , unsigned int PointD , typename ConstraintDual , typename SystemDual >
+	static ApproximatePointInterpolationInfo< T , PointD , ConstraintDual , SystemDual >* InitializeApproximatePointInterpolationInfo( ThreadPool &tp , const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm , int adaptiveExponent )
+	{
+		ApproximatePointInterpolationInfo< T , PointD , ConstraintDual , SystemDual >* a = new ApproximatePointInterpolationInfo< T , PointD , ConstraintDual , SystemDual >( constraintDual , systemDual , constrainsDCTerm );
+		a->_iData = tree._densifyInterpolationInfoAndSetDualConstraints< T , PointD >( tp , samples , constraintDual , adaptiveExponent );
+		return a;
+	}
+	template< typename T , typename Data , unsigned int PointD , typename ConstraintDual , typename SystemDual >
+	static ApproximatePointAndDataInterpolationInfo< T , Data , PointD , ConstraintDual , SystemDual >* InitializeApproximatePointAndDataInterpolationInfo( ThreadPool &tp , const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm , int adaptiveExponent )
+	{
+		ApproximatePointAndDataInterpolationInfo< T , Data , PointD , ConstraintDual , SystemDual >* a = new ApproximatePointAndDataInterpolationInfo< T , Data , PointD , ConstraintDual , SystemDual >( constraintDual , systemDual , constrainsDCTerm );
+		a->_iData = tree._densifyInterpolationInfoAndSetDualConstraints< T , Data , PointD >( tp , samples , sampleData , constraintDual , adaptiveExponent );
+		return a;
+	}
+	template< typename T , unsigned int PointD , typename ConstraintDual , typename SystemDual >
+	static ApproximateChildPointInterpolationInfo< T , PointD , ConstraintDual , SystemDual >* InitializeApproximateChildPointInterpolationInfo( ThreadPool &tp , const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm , bool noRescale  )
+	{
+		ApproximateChildPointInterpolationInfo< T , PointD , ConstraintDual , SystemDual >* a = new ApproximateChildPointInterpolationInfo< T , PointD , ConstraintDual , SystemDual >( constraintDual , systemDual , constrainsDCTerm );
+		a->_iData = tree._densifyChildInterpolationInfoAndSetDualConstraints< T , PointD >( tp , samples , constraintDual , noRescale );
+		return a;
+	}
+	template< typename T , typename Data , unsigned int PointD , typename ConstraintDual , typename SystemDual >
+	static ApproximateChildPointAndDataInterpolationInfo< T , Data , PointD , ConstraintDual , SystemDual >* InitializeApproximateChildPointAndDataInterpolationInfo( ThreadPool &tp , const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm , bool noRescale  )
+	{
+		ApproximateChildPointAndDataInterpolationInfo< T , Data , PointD , ConstraintDual , SystemDual >* a = new ApproximateChildPointAndDataInterpolationInfo< T , Data , PointD , ConstraintDual , SystemDual >( constraintDual , systemDual , constrainsDCTerm );
+		a->_iData = tree._densifyChildInterpolationInfoAndSetDualConstraints< T , Data , PointD >( tp , samples , sampleData , constraintDual , noRescale );
+		return a;
+	}
+
+#else // !NEW_THREADS
 	template< typename T , unsigned int PointD , typename ConstraintDual , typename SystemDual >
 	static ApproximatePointInterpolationInfo< T , PointD , ConstraintDual , SystemDual >* InitializeApproximatePointInterpolationInfo( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm , int adaptiveExponent )
 	{
@@ -2094,6 +2228,38 @@ public:
 		a->_iData = tree._densifyChildInterpolationInfoAndSetDualConstraints< T , Data , PointD >( samples , sampleData , constraintDual , noRescale );
 		return a;
 	}
+#endif // NEW_THREADS
+
+#ifdef NEW_THREADS
+#if !defined( FORCE_PARALLEL )
+	template< typename T , unsigned int PointD , typename ConstraintDual , typename SystemDual >
+	static ExactPointInterpolationInfo< T , PointD , ConstraintDual , SystemDual >* InitializeExactPointInterpolationInfo( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm , bool noRescale )
+	{
+		ThreadPool tp;
+		return InitializeExactPointInterpolationInfo( tp , tree , samples , constraintDual , systemDual , constrainsDCTerm , noRescale );
+	}
+	template< typename T , typename Data , unsigned int PointD , typename ConstraintDual , typename SystemDual >
+	static ExactPointAndDataInterpolationInfo< T , Data , PointD , ConstraintDual , SystemDual >* InitializeExactPointAndDataInterpolationInfo( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm , bool noRescale )
+	{
+		ThreadPool tp;
+		return InitializeExactPointAndDataInterpolationInfo( tp , tree , samples , sampleData , constraintDual , systemDual , constrainsDCTerm , noRescale );
+	}
+#endif // !FORCE_PARALLEL
+	template< typename T , unsigned int PointD , typename ConstraintDual , typename SystemDual >
+	static ExactPointInterpolationInfo< T , PointD , ConstraintDual , SystemDual >* InitializeExactPointInterpolationInfo( ThreadPool &tp , const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm , bool noRescale )
+	{
+		ExactPointInterpolationInfo< T , PointD , ConstraintDual , SystemDual >* e = new ExactPointInterpolationInfo< T , PointD , ConstraintDual , SystemDual >( constraintDual , systemDual , constrainsDCTerm );
+		e->_init( tp , tree , samples , noRescale );
+		return e;
+	}
+	template< typename T , typename Data , unsigned int PointD , typename ConstraintDual , typename SystemDual >
+	static ExactPointAndDataInterpolationInfo< T , Data , PointD , ConstraintDual , SystemDual >* InitializeExactPointAndDataInterpolationInfo( ThreadPool &tp , const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm , bool noRescale )
+	{
+		ExactPointAndDataInterpolationInfo< T , Data , PointD , ConstraintDual , SystemDual >* e = new ExactPointAndDataInterpolationInfo< T , Data , PointD , ConstraintDual , SystemDual >( constraintDual , systemDual , constrainsDCTerm );
+		e->_init( tp , tree , samples , sampleData , noRescale );
+		return e;
+	}
+#else // !NEW_THREADS
 	template< typename T , unsigned int PointD , typename ConstraintDual , typename SystemDual >
 	static ExactPointInterpolationInfo< T , PointD , ConstraintDual , SystemDual >* InitializeExactPointInterpolationInfo( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , ConstraintDual constraintDual , SystemDual systemDual , bool constrainsDCTerm , bool noRescale )
 	{
@@ -2108,6 +2274,7 @@ public:
 		e->_init( tree , samples , sampleData , noRescale );
 		return e;
 	}
+#endif // NEW_THREADS
 
 	template< typename T , unsigned int PointD , typename ConstraintDual , typename SystemDual > friend struct ExactPointInterpolationInfo;
 	template< typename T , typename Data , unsigned int PointD , typename ConstraintDual , typename SystemDual > friend struct ExactPointAndDataInterpolationInfo;
@@ -2301,13 +2468,28 @@ protected:
 	/////////////////////////////////////
 public:
 #ifdef NEW_CODE
+#ifdef NEW_THREADS
+#if !defined( FORCE_PARALLEL )
+	template< unsigned int ... FEMSigs > void setMultiColorIndices( UIntPack< FEMSigs ... > , int depth , std::vector< std::vector< size_t > >& indices ) const
+	{
+		ThreadPool tp;
+		return setMultiColorIndices( UIntPack< FEMSigs ... >() , tp , depth , indices );
+	}
+#endif // !FORCE_PARALLEL
+	template< unsigned int ... FEMSigs > void setMultiColorIndices( UIntPack< FEMSigs ... > , ThreadPool &tp , int depth , std::vector< std::vector< size_t > >& indices ) const;
+#else // !NEW_THREADS
 	template< unsigned int ... FEMSigs > void setMultiColorIndices( UIntPack< FEMSigs ... > , int depth , std::vector< std::vector< size_t > >& indices ) const;
+#endif // NEW_THREADS
 #else // !NEW_CODE
 	template< unsigned int ... FEMSigs > void setMultiColorIndices( UIntPack< FEMSigs ... > , int depth , std::vector< std::vector< int > >& indices ) const;
 #endif // NEW_CODE
 protected:
 #ifdef NEW_CODE
+#ifdef NEW_THREADS
+	template< unsigned int ... FEMSigs > void _setMultiColorIndices( UIntPack< FEMSigs ... > , ThreadPool &tp , node_index_type start , node_index_type end , std::vector< std::vector< size_t > >& indices ) const;
+#else // !NEW_THREADS
 	template< unsigned int ... FEMSigs > void _setMultiColorIndices( UIntPack< FEMSigs ... > , node_index_type start , node_index_type end , std::vector< std::vector< size_t > >& indices ) const;
+#endif // NEW_THREADS
 #else // !NEW_CODE
 	template< unsigned int ... FEMSigs > void _setMultiColorIndices( UIntPack< FEMSigs ... > , int start , int end , std::vector< std::vector< int > >& indices ) const;
 #endif // NEW_CODE
@@ -2336,6 +2518,16 @@ protected:
 	template< unsigned int ... FEMSigs , typename T , unsigned int PointD >
 	void _addProlongedPointValues( UIntPack< FEMSigs ... > , WindowSlice< Real , UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > > pointValues , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , const InterpolationInfo< T , PointD >* iInfo ) const;
 
+#ifdef NEW_THREADS
+	template< unsigned int ... FEMSigs , typename T , unsigned int PointD , unsigned int ... PointDs >
+	typename std::enable_if< (sizeof...(PointDs)!=0) >::type _setPointValuesFromProlongedSolution( ThreadPool &tp , LocalDepth highDepth , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , ConstPointer( T ) prolongedSolution , InterpolationInfo< T , PointD >* iInfo , InterpolationInfo< T , PointDs >* ... iInfos ) const
+	{
+		_setPointValuesFromProlongedSolution( tp , highDepth , bsData , prolongedSolution , iInfo ) , _setPointValuesFromProlongedSolution( tp , highDepth , bsData , prolongedSolution , iInfos... );
+	}
+	template< unsigned int ... FEMSigs , typename T > void _setPointValuesFromProlongedSolution( ThreadPool &tp , LocalDepth highDepth , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , ConstPointer( T ) prolongedSolution ) const { }
+	template< unsigned int ... FEMSigs , typename T , unsigned int PointD >
+	void _setPointValuesFromProlongedSolution( ThreadPool &tp , LocalDepth highDepth , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , ConstPointer( T ) prolongedSolution , InterpolationInfo< T , PointD >* interpolationInfo ) const;
+#else // !NEW_THREADS
 	template< unsigned int ... FEMSigs , typename T , unsigned int PointD , unsigned int ... PointDs >
 	typename std::enable_if< (sizeof...(PointDs)!=0) >::type _setPointValuesFromProlongedSolution( LocalDepth highDepth , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , ConstPointer( T ) prolongedSolution , InterpolationInfo< T , PointD >* iInfo , InterpolationInfo< T , PointDs >* ... iInfos ) const
 	{
@@ -2344,6 +2536,7 @@ protected:
 	template< unsigned int ... FEMSigs , typename T > void _setPointValuesFromProlongedSolution( LocalDepth highDepth , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , ConstPointer( T ) prolongedSolution ) const { }
 	template< unsigned int ... FEMSigs , typename T , unsigned int PointD >
 	void _setPointValuesFromProlongedSolution( LocalDepth highDepth , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , ConstPointer( T ) prolongedSolution , InterpolationInfo< T , PointD >* interpolationInfo ) const;
+#endif // NEW_THREADS
 
 	template< unsigned int ... FEMSigs , typename T , unsigned int PointD , unsigned int ... PointDs >
 	typename std::enable_if< (sizeof...(PointDs)!=0) , T >::type _getInterpolationConstraintFromProlongedSolution( const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , const FEMTreeNode* node , ConstPointer( T ) prolongedSolution , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , const InterpolationInfo< T , PointD >* iInfo , const InterpolationInfo< T , PointDs >* ... iInfos ) const
@@ -2354,6 +2547,16 @@ protected:
 	template< unsigned int ... FEMSigs , typename T , unsigned int PointD >
 	T _getInterpolationConstraintFromProlongedSolution( const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , const FEMTreeNode* node , ConstPointer( T ) prolongedSolution , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , const InterpolationInfo< T , PointD >* iInfo ) const;
 
+#ifdef NEW_THREADS
+	template< unsigned int ... FEMSigs , typename T , unsigned int PointD , unsigned int ... PointDs >
+	typename std::enable_if< (sizeof...(PointDs)!=0) >::type _updateRestrictedInterpolationConstraints( ThreadPool &tp , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth highDepth , ConstPointer( T ) solution , Pointer( T ) cumulativeConstraints , const InterpolationInfo< T , PointD >* iInfo , const InterpolationInfo< T , PointDs >* ... iInfos ) const 
+	{
+		_updateRestrictedInterpolationConstraints( tp , bsData , highDepth , solution , cumulativeConstraints , iInfo ) , _updateRestrictedInterpolationConstraints( tp , bsData , highDepth , solution , cumulativeConstraints , iInfos... );
+	}
+	template< unsigned int ... FEMSigs , typename T > void _updateRestrictedInterpolationConstraints( ThreadPool &tp , PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth highDepth , ConstPointer( T ) solution , Pointer( T ) cumulativeConstraints ) const { ; }
+	template< unsigned int ... FEMSigs , typename T , unsigned int PointD >
+	void _updateRestrictedInterpolationConstraints( ThreadPool &tp , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth highDepth , ConstPointer( T ) solution , Pointer( T ) cumulativeConstraints , const InterpolationInfo< T , PointD >* interpolationInfo ) const;
+#else // !NEW_THREADS
 	template< unsigned int ... FEMSigs , typename T , unsigned int PointD , unsigned int ... PointDs >
 	typename std::enable_if< (sizeof...(PointDs)!=0) >::type _updateRestrictedInterpolationConstraints( const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth highDepth , ConstPointer( T ) solution , Pointer( T ) cumulativeConstraints , const InterpolationInfo< T , PointD >* iInfo , const InterpolationInfo< T , PointDs >* ... iInfos ) const 
 	{
@@ -2362,6 +2565,7 @@ protected:
 	template< unsigned int ... FEMSigs , typename T > void _updateRestrictedInterpolationConstraints( PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth highDepth , ConstPointer( T ) solution , Pointer( T ) cumulativeConstraints ) const { ; }
 	template< unsigned int ... FEMSigs , typename T , unsigned int PointD >
 	void _updateRestrictedInterpolationConstraints( const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth highDepth , ConstPointer( T ) solution , Pointer( T ) cumulativeConstraints , const InterpolationInfo< T , PointD >* interpolationInfo ) const;
+#endif // NEW_THREADS
 
 	template< unsigned int FEMDegree1 , unsigned int FEMDegree2 > static void _SetParentOverlapBounds( const FEMTreeNode* node , int start[Dim] , int end[Dim] );
 	template< unsigned int FEMDegree1 , unsigned int FEMDegree2 > static void _SetParentOverlapBounds( int cIdx , int start[Dim] , int end[Dim] );
@@ -2416,6 +2620,22 @@ protected:
 	template< unsigned int ... FEMSigs , typename T , unsigned int ... PointDs >
 	T _getConstraintFromProlongedSolution( UIntPack< FEMSigs ... > , const BaseSystem< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& neighbors , const typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& pNeighbors , const FEMTreeNode* node , ConstPointer( T ) prolongedSolution , const DynamicWindow< double , UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >& stencil , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
 
+#ifdef NEW_THREADS
+	template< unsigned int ... FEMSigs , typename T , typename TDotT , typename SORWeights , unsigned int ... PointDs >
+	int _solveFullSystemGS( UIntPack< FEMSigs ... > , ThreadPool &tp , const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) prolongedSolution , ConstPointer( T ) constraints , TDotT Dot , int iters , bool coarseToFine , SORWeights sorWeights , _SolverStats& stats , bool computeNorms , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
+	template< unsigned int ... FEMSigs , typename T , typename TDotT , typename SORWeights , unsigned int ... PointDs >
+	int _solveSlicedSystemGS( UIntPack< FEMSigs ... > , ThreadPool &p , const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) prolongedSolution , ConstPointer( T ) constraints , TDotT Dot , int iters , bool coarseToFine , unsigned int sliceBlockSize , SORWeights sorWeights , _SolverStats& stats , bool computeNorms , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
+	template< unsigned int ... FEMSigs , typename T , typename TDotT , typename SORWeights , unsigned int ... PointDs >
+	int _solveSystemGS( UIntPack< FEMSigs ... > , ThreadPool &tp , bool sliced , const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) prolongedSolution , ConstPointer( T ) constraints , TDotT Dot , int iters , bool coarseToFine , unsigned int sliceBlockSize , SORWeights sorWeights , _SolverStats& stats , bool computeNorms , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+	{
+		if( sliced ) return _solveSlicedSystemGS( UIntPack< FEMSigs ... >() , tp , F , bsData , depth , solution , prolongedSolution , constraints , Dot , iters , coarseToFine , sliceBlockSize , sorWeights , stats , computeNorms , interpolationInfo ... );
+		else         return _solveFullSystemGS  ( UIntPack< FEMSigs ... >() , tp , F , bsData , depth , solution , prolongedSolution , constraints , Dot , iters , coarseToFine ,                  sorWeights , stats , computeNorms , interpolationInfo ... );
+	}
+	template< unsigned int ... FEMSigs , typename T , typename TDotT , unsigned int ... PointDs >
+	int _solveSystemCG( UIntPack< FEMSigs ... > , ThreadPool &tp , const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) prolongedSolution , ConstPointer( T ) constraints , TDotT Dot , int iters , bool coarseToFine , _SolverStats& stats , bool computeNorms , double cgAccuracy , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
+	template< unsigned int ... FEMSigs , typename T , typename TDotT , unsigned int ... PointDs >
+	void _solveRegularMG( UIntPack< FEMSigs ... > , ThreadPool &tp , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) constraints , TDotT Dot , int vCycles , int iters , _SolverStats& stats , bool computeNorms , double cgAccuracy , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
+#else // !NEW_THREADS
 	template< unsigned int ... FEMSigs , typename T , typename TDotT , typename SORWeights , unsigned int ... PointDs >
 	int _solveFullSystemGS( UIntPack< FEMSigs ... > , const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) prolongedSolution , ConstPointer( T ) constraints , TDotT Dot , int iters , bool coarseToFine , SORWeights sorWeights , _SolverStats& stats , bool computeNorms , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
 	template< unsigned int ... FEMSigs , typename T , typename TDotT , typename SORWeights , unsigned int ... PointDs >
@@ -2430,10 +2650,15 @@ protected:
 	int _solveSystemCG( UIntPack< FEMSigs ... > , const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) prolongedSolution , ConstPointer( T ) constraints , TDotT Dot , int iters , bool coarseToFine , _SolverStats& stats , bool computeNorms , double cgAccuracy , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
 	template< unsigned int ... FEMSigs , typename T , typename TDotT , unsigned int ... PointDs >
 	void _solveRegularMG( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , Pointer( T ) solution , ConstPointer( T ) constraints , TDotT Dot , int vCycles , int iters , _SolverStats& stats , bool computeNorms , double cgAccuracy , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
+#endif // NEW_THREADS
 
 	// Updates the cumulative integral constraints @(depth-1) based on the change in solution coefficients @(depth)
 	template< unsigned int ... FEMSigs , typename T >
+#ifdef NEW_THREADS
+	void _updateRestrictedIntegralConstraints( UIntPack< FEMSigs ... > , ThreadPool &tp , const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth highDepth , ConstPointer( T ) solution , Pointer( T ) cumulativeConstraints ) const;
+#else // !NEW_THREADS
 	void _updateRestrictedIntegralConstraints( UIntPack< FEMSigs ... > , const typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth highDepth , ConstPointer( T ) solution , Pointer( T ) cumulativeConstraints ) const;
+#endif // NEW_THREADS
 
 	template< unsigned int PointD , typename T , unsigned int ... FEMSigs >
 	CumulativeDerivativeValues< T , Dim , PointD > _coarserFunctionValues( UIntPack< FEMSigs ... > , Point< Real , Dim > p , const ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& neighborKey , const FEMTreeNode* node , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , ConstPointer( T ) coefficients ) const;
@@ -2442,28 +2667,80 @@ protected:
 
 	template< unsigned int ... FEMSigs , typename T , unsigned int ... PointDs >
 #ifdef NEW_CODE
+#ifdef NEW_THREADS
+	int _getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... > , ThreadPool &tp , const BaseSystem< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , SparseMatrix< Real , matrix_index_type , WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size >& matrix , Pointer( Real ) diagonalR , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , node_index_type nBegin , node_index_type nEnd , ConstPointer( T ) prolongedSolution , Pointer( T ) constraints , const CCStencil < UIntPack< FEMSignature< FEMSigs >::Degree ... > >& ccStencil , const PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& pcStencils , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
+#else // !NEW_THREADS
 	int _getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... > , const BaseSystem< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , SparseMatrix< Real , matrix_index_type , WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size >& matrix , Pointer( Real ) diagonalR , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , node_index_type nBegin , node_index_type nEnd , ConstPointer( T ) prolongedSolution , Pointer( T ) constraints , const CCStencil < UIntPack< FEMSignature< FEMSigs >::Degree ... > >& ccStencil , const PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& pcStencils , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
+#endif // NEW_THREADS
 #else // !NEW_CODE
 	int _getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... > , const BaseSystem< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , SparseMatrix< Real , int , WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size >& matrix , Pointer( Real ) diagonalR , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , int nBegin , int nEnd , ConstPointer( T ) prolongedSolution , Pointer( T ) constraints , const CCStencil < UIntPack< FEMSignature< FEMSigs >::Degree ... > >& ccStencil , const PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& pcStencils , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
 #endif // NEW_CODE
 
+#ifdef NEW_THREADS
+	// Down samples constraints @(depth) to constraints @(depth-1)
+	template< class C , unsigned ... Degrees , unsigned int ... FEMSigs > void _downSample( UIntPack< FEMSigs ... > , ThreadPool &tp , typename BaseFEMIntegrator::template RestrictionProlongation< UIntPack< Degrees ... > >& RP , LocalDepth highDepth , Pointer( C ) constraints ) const;
+	// Up samples coefficients @(depth-1) to coefficients @(depth)
+	template< class C , unsigned ... Degrees , unsigned int ... FEMSigs > void _upSample( UIntPack< FEMSigs ... > , ThreadPool &tp , typename BaseFEMIntegrator::template RestrictionProlongation< UIntPack< Degrees ... > >& RP , LocalDepth highDepth , Pointer( C ) coefficients ) const;
+#else // !NEW_THREADS
 	// Down samples constraints @(depth) to constraints @(depth-1)
 	template< class C , unsigned ... Degrees , unsigned int ... FEMSigs > void _downSample( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template RestrictionProlongation< UIntPack< Degrees ... > >& RP , LocalDepth highDepth , Pointer( C ) constraints ) const;
 	// Up samples coefficients @(depth-1) to coefficients @(depth)
 	template< class C , unsigned ... Degrees , unsigned int ... FEMSigs > void _upSample( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template RestrictionProlongation< UIntPack< Degrees ... > >& RP , LocalDepth highDepth , Pointer( C ) coefficients ) const;
+#endif // NEW_THREADS
 
+#ifdef NEW_THREADS
+	template< bool XMajor , class C , unsigned int ... FEMSigs > static void _RegularGridUpSample( UIntPack< FEMSigs ... > , ThreadPool &tp ,                                                                                           LocalDepth highDepth , ConstPointer( C ) lowCoefficients , Pointer( C ) highCoefficients );
+	template< bool XMajor , class C , unsigned int ... FEMSigs > static void _RegularGridUpSample( UIntPack< FEMSigs ... > , ThreadPool &tp , const int lowBegin[] , const int lowEnd[] , const int highBegin[] , const int highEnd[] , LocalDepth highDepth , ConstPointer( C ) lowCoefficients , Pointer( C ) highCoefficients );
+#else // !NEW_THREADS
 	template< bool XMajor , class C , unsigned int ... FEMSigs > static void _RegularGridUpSample( UIntPack< FEMSigs ... > ,                                                                                           LocalDepth highDepth , ConstPointer( C ) lowCoefficients , Pointer( C ) highCoefficients );
 	template< bool XMajor , class C , unsigned int ... FEMSigs > static void _RegularGridUpSample( UIntPack< FEMSigs ... > , const int lowBegin[] , const int lowEnd[] , const int highBegin[] , const int highEnd[] , LocalDepth highDepth , ConstPointer( C ) lowCoefficients , Pointer( C ) highCoefficients );
+#endif // NEW_THREADS
 public:
+#ifdef NEW_THREADS
+#if !defined( FORCE_PARALLEL )
+	template< class C , unsigned int ... FEMSigs > DenseNodeData< C , UIntPack< FEMSigs ... > > coarseCoefficients( const  DenseNodeData< C , UIntPack< FEMSigs ... > >& coefficients ) const
+	{
+		ThreadPool tp;
+		return coarseCoefficients( tp , coefficients );
+	}
+	template< class C , unsigned int ... FEMSigs > DenseNodeData< C , UIntPack< FEMSigs ... > > coarseCoefficients( const SparseNodeData< C , UIntPack< FEMSigs ... > >& coefficients ) const
+	{
+		ThreadPool tp;
+		return coarseCoefficients( tp , coefficients );
+	}
+#endif // !FORCE_PARALLEL
+
+	template< class C , unsigned int ... FEMSigs > DenseNodeData< C , UIntPack< FEMSigs ... > > coarseCoefficients( ThreadPool &tp , const  DenseNodeData< C , UIntPack< FEMSigs ... > >& coefficients ) const;
+	template< class C , unsigned int ... FEMSigs > DenseNodeData< C , UIntPack< FEMSigs ... > > coarseCoefficients( ThreadPool &tp , const SparseNodeData< C , UIntPack< FEMSigs ... > >& coefficients ) const;
+#else // !NEW_THREADS
 	template< class C , unsigned int ... FEMSigs > DenseNodeData< C , UIntPack< FEMSigs ... > > coarseCoefficients( const  DenseNodeData< C , UIntPack< FEMSigs ... > >& coefficients ) const;
 	template< class C , unsigned int ... FEMSigs > DenseNodeData< C , UIntPack< FEMSigs ... > > coarseCoefficients( const SparseNodeData< C , UIntPack< FEMSigs ... > >& coefficients ) const;
+#endif // NEW_THREADS
 
+
+#ifdef NEW_THREADS
 	// For each (valid) fem node, compute the ratio of the sum of active prolongation weights to the sum of total prolongation weights
 	// If the prolongToChildren flag is set, then these weights are pushed to the children by computing the ratio of the prolongation of the above weights to the prolongation of unity weights 
-	template< unsigned int ... FEMSigs > DenseNodeData< Real , UIntPack< FEMSigs ... > > prolongationWeights( UIntPack< FEMSigs ... > , bool prolongToChildren ) const;
+#if !defined( FORCE_PARALLEL )
+	template< unsigned int ... FEMSigs > DenseNodeData< Real , UIntPack< FEMSigs ... > > prolongationWeights( UIntPack< FEMSigs ... > , bool prolongToChildren ) const
+	{
+		ThreadPool tp;
+		return prolongationWeights( UIntPack< FEMSigs ... >() , tp , prolongToChildren );
+	}
+	// For each (valid) fem node, compute the integral of the basis function over the valid space nodes over the integral of the basis function
+	template< unsigned int ... FEMSigs > DenseNodeData< Real , UIntPack< FEMSigs ... > > supportWeights( UIntPack< FEMSigs ... > ) const
+	{
+		ThreadPool tp;
+		return supportWeights( UIntPack< FEMSigs ... >() , tp );
+	}
+#endif // !FORCE_PARALLEL
 
+	template< unsigned int ... FEMSigs > DenseNodeData< Real , UIntPack< FEMSigs ... > > supportWeights( UIntPack< FEMSigs ... > , ThreadPool &tp ) const;
+	template< unsigned int ... FEMSigs > DenseNodeData< Real , UIntPack< FEMSigs ... > > prolongationWeights( UIntPack< FEMSigs ... > , ThreadPool &tp , bool prolongToChildren ) const;
+#else // !NEW_THREADS
 	// For each (valid) fem node, compute the integral of the basis function over the valid space nodes over the integral of the basis function
 	template< unsigned int ... FEMSigs > DenseNodeData< Real , UIntPack< FEMSigs ... > > supportWeights( UIntPack< FEMSigs ... > ) const;
+#endif // NEW_THREADS
 protected:
 
 	//////////////////////////////////////////////
@@ -2485,11 +2762,47 @@ protected:
 	template< unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real _nearestMultiSplatPointData( const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , int dim=Dim );
 	template< class V , class Coefficients , unsigned int D , unsigned int ... DataSigs > V _evaluate( const Coefficients& coefficients , Point< Real , Dim > p , const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey ) const;
 public:
+#ifdef NEW_THREADS
+#if !defined( FORCE_PARALLEL )
+	template< bool XMajor , class V , unsigned int ... DataSigs > Pointer( V ) regularGridEvaluate( const DenseNodeData< V , UIntPack< DataSigs ... > >& coefficients , int& res , LocalDepth depth=-1 , bool primal=false ) const
+	{
+		ThreadPool tp;
+		return regularGridEvaluate( tp , coefficients , res , depth , primal );
+	}
+	template< bool XMajor , class V , unsigned int ... DataSigs > Pointer( V ) regularGridUpSample( const DenseNodeData< V , UIntPack< DataSigs ... > >& coefficients , LocalDepth depth=-1 ) const
+	{
+		ThreadPool tp;
+		return regularGridUpSample( tp , coefficients , depth );
+	}
+	template< bool XMajor , class V , unsigned int ... DataSigs > Pointer( V ) regularGridUpSample( const DenseNodeData< V , UIntPack< DataSigs ... > >& coefficients , const int begin[Dim] , const int end[Dim] , LocalDepth depth=-1 ) const
+	{
+		ThreadPool tp;
+		return regularGridUpSample( tp , coefficients , begin , end );
+	}
+	template< class V , unsigned int ... DataSigs > V average( const DenseNodeData< V , UIntPack< DataSigs ... > >& coefficients ) const
+	{
+		ThreadPool tp;
+		return average( tp , coefficients );
+	}
+	template< class V , unsigned int ... DataSigs > V average( const DenseNodeData< V , UIntPack< DataSigs ... > >& coefficients , const Real begin[Dim] , const Real end[Dim] ) const
+	{
+		ThreadPool tp;
+		return average( tp , coefficients , begin , end );
+	}
+#endif // !FORCE_PARALLEL
+
+	template< bool XMajor , class V , unsigned int ... DataSigs > Pointer( V ) regularGridEvaluate( ThreadPool &tp , const DenseNodeData< V , UIntPack< DataSigs ... > >& coefficients , int& res , LocalDepth depth=-1 , bool primal=false ) const;
+	template< bool XMajor , class V , unsigned int ... DataSigs > Pointer( V ) regularGridUpSample( ThreadPool &tp , const DenseNodeData< V , UIntPack< DataSigs ... > >& coefficients , LocalDepth depth=-1 ) const;
+	template< bool XMajor , class V , unsigned int ... DataSigs > Pointer( V ) regularGridUpSample( ThreadPool &tp , const DenseNodeData< V , UIntPack< DataSigs ... > >& coefficients , const int begin[Dim] , const int end[Dim] , LocalDepth depth=-1 ) const;
+	template< class V , unsigned int ... DataSigs > V average( ThreadPool &tp , const DenseNodeData< V , UIntPack< DataSigs ... > >& coefficients ) const;
+	template< class V , unsigned int ... DataSigs > V average( ThreadPool &tp , const DenseNodeData< V , UIntPack< DataSigs ... > >& coefficients , const Real begin[Dim] , const Real end[Dim] ) const;
+#else // !NEW_THREADS
 	template< bool XMajor , class V , unsigned int ... DataSigs > Pointer( V ) regularGridEvaluate( const DenseNodeData< V , UIntPack< DataSigs ... > >& coefficients , int& res , LocalDepth depth=-1 , bool primal=false ) const;
 	template< bool XMajor , class V , unsigned int ... DataSigs > Pointer( V ) regularGridUpSample( const DenseNodeData< V , UIntPack< DataSigs ... > >& coefficients , LocalDepth depth=-1 ) const;
 	template< bool XMajor , class V , unsigned int ... DataSigs > Pointer( V ) regularGridUpSample( const DenseNodeData< V , UIntPack< DataSigs ... > >& coefficients , const int begin[Dim] , const int end[Dim] , LocalDepth depth=-1 ) const;
 	template< class V , unsigned int ... DataSigs > V average( const DenseNodeData< V , UIntPack< DataSigs ... > >& coefficients ) const;
 	template< class V , unsigned int ... DataSigs > V average( const DenseNodeData< V , UIntPack< DataSigs ... > >& coefficients , const Real begin[Dim] , const Real end[Dim] ) const;
+#endif // NEW_THREADS
 	template< typename T > struct HasNormalDataFunctor{};
 	template< unsigned int ... NormalSigs >
 	struct HasNormalDataFunctor< UIntPack< NormalSigs ... > >
@@ -2512,18 +2825,45 @@ public:
 protected:
 	// [NOTE] The input/output for this method is pre-scaled by weight
 	template< typename T > bool _setInterpolationInfoFromChildren( FEMTreeNode* node , SparseNodeData< T , IsotropicUIntPack< Dim , FEMTrivialSignature > >& iInfo ) const;
+#ifdef NEW_THREADS
+	template< typename T ,                 unsigned int PointD , typename ConstraintDual > SparseNodeData< DualPointInfo       < Dim , Real ,        T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > _densifyInterpolationInfoAndSetDualConstraints( ThreadPool &tp , const std::vector< PointSample >& samples ,                                   ConstraintDual constraintDual , int adaptiveExponent ) const;
+	template< typename T , typename Data , unsigned int PointD , typename ConstraintDual > SparseNodeData< DualPointAndDataInfo< Dim , Real , Data , T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > _densifyInterpolationInfoAndSetDualConstraints( ThreadPool &tp , const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , ConstraintDual constraintDual , int adaptiveExponent ) const;
+	template< typename T ,                 unsigned int PointD , typename ConstraintDual > SparseNodeData< DualPointInfoBrood       < Dim , Real ,        T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > _densifyChildInterpolationInfoAndSetDualConstraints( ThreadPool &tp , const std::vector< PointSample >& samples ,                                   ConstraintDual constraintDual , bool noRescale ) const;
+	template< typename T , typename Data , unsigned int PointD , typename ConstraintDual > SparseNodeData< DualPointAndDataInfoBrood< Dim , Real , Data , T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > _densifyChildInterpolationInfoAndSetDualConstraints( ThreadPool &tp , const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , ConstraintDual constraintDual , bool noRescale ) const;
+#else // !NEW_THREADS
 	template< typename T ,                 unsigned int PointD , typename ConstraintDual > SparseNodeData< DualPointInfo       < Dim , Real ,        T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > _densifyInterpolationInfoAndSetDualConstraints( const std::vector< PointSample >& samples ,                                   ConstraintDual constraintDual , int adaptiveExponent ) const;
 	template< typename T , typename Data , unsigned int PointD , typename ConstraintDual > SparseNodeData< DualPointAndDataInfo< Dim , Real , Data , T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > _densifyInterpolationInfoAndSetDualConstraints( const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , ConstraintDual constraintDual , int adaptiveExponent ) const;
 	template< typename T ,                 unsigned int PointD , typename ConstraintDual > SparseNodeData< DualPointInfoBrood       < Dim , Real ,        T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > _densifyChildInterpolationInfoAndSetDualConstraints( const std::vector< PointSample >& samples ,                                   ConstraintDual constraintDual , bool noRescale ) const;
 	template< typename T , typename Data , unsigned int PointD , typename ConstraintDual > SparseNodeData< DualPointAndDataInfoBrood< Dim , Real , Data , T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > _densifyChildInterpolationInfoAndSetDualConstraints( const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , ConstraintDual constraintDual , bool noRescale ) const;
+#endif // NEW_THREADS
 
+#ifdef NEW_THREADS
+	void _setSpaceValidityFlags( ThreadPool &tp ) const;
+	template< unsigned int ... FEMSigs  > void _setRefinabilityFlags( UIntPack< FEMSigs  ... > , ThreadPool &tp ) const;
+#else // !NEW_THREADS
 	void _setSpaceValidityFlags( void ) const;
+	template< unsigned int ... FEMSigs  > void _setRefinabilityFlags( UIntPack< FEMSigs  ... > ) const;
+#endif // NEW_THREADS
 	template< unsigned int ... FEMSigs1 > void _setFEM1ValidityFlags( UIntPack< FEMSigs1 ... > ) const;
 	template< unsigned int ... FEMSigs2 > void _setFEM2ValidityFlags( UIntPack< FEMSigs2 ... > ) const;
-	template< unsigned int ... FEMSigs  > void _setRefinabilityFlags( UIntPack< FEMSigs  ... > ) const;
+#ifdef NEW_THREADS
+	template< class HasDataFunctor > void _clipTree( ThreadPool &tp , const HasDataFunctor& f , LocalDepth fullDepth );
+#else // !NEW_THREADS
 	template< class HasDataFunctor > void _clipTree( const HasDataFunctor& f , LocalDepth fullDepth );
+#endif // NEW_THREADS
 public:
+#ifdef NEW_THREADS
+#if !defined( FORCE_PARALLEL )
+	template< unsigned int PointD , unsigned int ... FEMSigs > SparseNodeData< CumulativeDerivativeValues< Real , Dim , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > leafValues( const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , int maxDepth=-1 ) const
+	{
+		ThreadPool tp;
+		return leafValues( tp , coefficients , maxDepth );
+	}
+#endif // !FORCE_PARALLEL
+	template< unsigned int PointD , unsigned int ... FEMSigs > SparseNodeData< CumulativeDerivativeValues< Real , Dim , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > leafValues( ThreadPool &tp , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , int maxDepth=-1 ) const;
+#else // !NEW_THREADS
 	template< unsigned int PointD , unsigned int ... FEMSigs > SparseNodeData< CumulativeDerivativeValues< Real , Dim , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > leafValues( const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , int maxDepth=-1 ) const;
+#endif // NEW_THREADS
 protected:
 
 	/////////////////////////////////////
@@ -2651,8 +2991,15 @@ public:
 		_Evaluator< FEMSignatures , PointD > _evaluator;
 		const DenseNodeData< T , FEMSignatures >& _coefficients;
 		DenseNodeData< T , FEMSignatures > _coarseCoefficients;
+#ifdef NEW_THREADS
+		ThreadPool &_tp;
+#endif // NEW_THREADS
 	public:
+#ifdef NEW_THREADS
+		_MultiThreadedEvaluator( ThreadPool &tp , const FEMTree* tree , const DenseNodeData< T , FEMSignatures >& coefficients , int threads=omp_get_max_threads() );
+#else // !NEW_THREADS
 		_MultiThreadedEvaluator( const FEMTree* tree , const DenseNodeData< T , FEMSignatures >& coefficients , int threads=omp_get_max_threads() );
+#endif // NEW_THREADS
 		template< unsigned int _PointD=PointD > CumulativeDerivativeValues< T , Dim , _PointD > values( Point< Real , Dim > p , int thread=0 , const FEMTreeNode* node=NULL );
 		template< unsigned int _PointD=PointD > CumulativeDerivativeValues< T , Dim , _PointD > centerValues( const FEMTreeNode* node , int thread=0 );
 		template< unsigned int _PointD=PointD > CumulativeDerivativeValues< T , Dim , _PointD > cornerValues( const FEMTreeNode* node , int corner , int thread=0 );
@@ -2734,6 +3081,35 @@ public:
 	template< unsigned int LeftRadius , unsigned int RightRadius , class IsThickenNode , class ... DenseOrSparseNodeData > void thicken( IsThickenNode F , DenseOrSparseNodeData* ... data );
 	template< unsigned int Radius , class ... DenseOrSparseNodeData > void thicken( FEMTreeNode** nodes , size_t nodeCount , DenseOrSparseNodeData* ... data ){ thicken< Radius , Radius >( nodes , nodeCount , data ... ); }
 	template< unsigned int Radius , class IsThickenNode , class ... DenseOrSparseNodeData > void thicken( IsThickenNode F , DenseOrSparseNodeData* ... data ){ thicken< Radius , Radius >( F , data ... ); }
+#ifdef NEW_THREADS
+#if !defined( FORCE_PARALLEL )
+	template< unsigned int DensityDegree >
+	typename FEMTree::template DensityEstimator< DensityDegree >* setDensityEstimator( const std::vector< PointSample >& samples , LocalDepth splatDepth , Real samplesPerNode , int coDimension )
+	{
+		ThreadPool tp;
+		return setDensityEsimator( tp , samples , splatDepth , samplesPerNode , coDimension );
+	}
+	template< unsigned int ... NormalSigs , unsigned int DensityDegree , class Data >
+#if defined(_WIN32) || defined(_WIN64)
+	SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > setNormalField( UIntPack< NormalSigs ... > , const std::vector< PointSample >& samples , const std::vector< Data >& normalData , const DensityEstimator< DensityDegree >* density , Real& pointWeightSum , std::function< Real ( Real ) > BiasFunction = []( Real ){ return 0.f; } )
+#else // !_WIN32 && !_WIN64
+	SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > setNormalField( UIntPack< NormalSigs ... > , const std::vector< PointSample >& samples , const std::vector< Data >& normalData , const DensityEstimator< DensityDegree >* density , Real& pointWeightSum , std::function< Real ( Real ) > BiasFunction = []( Real ){ return (Real)0; } )
+#endif // _WIN32 || _WIN64
+	{
+		ThreadPool tp;
+		return setNormalField( UIntPack< NormalSigs ... >() , tp , samples , normalData , density , pointWeightSum , BiasFunction );
+	}
+#endif // !FORCE_PARALLEL
+
+	template< unsigned int DensityDegree >
+	typename FEMTree::template DensityEstimator< DensityDegree >* setDensityEstimator( ThreadPool &tp , const std::vector< PointSample >& samples , LocalDepth splatDepth , Real samplesPerNode , int coDimension );
+	template< unsigned int ... NormalSigs , unsigned int DensityDegree , class Data >
+#if defined(_WIN32) || defined(_WIN64)
+	SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > setNormalField( UIntPack< NormalSigs ... > , ThreadPool &tp , const std::vector< PointSample >& samples , const std::vector< Data >& normalData , const DensityEstimator< DensityDegree >* density , Real& pointWeightSum , std::function< Real ( Real ) > BiasFunction = []( Real ){ return 0.f; } );
+#else // !_WIN32 && !_WIN64
+	SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > setNormalField( UIntPack< NormalSigs ... > , ThreadPool &tp , const std::vector< PointSample >& samples , const std::vector< Data >& normalData , const DensityEstimator< DensityDegree >* density , Real& pointWeightSum , std::function< Real ( Real ) > BiasFunction = []( Real ){ return (Real)0; } );
+#endif // _WIN32 || _WIN64
+#else // !NEW_THREADS
 	template< unsigned int DensityDegree >
 	typename FEMTree::template DensityEstimator< DensityDegree >* setDensityEstimator( const std::vector< PointSample >& samples , LocalDepth splatDepth , Real samplesPerNode , int coDimension );
 	template< unsigned int ... NormalSigs , unsigned int DensityDegree , class Data >
@@ -2742,16 +3118,93 @@ public:
 #else // !_WIN32 && !_WIN64
 	SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > setNormalField( UIntPack< NormalSigs ... > , const std::vector< PointSample >& samples , const std::vector< Data >& normalData , const DensityEstimator< DensityDegree >* density , Real& pointWeightSum , std::function< Real ( Real ) > BiasFunction = []( Real ){ return (Real)0; } );
 #endif // _WIN32 || _WIN64
+#endif // NEW_THREADS
 
 	template< unsigned int DataSig , bool CreateNodes , unsigned int DensityDegree , class Data >
 	SparseNodeData< Data , IsotropicUIntPack< Dim , DataSig > > setSingleDepthDataField( const std::vector< PointSample >& samples , const std::vector< Data >& sampleData , const DensityEstimator< DensityDegree >* density );
 	template< unsigned int DataSig , bool CreateNodes , unsigned int DensityDegree , class Data >
 	SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > setDataField( const std::vector< PointSample >& samples , std::vector< Data >& sampleData , const DensityEstimator< DensityDegree >* density , bool nearest=false );
+#ifdef NEW_THREADS
+#if !defined( FORCE_PARALLEL )
+	template< unsigned int MaxDegree , class HasDataFunctor , class ... DenseOrSparseNodeData > void finalizeForMultigrid( LocalDepth fullDepth , const HasDataFunctor F , DenseOrSparseNodeData* ... data )
+	{
+		ThreadPool tp;
+		return finalizeForMultigrid( tp , fullDepth , F , data ... );
+	}
+#endif // !FORCE_PARALLEL
+	template< unsigned int MaxDegree , class HasDataFunctor , class ... DenseOrSparseNodeData > void finalizeForMultigrid( ThreadPool &tp , LocalDepth fullDepth , const HasDataFunctor F , DenseOrSparseNodeData* ... data );
+#else // !NEW_THREADS
 	template< unsigned int MaxDegree , class HasDataFunctor , class ... DenseOrSparseNodeData > void finalizeForMultigrid( LocalDepth fullDepth , const HasDataFunctor F , DenseOrSparseNodeData* ... data );
+#endif // NEW_THREADS
 
 	template< unsigned int ... FEMSigs > DenseNodeData< Real , UIntPack< FEMSigs ... > > initDenseNodeData( UIntPack< FEMSigs ... > ) const;
 	template< class Data , unsigned int ... FEMSigs > DenseNodeData< Data , UIntPack< FEMSigs ... > > initDenseNodeData( UIntPack< FEMSigs ... > ) const;
 
+#ifdef NEW_THREADS
+#if !defined( FORCE_PARALLEL )
+	// Add multiple-dimensions -> one-dimension constraints
+	template< typename T , unsigned int ... FEMDegrees , unsigned int ... FEMSigs , unsigned int ... CDegrees , unsigned int ... CSigs , unsigned int CDim >
+	void addFEMConstraints( typename BaseFEMIntegrator::template Constraint< UIntPack< FEMDegrees ... > , UIntPack< CDegrees ... > , CDim >& F , const _SparseOrDenseNodeData< Point< T , CDim > , UIntPack< CSigs ... > >& coefficients , DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth ) const
+	{
+		ThreadPool tp;
+		return addFEMConstraints( tp , F , coefficients , constraints , maxDepth );
+	}
+	// Add one-dimensions -> one-dimension constraints (with distinct signatures)
+	template< typename T , unsigned int ... FEMDegrees , unsigned int ... FEMSigs , unsigned int ... CDegrees , unsigned int ... CSigs >
+	void addFEMConstraints( typename BaseFEMIntegrator::template Constraint< UIntPack< FEMDegrees ... > , UIntPack< CDegrees ... > , 1 >& F , const _SparseOrDenseNodeData< T , UIntPack< CSigs ... > >& coefficients , DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth ) const
+	{
+		ThreadPool tp;
+		return addFEMConstraints( tp , F , coefficients , constraints , maxDepth );
+	}
+	// Add one-dimensions -> one-dimension constraints (with the same signatures)
+	template< typename T , unsigned int ... FEMDegrees , unsigned int ... FEMSigs >
+	void addFEMConstraints( typename BaseFEMIntegrator::template System< UIntPack< FEMDegrees ... > >& F , const _SparseOrDenseNodeData< T , UIntPack< FEMSigs ... > >& coefficients , DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth ) const
+	{
+		ThreadPool tp;
+		return addFEMConstraints( tp , F , coefficients , constraints , maxDepth );
+	}
+#endif // !FORCE_PARALLEL
+
+	// Add multiple-dimensions -> one-dimension constraints
+	template< typename T , unsigned int ... FEMDegrees , unsigned int ... FEMSigs , unsigned int ... CDegrees , unsigned int ... CSigs , unsigned int CDim >
+	void addFEMConstraints( ThreadPool &tp , typename BaseFEMIntegrator::template Constraint< UIntPack< FEMDegrees ... > , UIntPack< CDegrees ... > , CDim >& F , const _SparseOrDenseNodeData< Point< T , CDim > , UIntPack< CSigs ... > >& coefficients , DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth ) const
+	{
+		typedef SparseNodeData< Point< T , CDim > , UIntPack< CSigs ... > > SparseType;
+		typedef  DenseNodeData< Point< T , CDim > , UIntPack< CSigs ... > >  DenseType;
+		static_assert( sizeof...( FEMDegrees )==Dim && sizeof...( FEMSigs )==Dim && sizeof...( CDegrees )==Dim && sizeof...( CSigs )==Dim  , "[ERROR] Dimensions don't match" );
+		static_assert( UIntPack< FEMDegrees ... >::template Compare< UIntPack< FEMSignature< FEMSigs >::Degree ... > >::Equal , "[ERROR] FEM signature and degrees don't match" );
+		static_assert( UIntPack<   CDegrees ... >::template Compare< UIntPack< FEMSignature<   CSigs >::Degree ... > >::Equal , "[ERROR] Constraint signature and degrees don't match" );
+		if     ( typeid(coefficients)==typeid(SparseType) ) return _addFEMConstraints< T >( UIntPack< FEMSigs ... >() , UIntPack< CSigs ... >() , tp , F , static_cast< const SparseType& >( coefficients ) , constraints() , maxDepth );
+		else if( typeid(coefficients)==typeid( DenseType) ) return _addFEMConstraints< T >( UIntPack< FEMSigs ... >() , UIntPack< CSigs ... >() , tp , F , static_cast< const  DenseType& >( coefficients ) , constraints() , maxDepth );
+		else                                                return _addFEMConstraints< T >( UIntPack< FEMSigs ... >() , UIntPack< CSigs ... >() , tp , F ,                                   coefficients   , constraints() , maxDepth );
+	}
+	// Add one-dimensions -> one-dimension constraints (with distinct signatures)
+	template< typename T , unsigned int ... FEMDegrees , unsigned int ... FEMSigs , unsigned int ... CDegrees , unsigned int ... CSigs >
+	void addFEMConstraints( ThreadPool &tp , typename BaseFEMIntegrator::template Constraint< UIntPack< FEMDegrees ... > , UIntPack< CDegrees ... > , 1 >& F , const _SparseOrDenseNodeData< T , UIntPack< CSigs ... > >& coefficients , DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth ) const
+	{
+		typedef SparseNodeData< T , UIntPack< CSigs ... > > SparseType;
+		typedef  DenseNodeData< T , UIntPack< CSigs ... > >  DenseType;
+		static_assert( sizeof...( FEMDegrees )==Dim && sizeof...( FEMSigs )==Dim && sizeof...( CDegrees )==Dim && sizeof...( CSigs )==Dim  , "[ERROR] Dimensions don't match" );
+		static_assert( UIntPack< FEMDegrees ... >::template Compare< UIntPack< FEMSignature< FEMSigs >::Degree ... > >::Equal , "[ERROR] FEM signature and degrees don't match" );
+		static_assert( UIntPack<   CDegrees ... >::template Compare< UIntPack< FEMSignature<   CSigs >::Degree ... > >::Equal , "[ERROR] Constaint signature and degrees don't match" );
+		if     ( typeid(coefficients)==typeid(SparseType) ) return _addFEMConstraints< T >( UIntPack< FEMSigs ... >() , UIntPack< CSigs ... >() , tp , F , static_cast< const SparseType& >( coefficients ) , constraints() , maxDepth );
+		else if( typeid(coefficients)==typeid( DenseType) ) return _addFEMConstraints< T >( UIntPack< FEMSigs ... >() , UIntPack< CSigs ... >() , tp , F , static_cast< const  DenseType& >( coefficients ) , constraints() , maxDepth );
+		else                                                return _addFEMConstraints< T >( UIntPack< FEMSigs ... >() , UIntPack< CSigs ... >() , tp , F ,                                   coefficients   , constraints() , maxDepth );
+	}
+	// Add one-dimensions -> one-dimension constraints (with the same signatures)
+	template< typename T , unsigned int ... FEMDegrees , unsigned int ... FEMSigs >
+	void addFEMConstraints( ThreadPool &tp , typename BaseFEMIntegrator::template System< UIntPack< FEMDegrees ... > >& F , const _SparseOrDenseNodeData< T , UIntPack< FEMSigs ... > >& coefficients , DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth ) const
+	{
+		typedef SparseNodeData< T , UIntPack< FEMSigs ... > > SparseType;
+		typedef  DenseNodeData< T , UIntPack< FEMSigs ... > >  DenseType;
+		static_assert( sizeof...( FEMDegrees )==Dim && sizeof...( FEMSigs )==Dim , "[ERROR] Dimensions don't match" );
+		static_assert( UIntPack< FEMDegrees ... >::template Compare< UIntPack< FEMSignature< FEMSigs >::Degree ... > >::Equal , "[ERROR] FEM signatures and degrees don't match" );
+		typename BaseFEMIntegrator::template SystemConstraint< UIntPack< FEMDegrees ... > > _F( F );
+		if     ( typeid(coefficients)==typeid(SparseType) ) return _addFEMConstraints< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , tp , _F , static_cast< const SparseType& >( coefficients ) , constraints() , maxDepth );
+		else if( typeid(coefficients)==typeid( DenseType) ) return _addFEMConstraints< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , tp , _F , static_cast< const  DenseType& >( coefficients ) , constraints() , maxDepth );
+		else                                                return _addFEMConstraints< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , tp , _F ,                                   coefficients   , constraints() , maxDepth );
+	}
+#else // !NEW_THREADS
 	// Add multiple-dimensions -> one-dimension constraints
 	template< typename T , unsigned int ... FEMDegrees , unsigned int ... FEMSigs , unsigned int ... CDegrees , unsigned int ... CSigs , unsigned int CDim >
 	void addFEMConstraints( typename BaseFEMIntegrator::template Constraint< UIntPack< FEMDegrees ... > , UIntPack< CDegrees ... > , CDim >& F , const _SparseOrDenseNodeData< Point< T , CDim > , UIntPack< CSigs ... > >& coefficients , DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth ) const
@@ -2780,7 +3233,6 @@ public:
 	}
 	// Add one-dimensions -> one-dimension constraints (with the same signatures)
 	template< typename T , unsigned int ... FEMDegrees , unsigned int ... FEMSigs >
-//	void addFEMConstraints( typename BaseFEMIntegrator::template System< UIntPack< FEMDegrees ... > >& F , const SparseNodeData< T , UIntPack< FEMSigs ... > >& coefficients , _SparseOrDenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth ) const
 	void addFEMConstraints( typename BaseFEMIntegrator::template System< UIntPack< FEMDegrees ... > >& F , const _SparseOrDenseNodeData< T , UIntPack< FEMSigs ... > >& coefficients , DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth ) const
 	{
 		typedef SparseNodeData< T , UIntPack< FEMSigs ... > > SparseType;
@@ -2792,8 +3244,32 @@ public:
 		else if( typeid(coefficients)==typeid( DenseType) ) return _addFEMConstraints< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , _F , static_cast< const  DenseType& >( coefficients ) , constraints() , maxDepth );
 		else                                                return _addFEMConstraints< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , _F ,                                   coefficients   , constraints() , maxDepth );
 	}
+#endif // NEW_THREADS
 
+#ifdef NEW_THREADS
+#if !defined( FORCE_PARALLEL )
 	// Add interpolation constraints
+	template< typename T , unsigned int ... FEMSigs , unsigned int PointD , unsigned int ... PointDs >
+	typename std::enable_if< (sizeof...(PointDs)!=0) >::type addInterpolationConstraints( DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth , const InterpolationInfo< T , PointD >& iInfo , const InterpolationInfo< T , PointDs >& ... iInfos ) const
+	{
+		ThreadPool tp;
+		return addInterpolationConstraints( tp , constraints , maxDepth , iInfo , iInfos ... );	
+	}
+	template< typename T , unsigned int ... FEMSigs , unsigned int PointD > void addInterpolationConstraints( DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth , const InterpolationInfo< T , PointD >& interpolationInfo ) const
+	{
+		ThreadPool tp;
+		return addInterpolationConstraints( tp , constraints , maxDepth , interpolationInfo );
+	}
+#endif // !FORCE_PARALLEL
+
+	template< typename T , unsigned int ... FEMSigs , unsigned int PointD , unsigned int ... PointDs >
+	typename std::enable_if< (sizeof...(PointDs)!=0) >::type addInterpolationConstraints( ThreadPool &tp , DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth , const InterpolationInfo< T , PointD >& iInfo , const InterpolationInfo< T , PointDs >& ... iInfos ) const
+	{
+		addInterpolationConstraints< T , FEMSigs ... >( tp , constraints , maxDepth , iInfo );
+		addInterpolationConstraints< T , FEMSigs ... >( tp , constraints , maxDepth , iInfos ... );
+	}
+	template< typename T , unsigned int ... FEMSigs , unsigned int PointD > void addInterpolationConstraints( ThreadPool &tp , DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth , const InterpolationInfo< T , PointD >& interpolationInfo ) const;
+#else // !NEW_THREADS
 	template< typename T , unsigned int ... FEMSigs , unsigned int PointD , unsigned int ... PointDs >
 	typename std::enable_if< (sizeof...(PointDs)!=0) >::type addInterpolationConstraints( DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth , const InterpolationInfo< T , PointD >& iInfo , const InterpolationInfo< T , PointDs >& ... iInfos ) const
 	{
@@ -2801,8 +3277,72 @@ public:
 		addInterpolationConstraints< T , FEMSigs ... >( constraints , maxDepth , iInfos ... );
 	}
 	template< typename T , unsigned int ... FEMSigs , unsigned int PointD > void addInterpolationConstraints( DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxDepth , const InterpolationInfo< T , PointD >& interpolationInfo ) const;
+#endif // NEW_THREADS
 
 	// Real
+#ifdef NEW_THREADS
+#if !defined( FORCE_PARALLEL )
+	template< unsigned int ... FEMDegrees1 , unsigned int ... FEMSigs1 , unsigned int ... FEMDegrees2 , unsigned int ... FEMSigs2 >
+	double dot( typename BaseFEMIntegrator::Constraint< UIntPack< FEMDegrees1 ... > , UIntPack< FEMDegrees2 ... > , 1 >& F , const _SparseOrDenseNodeData< Real , UIntPack< FEMSigs1 ... > >& coefficients1 , const _SparseOrDenseNodeData< Real , UIntPack< FEMSigs2 ... > >& coefficients2 ) const
+	{
+		ThreadPool tp;
+		return dot( tp , F , coefficients1 , coefficients2 );
+	}
+	template< unsigned int ... FEMDegrees , unsigned int ... FEMSigs >
+	double dot( typename BaseFEMIntegrator::System< UIntPack< FEMDegrees ... > >& F , const _SparseOrDenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients1 , const _SparseOrDenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients2 ) const
+	{
+		ThreadPool tp;
+		return dot( tp , F , coefficients1 , coefficients2 );
+	}
+	template< unsigned int ... FEMDegrees , unsigned int ... FEMSigs >
+	double squareNorm( typename BaseFEMIntegrator::template System< UIntPack< FEMDegrees ... > >& F , const _SparseOrDenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients ) const
+	{
+		ThreadPool tp;
+		return squareNorm( tp , F , coefficients );
+	}
+#endif // !FORCE_PARALLEL
+
+	template< unsigned int ... FEMDegrees1 , unsigned int ... FEMSigs1 , unsigned int ... FEMDegrees2 , unsigned int ... FEMSigs2 >
+	double dot( ThreadPool &tp , typename BaseFEMIntegrator::Constraint< UIntPack< FEMDegrees1 ... > , UIntPack< FEMDegrees2 ... > , 1 >& F , const _SparseOrDenseNodeData< Real , UIntPack< FEMSigs1 ... > >& coefficients1 , const _SparseOrDenseNodeData< Real , UIntPack< FEMSigs2 ... > >& coefficients2 ) const
+	{
+		typedef SparseNodeData< Real , UIntPack< FEMSigs1 ... > > SparseType1;
+		typedef  DenseNodeData< Real , UIntPack< FEMSigs1 ... > >  DenseType1;
+		typedef SparseNodeData< Real , UIntPack< FEMSigs2 ... > > SparseType2;
+		typedef  DenseNodeData< Real , UIntPack< FEMSigs2 ... > >  DenseType2;
+		static_assert( sizeof...( FEMDegrees1 )==Dim && sizeof...( FEMSigs1 )==Dim && sizeof...( FEMDegrees2 )==Dim && sizeof...( FEMSigs2 )==Dim  , "[ERROR] Dimensions don't match" );
+		static_assert( UIntPack< FEMDegrees1 ... >::template Compare< UIntPack< FEMSignature< FEMSigs1 >::Degree ... > >::Equal , "[ERROR] FEM signature and degrees don't match" );
+		static_assert( UIntPack< FEMDegrees2 ... >::template Compare< UIntPack< FEMSignature< FEMSigs2 >::Degree ... > >::Equal , "[ERROR] FEM signature and degrees don't match" );
+		if     ( typeid(coefficients1)==typeid(SparseType1) && typeid(coefficients2)==typeid(SparseType2) ) return _dot< Real >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , tp , F , static_cast< const SparseType1& >( coefficients1 ) , static_cast< const SparseType2& >( coefficients2 ) , []( Real v ,  Real w ){ return v*w; } );
+		else if( typeid(coefficients1)==typeid(SparseType1) && typeid(coefficients2)==typeid( DenseType2) ) return _dot< Real >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , tp , F , static_cast< const SparseType1& >( coefficients1 ) , static_cast< const  DenseType2& >( coefficients2 ) , []( Real v ,  Real w ){ return v*w; } );
+		else if( typeid(coefficients1)==typeid( DenseType1) && typeid(coefficients2)==typeid( DenseType2) ) return _dot< Real >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , tp , F , static_cast< const  DenseType1& >( coefficients1 ) , static_cast< const  DenseType2& >( coefficients2 ) , []( Real v ,  Real w ){ return v*w; } );
+		else if( typeid(coefficients1)==typeid( DenseType1) && typeid(coefficients2)==typeid(SparseType2) ) return _dot< Real >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , tp , F , static_cast< const  DenseType1& >( coefficients1 ) , static_cast< const SparseType2& >( coefficients2 ) , []( Real v ,  Real w ){ return v*w; } );
+		else                                                                                                return _dot< Real >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , tp , F ,                                    coefficients1   ,                                    coefficients2   , []( Real v ,  Real w ){ return v*w; } );
+	}
+	template< unsigned int ... FEMDegrees , unsigned int ... FEMSigs >
+	double dot( ThreadPool &tp , typename BaseFEMIntegrator::System< UIntPack< FEMDegrees ... > >& F , const _SparseOrDenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients1 , const _SparseOrDenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients2 ) const
+	{
+		typedef SparseNodeData< Real , UIntPack< FEMSigs ... > > SparseType;
+		typedef  DenseNodeData< Real , UIntPack< FEMSigs ... > >  DenseType;
+		static_assert( sizeof...( FEMDegrees )==Dim && sizeof...( FEMSigs )==Dim , "[ERROR] Dimensions don't match" );
+		static_assert( UIntPack< FEMDegrees ... >::template Compare< UIntPack< FEMSignature< FEMSigs >::Degree ... > >::Equal , "[ERROR] FEM signatures and degrees don't match" );
+		typename BaseFEMIntegrator::template SystemConstraint< UIntPack< FEMDegrees ... > > _F( F );
+		if     ( typeid(coefficients1)==typeid(SparseType) && typeid(coefficients2)==typeid(SparseType) ) return _dot< Real >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , tp , _F , static_cast< const SparseType& >( coefficients1 ) , static_cast< const SparseType& >( coefficients2 ) , []( Real v ,  Real w ){ return v*w; } );
+		else if( typeid(coefficients1)==typeid(SparseType) && typeid(coefficients2)==typeid( DenseType) ) return _dot< Real >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , tp , _F , static_cast< const SparseType& >( coefficients1 ) , static_cast< const  DenseType& >( coefficients2 ) , []( Real v ,  Real w ){ return v*w; } );
+		else if( typeid(coefficients1)==typeid( DenseType) && typeid(coefficients2)==typeid( DenseType) ) return _dot< Real >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , tp , _F , static_cast< const  DenseType& >( coefficients1 ) , static_cast< const  DenseType& >( coefficients2 ) , []( Real v ,  Real w ){ return v*w; } );
+		else if( typeid(coefficients1)==typeid( DenseType) && typeid(coefficients2)==typeid(SparseType) ) return _dot< Real >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , tp , _F , static_cast< const  DenseType& >( coefficients1 ) , static_cast< const SparseType& >( coefficients2 ) , []( Real v ,  Real w ){ return v*w; } );
+		else                                                                                              return _dot< Real >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , tp , _F ,                                   coefficients1   ,                                   coefficients2   , []( Real v ,  Real w ){ return v*w; } );
+	}
+	template< unsigned int ... FEMDegrees , unsigned int ... FEMSigs >
+	double squareNorm( ThreadPool &tp , typename BaseFEMIntegrator::template System< UIntPack< FEMDegrees ... > >& F , const _SparseOrDenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients ) const
+	{
+		typedef SparseNodeData< Real , UIntPack< FEMSigs ... > > SparseType;
+		typedef  DenseNodeData< Real , UIntPack< FEMSigs ... > >  DenseType;
+		typename BaseFEMIntegrator::template SystemConstraint< UIntPack< FEMDegrees ... > > _F( F );
+		if     ( typeid(coefficients)==typeid(SparseType) ) return _dot< Real >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , tp , _F , static_cast< const SparseType& >( coefficients ) , static_cast< const SparseType& >( coefficients ) , []( Real v ,  Real w ){ return v*w; } );
+		else if( typeid(coefficients)==typeid( DenseType) ) return _dot< Real >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , tp , _F , static_cast< const  DenseType& >( coefficients ) , static_cast< const  DenseType& >( coefficients ) , []( Real v ,  Real w ){ return v*w; } );
+		else                                                return _dot< Real >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , tp , _F ,                                   coefficients   ,                                   coefficients   , []( Real v ,  Real w ){ return v*w; } );
+	}
+#else // !NEW_THREADS
 	template< unsigned int ... FEMDegrees1 , unsigned int ... FEMSigs1 , unsigned int ... FEMDegrees2 , unsigned int ... FEMSigs2 >
 	double dot( typename BaseFEMIntegrator::Constraint< UIntPack< FEMDegrees1 ... > , UIntPack< FEMDegrees2 ... > , 1 >& F , const _SparseOrDenseNodeData< Real , UIntPack< FEMSigs1 ... > >& coefficients1 , const _SparseOrDenseNodeData< Real , UIntPack< FEMSigs2 ... > >& coefficients2 ) const
 	{
@@ -2843,12 +3383,102 @@ public:
 		else if( typeid(coefficients)==typeid( DenseType) ) return _dot< Real >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , _F , static_cast< const  DenseType& >( coefficients ) , static_cast< const  DenseType& >( coefficients ) , []( Real v ,  Real w ){ return v*w; } );
 		else                                                return _dot< Real >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , _F ,                                   coefficients   ,                                   coefficients   , []( Real v ,  Real w ){ return v*w; } );
 	}
+#endif // NEW_THREADS
 
+#ifdef NEW_THREADS
+#if !defined( FORCE_PARALLEL )
+	template< unsigned int ... FEMSigs1 , unsigned int ... FEMSigs2 , unsigned int ... PointDs >
+	double interpolationDot( const DenseNodeData< Real , UIntPack< FEMSigs1 ... > >& coefficients1 , const DenseNodeData< Real , UIntPack< FEMSigs2 ... > >& coefficients2 , const InterpolationInfo< Real , PointDs >* ... iInfos ) const
+	{
+		ThreadPool tp;
+		return interpolationDot( tp , coefficients1 , coefficients2 , iInfos ... );
+	}
+	template< unsigned int ... FEMSigs , unsigned int ... PointDs >
+	double interpolationSquareNorm( const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , const InterpolationInfo< Real , PointDs >* ... iInfos ) const
+	{
+		ThreadPool tp;
+		return interpolationSquareNorm( tp , coefficients , iInfos ... );
+	}
+	// Generic
+	template< typename T , typename TDotT , unsigned int ... FEMDegrees1 , unsigned int ... FEMSigs1 , unsigned int ... FEMDegrees2 , unsigned int ... FEMSigs2 >
+	double dot( TDotT Dot , typename BaseFEMIntegrator::Constraint< UIntPack< FEMDegrees1 ... > , UIntPack< FEMDegrees2 ... > , 1 >& F , const _SparseOrDenseNodeData< T , UIntPack< FEMSigs1 ... > >& coefficients1 , const _SparseOrDenseNodeData< T , UIntPack< FEMSigs2 ... > >& coefficients2 ) const
+	{
+		ThreadPool tp;
+		return dot( tp , Dot , F , coefficients1 , coefficients2 );
+	}
+	template< typename T , typename TDotT , unsigned int ... FEMDegrees , unsigned int ... FEMSigs >
+	double dot( TDotT Dot , typename BaseFEMIntegrator::System< UIntPack< FEMDegrees ... > >& F , const _SparseOrDenseNodeData< T , UIntPack< FEMSigs ... > >& coefficients1 , const _SparseOrDenseNodeData< T , UIntPack< FEMSigs ... > >& coefficients2 ) const
+	{
+		ThreadPool tp;
+		return dot( tp , Dot , F , coefficients1 , coefficients2 );
+	}
+	template< typename T , typename TDotT , unsigned int ... FEMDegrees , unsigned int ... FEMSigs >
+	double squareNorm( TDotT Dot , typename BaseFEMIntegrator::template System< UIntPack< FEMDegrees ... > >& F , const _SparseOrDenseNodeData< T , UIntPack< FEMSigs ... > >& coefficients ) const
+	{
+		ThreadPool tp;
+		return squareNorm( tp , Dot , F , coefficients );
+	}
+#endif // !FORCE_PARALLEL
+
+	template< unsigned int ... FEMSigs1 , unsigned int ... FEMSigs2 , unsigned int ... PointDs >
+	double interpolationDot( ThreadPool &tp , const DenseNodeData< Real , UIntPack< FEMSigs1 ... > >& coefficients1 , const DenseNodeData< Real , UIntPack< FEMSigs2 ... > >& coefficients2 , const InterpolationInfo< Real , PointDs >* ... iInfos ) const
+	{
+		static_assert( sizeof...( FEMSigs1 )==Dim && sizeof...( FEMSigs2 )==Dim , "[ERROR] Dimensions don't match" );
+		return _interpolationDot( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , tp , coefficients1 , coefficients2 , []( Real v ,  Real w ){ return v*w; } , iInfos... );
+	}
+	template< unsigned int ... FEMSigs , unsigned int ... PointDs >
+	double interpolationSquareNorm( ThreadPool &tp , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , const InterpolationInfo< Real , PointDs >* ... iInfos ) const
+	{
+		static_assert( sizeof...( FEMSigs )==Dim , "[ERROR] Dimensions don't match" );
+		return _interpolationDot< Real >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , tp , coefficients , coefficients , []( Real v ,  Real w ){ return v*w; } , iInfos... );
+	}
+	// Generic
+	template< typename T , typename TDotT , unsigned int ... FEMDegrees1 , unsigned int ... FEMSigs1 , unsigned int ... FEMDegrees2 , unsigned int ... FEMSigs2 >
+	double dot( ThreadPool &tp , TDotT Dot , typename BaseFEMIntegrator::Constraint< UIntPack< FEMDegrees1 ... > , UIntPack< FEMDegrees2 ... > , 1 >& F , const _SparseOrDenseNodeData< T , UIntPack< FEMSigs1 ... > >& coefficients1 , const _SparseOrDenseNodeData< T , UIntPack< FEMSigs2 ... > >& coefficients2 ) const
+	{
+		typedef SparseNodeData< T , UIntPack< FEMSigs1 ... > > SparseType1;
+		typedef  DenseNodeData< T , UIntPack< FEMSigs1 ... > >  DenseType1;
+		typedef SparseNodeData< T , UIntPack< FEMSigs2 ... > > SparseType2;
+		typedef  DenseNodeData< T , UIntPack< FEMSigs2 ... > >  DenseType2;
+		static_assert( sizeof...( FEMDegrees1 )==Dim && sizeof...( FEMSigs1 )==Dim && sizeof...( FEMDegrees2 )==Dim && sizeof...( FEMSigs2 )==Dim  , "[ERROR] Dimensions don't match" );
+		static_assert( UIntPack< FEMDegrees1 ... >::template Compare< UIntPack< FEMSignature< FEMSigs1 >::Degree ... > >::Equal , "[ERROR] FEM signature and degrees don't match" );
+		static_assert( UIntPack< FEMDegrees2 ... >::template Compare< UIntPack< FEMSignature< FEMSigs2 >::Degree ... > >::Equal , "[ERROR] FEM signature and degrees don't match" );
+		if     ( typeid(coefficients1)==typeid(SparseType1) && typeid(coefficients2)==typeid(SparseType2) ) return _dot< T >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , tp , F , static_cast< const SparseType1& >( coefficients1 ) , static_cast< const SparseType2& >( coefficients2 ) , Dot );
+		else if( typeid(coefficients1)==typeid(SparseType1) && typeid(coefficients2)==typeid( DenseType2) ) return _dot< T >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , tp , F , static_cast< const SparseType1& >( coefficients1 ) , static_cast< const  DenseType2& >( coefficients2 ) , Dot );
+		else if( typeid(coefficients1)==typeid( DenseType1) && typeid(coefficients2)==typeid( DenseType2) ) return _dot< T >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , tp , F , static_cast< const  DenseType1& >( coefficients1 ) , static_cast< const  DenseType2& >( coefficients2 ) , Dot );
+		else if( typeid(coefficients1)==typeid( DenseType1) && typeid(coefficients2)==typeid(SparseType2) ) return _dot< T >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , tp , F , static_cast< const  DenseType1& >( coefficients1 ) , static_cast< const SparseType2& >( coefficients2 ) , Dot );
+		else                                                                                                return _dot< T >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , tp , F ,                                    coefficients1   ,                                    coefficients2   , Dot );
+	}
+	template< typename T , typename TDotT , unsigned int ... FEMDegrees , unsigned int ... FEMSigs >
+	double dot( ThreadPool &tp , TDotT Dot , typename BaseFEMIntegrator::System< UIntPack< FEMDegrees ... > >& F , const _SparseOrDenseNodeData< T , UIntPack< FEMSigs ... > >& coefficients1 , const _SparseOrDenseNodeData< T , UIntPack< FEMSigs ... > >& coefficients2 ) const
+	{
+		typedef SparseNodeData< T , UIntPack< FEMSigs ... > > SparseType;
+		typedef  DenseNodeData< T , UIntPack< FEMSigs ... > >  DenseType;
+		static_assert( sizeof...( FEMDegrees )==Dim && sizeof...( FEMSigs )==Dim , "[ERROR] Dimensions don't match" );
+		static_assert( UIntPack< FEMDegrees ... >::template Compare< UIntPack< FEMSignature< FEMSigs >::Degree ... > >::Equal , "[ERROR] FEM signatures and degrees don't match" );
+		typename BaseFEMIntegrator::template SystemConstraint< UIntPack< FEMDegrees ... > > _F( F );
+		if     ( typeid(coefficients1)==typeid(SparseType) && typeid(coefficients2)==typeid(SparseType) ) return _dot< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , tp , _F , static_cast< const SparseType& >( coefficients1 ) , static_cast< const SparseType& >( coefficients2 ) , Dot );
+		else if( typeid(coefficients1)==typeid(SparseType) && typeid(coefficients2)==typeid( DenseType) ) return _dot< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , tp , _F , static_cast< const SparseType& >( coefficients1 ) , static_cast< const  DenseType& >( coefficients2 ) , Dot );
+		else if( typeid(coefficients1)==typeid( DenseType) && typeid(coefficients2)==typeid( DenseType) ) return _dot< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , tp , _F , static_cast< const  DenseType& >( coefficients1 ) , static_cast< const  DenseType& >( coefficients2 ) , Dot );
+		else if( typeid(coefficients1)==typeid( DenseType) && typeid(coefficients2)==typeid(SparseType) ) return _dot< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , tp , _F , static_cast< const  DenseType& >( coefficients1 ) , static_cast< const SparseType& >( coefficients2 ) , Dot );
+		else                                                                                              return _dot< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , tp , _F ,                                   coefficients1   ,                                   coefficients2   , Dot );
+	}
+	template< typename T , typename TDotT , unsigned int ... FEMDegrees , unsigned int ... FEMSigs >
+	double squareNorm( ThreadPool &tp , TDotT Dot , typename BaseFEMIntegrator::template System< UIntPack< FEMDegrees ... > >& F , const _SparseOrDenseNodeData< T , UIntPack< FEMSigs ... > >& coefficients ) const
+	{
+		typedef SparseNodeData< T , UIntPack< FEMSigs ... > > SparseType;
+		typedef  DenseNodeData< T , UIntPack< FEMSigs ... > >  DenseType;
+		typename BaseFEMIntegrator::template SystemConstraint< UIntPack< FEMDegrees ... > > _F( F );
+		if     ( typeid(coefficients)==typeid(SparseType) ) return _dot< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , tp , _F , static_cast< const SparseType& >( coefficients ) , static_cast< const SparseType& >( coefficients ) , Dot );
+		else if( typeid(coefficients)==typeid( DenseType) ) return _dot< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , tp , _F , static_cast< const  DenseType& >( coefficients ) , static_cast< const  DenseType& >( coefficients ) , Dot );
+		else                                                return _dot< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , tp , _F ,                                   coefficients   ,                                   coefficients   , Dot );
+	}
+#else // !NEW_THREADS
 	template< unsigned int ... FEMSigs1 , unsigned int ... FEMSigs2 , unsigned int ... PointDs >
 	double interpolationDot( const DenseNodeData< Real , UIntPack< FEMSigs1 ... > >& coefficients1 , const DenseNodeData< Real , UIntPack< FEMSigs2 ... > >& coefficients2 , const InterpolationInfo< Real , PointDs >* ... iInfos ) const
 	{
 		static_assert( sizeof...( FEMSigs1 )==Dim && sizeof...( FEMSigs2 )==Dim , "[ERROR] Dimensions don't match" );
-		return _inteprolationDot( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , coefficients1 , coefficients2 , []( Real v ,  Real w ){ return v*w; } , iInfos... );
+		return _interpolationDot( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , coefficients1 , coefficients2 , []( Real v ,  Real w ){ return v*w; } , iInfos... );
 	}
 	template< unsigned int ... FEMSigs , unsigned int ... PointDs >
 	double interpolationSquareNorm( const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , const InterpolationInfo< Real , PointDs >* ... iInfos ) const
@@ -2899,7 +3529,37 @@ public:
 		else if( typeid(coefficients)==typeid( DenseType) ) return _dot< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , _F , static_cast< const  DenseType& >( coefficients ) , static_cast< const  DenseType& >( coefficients ) , Dot );
 		else                                                return _dot< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , _F ,                                   coefficients   ,                                   coefficients   , Dot );
 	}
+#endif // NEW_THREADS
 
+#ifdef NEW_THREADS
+#if !defined( FORCE_PARALLEL )
+	template< typename T , typename TDotT , unsigned int ... FEMSigs1 , unsigned int ... FEMSigs2 , unsigned int ... PointDs >
+	double interpolationDot( TDotT Dot , const DenseNodeData< T , UIntPack< FEMSigs1 ... > >& coefficients1 , const DenseNodeData< T , UIntPack< FEMSigs2 ... > >& coefficients2 , const InterpolationInfo< T , PointDs >* ... iInfos ) const
+	{
+		ThreadPool tp;
+		return interpolationDot( tp , Dot , coefficients1 , coefficients2 , iInfos ... );
+	}
+	template< typename T , typename TDotT , unsigned int ... FEMSigs , unsigned int ... PointDs >
+	double interpolationSquareNorm( TDotT Dot , const DenseNodeData< T , UIntPack< FEMSigs ... > >& coefficients , const InterpolationInfo< T , PointDs >* ... iInfos ) const
+	{
+		ThreadPool tp;
+		return interpolationSquareNorm( tp , Dot , coefficients , iInfos ... );
+	}
+#endif // !FORCE_PARALLEL
+
+	template< typename T , typename TDotT , unsigned int ... FEMSigs1 , unsigned int ... FEMSigs2 , unsigned int ... PointDs >
+	double interpolationDot( ThreadPool &tp , TDotT Dot , const DenseNodeData< T , UIntPack< FEMSigs1 ... > >& coefficients1 , const DenseNodeData< T , UIntPack< FEMSigs2 ... > >& coefficients2 , const InterpolationInfo< T , PointDs >* ... iInfos ) const
+	{
+		static_assert( sizeof...( FEMSigs1 )==Dim && sizeof...( FEMSigs2 )==Dim , "[ERROR] Dimensions don't match" );
+		return _interpolationDot< T >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , tp , coefficients1 , coefficients2 , Dot , iInfos... );
+	}
+	template< typename T , typename TDotT , unsigned int ... FEMSigs , unsigned int ... PointDs >
+	double interpolationSquareNorm( ThreadPool &tp , TDotT Dot , const DenseNodeData< T , UIntPack< FEMSigs ... > >& coefficients , const InterpolationInfo< T , PointDs >* ... iInfos ) const
+	{
+		static_assert( sizeof...( FEMSigs )==Dim , "[ERROR] Dimensions don't match" );
+		return _interpolationDot< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , tp , coefficients , coefficients , Dot , iInfos... );
+	}
+#else // !NEW_THREADS
 	template< typename T , typename TDotT , unsigned int ... FEMSigs1 , unsigned int ... FEMSigs2 , unsigned int ... PointDs >
 	double interpolationDot( TDotT Dot , const DenseNodeData< T , UIntPack< FEMSigs1 ... > >& coefficients1 , const DenseNodeData< T , UIntPack< FEMSigs2 ... > >& coefficients2 , const InterpolationInfo< T , PointDs >* ... iInfos ) const
 	{
@@ -2912,17 +3572,56 @@ public:
 		static_assert( sizeof...( FEMSigs )==Dim , "[ERROR] Dimensions don't match" );
 		return _interpolationDot< T >( UIntPack< FEMSigs ... >() , UIntPack< FEMSigs ... >() , coefficients , coefficients , Dot , iInfos... );
 	}
+#endif // NEW_THREADS
 
 #ifdef NEW_CODE
+#ifdef NEW_THREADS
+#if !defined( FORCE_PARALLEL )
+	template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
+	SparseMatrix< Real , matrix_index_type > systemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth depth , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+	{
+		ThreadPool tp;
+		return systemMatrix( UIntPack< FEMSigs ... >() , tp , F , depth , interpolationInfo ... );
+	}
+	template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
+	SparseMatrix< Real , matrix_index_type > prolongedSystemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth highDepth , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+	{
+		ThreadPool tp;
+		return prolongedSystemMatrix( UIntPack< FEMSigs ... >() , tp , F , highDepth , interpolationInfo ... );
+	}
+	template< unsigned int ... FEMSigs >
+	SparseMatrix< Real , matrix_index_type > downSampleMatrix( UIntPack< FEMSigs ... > , LocalDepth highDepth ) const
+	{
+		ThreadPool tp;
+		return downSampleMatrix( UIntPack< FEMSigs ... >() , tp , highDepth );
+	}
+	template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
+	SparseMatrix< Real , matrix_index_type > fullSystemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth depth , bool nonRefinableOnly , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
+	{
+		ThreadPool tp;
+		return fullSystemMatrix( UIntPack< FEMSigs ... >() , tp , F , depth , nonRefinableOnly , interpolationInfo ... );
+	}
+#endif // !FORCE_PARALLEL
+
+	template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
+	SparseMatrix< Real , matrix_index_type > systemMatrix( UIntPack< FEMSigs ... > , ThreadPool &tp , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth depth , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
+	template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
+	SparseMatrix< Real , matrix_index_type > prolongedSystemMatrix( UIntPack< FEMSigs ... > , ThreadPool &tp , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth highDepth , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
+	template< unsigned int ... FEMSigs >
+	SparseMatrix< Real , matrix_index_type > downSampleMatrix( UIntPack< FEMSigs ... > , ThreadPool &tp , LocalDepth highDepth ) const;
+	template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
+	SparseMatrix< Real , matrix_index_type > fullSystemMatrix( UIntPack< FEMSigs ... > , ThreadPool &tp , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth depth , bool nonRefinableOnly , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
+#else // !NEW_THREADS
 	template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
 	SparseMatrix< Real , matrix_index_type > systemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth depth , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
 	template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
 	SparseMatrix< Real , matrix_index_type > prolongedSystemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth highDepth , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
 	template< unsigned int ... FEMSigs >
 	SparseMatrix< Real , matrix_index_type > downSampleMatrix( UIntPack< FEMSigs ... > , LocalDepth highDepth ) const;
-
 	template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
 	SparseMatrix< Real , matrix_index_type > fullSystemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth depth , bool nonRefinableOnly , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
+#endif // NEW_THREADS
+
 #else // !NEW_CODE
 	template< typename T , unsigned int ... PointDs , unsigned int ... FEMSigs >
 	SparseMatrix< Real , int > systemMatrix( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , LocalDepth depth , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const;
@@ -2988,6 +3687,50 @@ public:
 		SolverInfo( void ) : cgDepth(0) , wCycle(false) , cascadic(true) , iters(1) , vCycles(1) , cgAccuracy(0.) , verbose(false) , showResidual(false) , showGlobalResidual(SHOW_GLOBAL_RESIDUAL_NONE) , sliceBlockSize(1) , sorRestrictionFunction( []( Real , Real ){ return (Real)1; } ) , sorProlongationFunction( []( Real , Real ){ return (Real)1; } ) , useSupportWeights( false ) , useProlongationSupportWeights( false ) , baseDepth(0) , baseVCycles(1) { }
 	};
 	// Solve the linear system
+#ifdef NEW_THREADS
+#if !defined( FORCE_PARALLEL )
+	template< unsigned int ... FEMSigs , typename T , typename TDotT , unsigned int ... PointDs >
+	void solveSystem( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , DenseNodeData< T , UIntPack< FEMSigs ... > >& solution , TDotT Dot , LocalDepth maxSolveDepth , const SolverInfo& solverInfo , InterpolationInfo< T , PointDs >* ... iData ) const
+	{
+		ThreadPool tp;
+		return solveSystem( UIntPack< FEMSigs ... >() , tp , F , constraints , solution , Dot , maxSolveDepth , solverInfo , iData ... );
+	}
+	template< unsigned int ... FEMSigs , typename T , typename TDotT , unsigned int ... PointDs >
+	DenseNodeData< T , UIntPack< FEMSigs ... > > solveSystem( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , TDotT Dot , LocalDepth maxSolveDepth , const SolverInfo& solverInfo , InterpolationInfo< T , PointDs >* ... iData ) const
+	{
+		ThreadPool tp;
+		return solveSystem( UIntPack< FEMSigs ... >() , tp , F , constraints , Dot , maxSolveDepth , solverInfo , iData ... );
+	}
+	template< unsigned int ... FEMSigs , unsigned int ... PointDs >
+	void solveSystem( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& constraints , DenseNodeData< Real , UIntPack< FEMSigs ... > >& solution , LocalDepth maxSolveDepth , const SolverInfo& solverInfo , InterpolationInfo< Real , PointDs >* ... iData ) const
+	{
+		ThreadPool tp;
+		return solveSystem( UIntPack< FEMSigs ... >() , tp , F , constraints , solution , maxSolveDepth , solverInfo , iData ... );
+	}
+	template< unsigned int ... FEMSigs , unsigned int ... PointDs >
+	DenseNodeData< Real , UIntPack< FEMSigs ... > > solveSystem( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxSolveDepth , const SolverInfo& solverInfo , InterpolationInfo< Real , PointDs >* ... iData ) const
+	{
+		ThreadPool tp;
+		return solveSystem( UIntPack< FEMSigs ... >() , tp , F , constraints , maxSolveDepth , solverInfo , iData ... );
+	}
+#endif // !FORCE_PARALLEL
+
+	template< unsigned int ... FEMSigs , typename T , typename TDotT , unsigned int ... PointDs >
+	void solveSystem( UIntPack< FEMSigs ... > , ThreadPool &tp , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , DenseNodeData< T , UIntPack< FEMSigs ... > >& solution , TDotT Dot , LocalDepth maxSolveDepth , const SolverInfo& solverInfo , InterpolationInfo< T , PointDs >* ... iData ) const;
+	template< unsigned int ... FEMSigs , typename T , typename TDotT , unsigned int ... PointDs >
+	DenseNodeData< T , UIntPack< FEMSigs ... > > solveSystem( UIntPack< FEMSigs ... > , ThreadPool &tp , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , TDotT Dot , LocalDepth maxSolveDepth , const SolverInfo& solverInfo , InterpolationInfo< T , PointDs >* ... iData ) const;
+	template< unsigned int ... FEMSigs , unsigned int ... PointDs >
+	void solveSystem( UIntPack< FEMSigs ... > , ThreadPool &tp , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& constraints , DenseNodeData< Real , UIntPack< FEMSigs ... > >& solution , LocalDepth maxSolveDepth , const SolverInfo& solverInfo , InterpolationInfo< Real , PointDs >* ... iData ) const
+	{
+		return solveSystem< FEMSigs ... , Real >( UIntPack< FEMSigs ... >() , tp , F , constraints , solution , []( Real v , Real w ){ return v*w; } , maxSolveDepth , solverInfo , iData ... );
+	}
+	template< unsigned int ... FEMSigs , unsigned int ... PointDs >
+	DenseNodeData< Real , UIntPack< FEMSigs ... > > solveSystem( UIntPack< FEMSigs ... > , ThreadPool &tp , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& constraints , LocalDepth maxSolveDepth , const SolverInfo& solverInfo , InterpolationInfo< Real , PointDs >* ... iData ) const
+	{
+		return solveSystem( UIntPack< FEMSigs ... >() , tp , F , constraints , []( Real v , Real w ){ return v*w; } , maxSolveDepth , solverInfo , iData ... );
+	}
+
+#else // !NEW_THREADS
 	template< unsigned int ... FEMSigs , typename T , typename TDotT , unsigned int ... PointDs >
 	void solveSystem( UIntPack< FEMSigs ... > , typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , const DenseNodeData< T , UIntPack< FEMSigs ... > >& constraints , DenseNodeData< T , UIntPack< FEMSigs ... > >& solution , TDotT Dot , LocalDepth maxSolveDepth , const SolverInfo& solverInfo , InterpolationInfo< T , PointDs >* ... iData ) const;
 	template< unsigned int ... FEMSigs , typename T , typename TDotT , unsigned int ... PointDs >
@@ -3003,6 +3746,7 @@ public:
 	{
 		return solveSystem( UIntPack< FEMSigs ... >() , F , constraints , []( Real v , Real w ){ return v*w; } , maxSolveDepth , solverInfo , iData ... );
 	}
+#endif // NEW_THREADS
 
 	FEMTreeNode& spaceRoot( void ){ return *_spaceRoot; }
 	const FEMTreeNode& tree( void ) const { return *_tree; }
@@ -3032,6 +3776,20 @@ protected:
 	template< class SReal , class Data >                     static Data _StencilDot( SReal                 p1 , Data                 p2 );
 	
 	// We need the signatures to test if nodes are valid
+#ifdef NEW_THREADS
+	template< typename T , unsigned int ... FEMSigs , unsigned int ... CSigs , unsigned int ... FEMDegrees , unsigned int ... CDegrees , unsigned int CDim , class Coefficients >
+	void _addFEMConstraints( UIntPack< FEMSigs ... > , UIntPack< CSigs ... > , ThreadPool &tp , typename BaseFEMIntegrator::Constraint< UIntPack< FEMDegrees ... > , UIntPack< CDegrees ... > , CDim >& F , const Coefficients& coefficients , Pointer( T ) constraints , LocalDepth maxDepth ) const;
+	template< typename T , typename TDotT , unsigned int ... FEMSigs1 , unsigned int ... FEMSigs2 , unsigned int ... Degrees1 , unsigned int ... Degrees2 , class Coefficients1 , class Coefficients2 >
+	double _dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs2 ... > , ThreadPool &tp , typename BaseFEMIntegrator::Constraint< UIntPack< Degrees1 ... > , UIntPack< Degrees2 ... > , 1 >& F , const Coefficients1& coefficients1 , const Coefficients2& coefficients2 , TDotT Dot ) const;
+	template< typename T , typename TDotT , unsigned int ... FEMSigs1 , unsigned int ... FEMSigs2 , class Coefficients1 , class Coefficients2 , unsigned int PointD >
+	double _interpolationDot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs2 ... > , ThreadPool &tp , const Coefficients1& coefficients1 , const Coefficients2& coefficients2 , TDotT Dot , const InterpolationInfo< T , PointD >* iInfo ) const;
+	template< typename T , typename TDotT , unsigned int ... FEMSigs1 , unsigned int ... FEMSigs2 , class Coefficients1 , class Coefficients2 , unsigned int PointD , unsigned int ... PointDs >
+	double _interpolationDot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs2 ... > , ThreadPool &tp , const Coefficients1& coefficients1 , const Coefficients2& coefficients2 , TDotT Dot , const InterpolationInfo< T , PointD >* iInfo , const InterpolationInfo< T , PointDs >* ... iInfos ) const
+	{
+		return _interpolationDot< T >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , tp , coefficients1 , coefficients2 , Dot , iInfo ) + _interpolationDot< T >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , tp , coefficients1 , coefficients2 , Dot , iInfos... );
+	}
+	template< typename T , typename TDotT , unsigned int ... FEMSigs1 , unsigned int ... FEMSigs2 , class Coefficients1 , class Coefficients2 > double _interpolationDot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs2 ... > , ThreadPool &tp , const Coefficients1& coefficients1 , const Coefficients2& coefficients2 , TDotT Dot ) const{ return 0; }
+#else // !NEW_THREADS
 	template< typename T , unsigned int ... FEMSigs , unsigned int ... CSigs , unsigned int ... FEMDegrees , unsigned int ... CDegrees , unsigned int CDim , class Coefficients >
 	void _addFEMConstraints( UIntPack< FEMSigs ... > , UIntPack< CSigs ... > , typename BaseFEMIntegrator::Constraint< UIntPack< FEMDegrees ... > , UIntPack< CDegrees ... > , CDim >& F , const Coefficients& coefficients , Pointer( T ) constraints , LocalDepth maxDepth ) const;
 	template< typename T , typename TDotT , unsigned int ... FEMSigs1 , unsigned int ... FEMSigs2 , unsigned int ... Degrees1 , unsigned int ... Degrees2 , class Coefficients1 , class Coefficients2 >
@@ -3044,6 +3802,7 @@ protected:
 		return _interpolationDot< T >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , coefficients1 , coefficients2 , Dot , iInfo ) + _interpolationDot< T >( UIntPack< FEMSigs1 ... >() , UIntPack< FEMSigs2 ... >() , coefficients1 , coefficients2 , Dot , iInfos... );
 	}
 	template< typename T , typename TDotT , unsigned int ... FEMSigs1 , unsigned int ... FEMSigs2 , class Coefficients1 , class Coefficients2 > double _interpolationDot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs2 ... > , const Coefficients1& coefficients1 , const Coefficients2& coefficients2 , TDotT Dot ) const{ return 0; }
+#endif // NEW_THREADS
 };
 template< unsigned int Dim , class Real > double FEMTree< Dim , Real >::_MaxMemoryUsage = 0;
 template< unsigned int Dim , class Real > double FEMTree< Dim , Real >::_LocalMemoryUsage = 0;
@@ -3056,10 +3815,37 @@ struct IsoSurfaceExtractor
 	{
 		std::string toString( void ) const { return std::string( "Iso-surface extraction not supported for dimension %d" , Dim ); }
 	};
+#ifdef NEW_THREADS
+#if !defined( FORCE_PARALLEL )
 	template< typename Data , unsigned int ... FEMSigs , unsigned int WeightDegree , unsigned int DataSig >
 	static IsoStats Extract
 	(
 		UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > ,							// Dummy variables for grouping the parameter
+		const FEMTree< Dim , Real >& tree ,																	// The tree over which the system is discretized
+		const typename FEMTree< Dim , Real >::template DensityEstimator< WeightDegree >* densityWeights ,	// Density weights
+		const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data ,	// Auxiliary spatial data
+		const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients ,								// The coefficients of the function
+		Real isoValue ,																						// The value at which to extract the level-set
+		CoredMeshData< Vertex , node_index_type >& mesh ,													// The mesh in which to store the output
+		std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex ,					// A function for setting the depth and data of a vertex
+		bool nonLinearFit ,																					// Should a linear interpolant be used
+		bool addBarycenter ,																				// Should we triangulate polygons by adding a mid-point
+		bool polygonMesh ,																					// Should we output triangles or polygons
+		bool flipOrientation																				// Should we flip the orientation
+	)
+	{
+		ThreadPool tp;
+		return Extract( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tp , tree , densityWeights , data , coefficients , isoValue , mesh , SetVertex , nonLinearFit , addBarycenter , polygonMesh , flipOrientation );
+	}
+#endif // !FORCE_PARALLEL
+#endif // NEW_THREADS
+	template< typename Data , unsigned int ... FEMSigs , unsigned int WeightDegree , unsigned int DataSig >
+	static IsoStats Extract
+	(
+		UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > ,							// Dummy variables for grouping the parameter
+#ifdef NEW_THREADS
+		ThreadPool &tp ,																					// The thread pool for parallelization
+#endif // NEW_THREADS
 		const FEMTree< Dim , Real >& tree ,																	// The tree over which the system is discretized
 		const typename FEMTree< Dim , Real >::template DensityEstimator< WeightDegree >* densityWeights ,	// Density weights
 		const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data ,	// Auxiliary spatial data
@@ -3118,11 +3904,22 @@ struct FEMTreeInitializer
 
 	// Initialize the tree using simplices
 #ifdef NEW_CODE
+#ifdef NEW_THREADS
+#if !defined( FORCE_PARALLEL )
+	static void Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
+	{
+		ThreadPool tp;
+		return Initialize( tp , root , vertices , simplices , maxDepth , samples , mergeNodeSamples , nodeAllocator , NodeInitializer );
+	}
+#endif // !FORCE_PARALLEL
+	static void Initialize( ThreadPool &tp , FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+#else // !NEW_THREADS
 	static void Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+#endif // NEW_THREADS
 	static void Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& nodeSimplices , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+
 	template< class Data , class _Data , bool Dual=true >
 	static size_t Initialize( FEMTreeNode& root , ConstPointer( Data ) values , ConstPointer( int ) labels , int resolution[Dim] , std::vector< NodeSample< Dim , _Data > > derivatives[Dim] , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer , std::function< _Data ( const Data& ) > DataConverter = []( const Data& d ){ return (_Data)d; }	);
-
 	template< bool Dual , class Data >
 	static unsigned int Initialize( FEMTreeNode& root , DerivativeStream< Data >& dStream , std::vector< NodeSample< Dim , Data > > derivatives[Dim] , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
 #else // !NEW_CODE

@@ -206,6 +206,9 @@ struct SystemDual< Dim , double >
 template< unsigned int Dim , class Real , unsigned int FEMSig >
 void _Execute( int argc , char* argv[] )
 {
+#ifdef NEW_THREADS
+	ThreadPool tp;
+#endif // NEW_THREADS
 	static const unsigned int Degree = FEMSignature< FEMSig >::Degree;
 	typedef typename FEMTree< Dim , Real >::template InterpolationInfo< Real , 0 > InterpolationInfo;
 	std::vector< std::string > comments;
@@ -287,7 +290,11 @@ void _Execute( int argc , char* argv[] )
 		XForm< Real , Dim+1 > _xForm = GetPointXForm< Real , Dim >( vertices , (Real)Scale.value );
 		for( int i=0 ; i<vertices.size() ; i++ ) vertices[i] = _xForm * vertices[i];
 		xForm = _xForm * xForm;
+#ifdef NEW_THREADS
+		FEMTreeInitializer< Dim , Real >::Initialize( tp , tree.spaceRoot() , vertices , triangles , Depth.value , geometrySamples , true , tree.nodeAllocator , tree.initializer() );
+#else // !NEW_THREADS
 		FEMTreeInitializer< Dim , Real >::Initialize( tree.spaceRoot() , vertices , triangles , Depth.value , geometrySamples , true , tree.nodeAllocator , tree.initializer() );
+#endif // NEW_THREADS
 		iXForm = xForm.inverse();
 		if( OutXForm.set )
 		{
@@ -313,7 +320,11 @@ void _Execute( int argc , char* argv[] )
 			Real a2 = s.squareMeasure();
 			if( a2>0 ) area += sqrt(a2) / 2;
 		}
+#ifdef NEW_CODE
+		messageWriter( "Input Vertices / Triangle / Samples / Area: %llu / %llu / %llu / %g\n" , (unsigned long long)vertices.size() , (unsigned long long)triangles.size() , (unsigned long long)geometrySamples.size() , area );
+#else // !NEW_CODE
 		messageWriter( "Input Vertices / Triangle / Samples / Area: %d / %d / %d / %g\n" , (int)vertices.size() , (int)triangles.size() , geometrySamples.size() , area );
+#endif // NEW_CODE
 		profiler.dumpOutput2( comments , "# Read input into tree:" );
 	}
 
@@ -330,11 +341,19 @@ void _Execute( int argc , char* argv[] )
 	// Finalize the topology of the tree
 	{
 		profiler.start();
+#ifdef NEW_THREADS
+		tree.template finalizeForMultigrid< Degree >( tp , FullDepth.value , typename FEMTree< Dim , Real >::TrivialHasDataFunctor() );
+#else // !NEW_THREADS
 		tree.template finalizeForMultigrid< Degree >( FullDepth.value , typename FEMTree< Dim , Real >::TrivialHasDataFunctor() );
+#endif // NEW_THREADS
 		profiler.dumpOutput2( comments , "#       Finalized tree:" );
 	}
 
+#ifdef NEW_CODE
+	messageWriter( "Leaf Nodes / Active Nodes / Ghost Nodes: %llu / %llu / %llu\n" , (unsigned long long)tree.leaves() , (unsigned long long)tree.nodes() , (unsigned long long)tree.ghostNodes() );
+#else // !NEW_CODE
 	messageWriter( "Leaf Nodes / Active Nodes / Ghost Nodes: %d / %d / %d\n" , (int)tree.leaves() , (int)tree.nodes() , (int)tree.ghostNodes() );
+#endif // NEW_CODE
 	messageWriter( "Memory Usage: %.3f MB\n" , float( MemoryInfo::Usage())/(1<<20) );
 
 	SparseNodeData< Point< Real , Dim+1 > , IsotropicUIntPack< Dim , FEMTrivialSignature > > leafValues;
@@ -351,7 +370,11 @@ void _Execute( int argc , char* argv[] )
 		DenseNodeData< Point< Real , 1 > , IsotropicUIntPack< Dim , FEMTrivialSignature > > _constraints( tree.nodesSize() );
 		for( int i=0 ; i<geometrySamples.size() ; i++ ) _constraints[ geometrySamples[i].node ][0] = geometrySamples[i].sample.weight * ( 1<<(Depth.value*Dim) );
 		typename FEMIntegrator::template ScalarConstraint< IsotropicUIntPack< Dim , FEMSig > , IsotropicUIntPack< Dim , 0 > , IsotropicUIntPack< Dim , FEMTrivialSignature > , IsotropicUIntPack< Dim , 0 > > F( {1.} );
+#ifdef NEW_THREADS
+		tree.addFEMConstraints( tp , F , _constraints , constraints , Depth.value );
+#else // !NEW_THREADS
 		tree.addFEMConstraints( F , _constraints , constraints , Depth.value );
+#endif // NEW_THREADS
 		profiler.dumpOutput2( comments , "# Set heat constraints:" );
 	}
 
@@ -364,7 +387,11 @@ void _Execute( int argc , char* argv[] )
 		sInfo.sorRestrictionFunction  = [&]( Real w , Real ){ return ( Real )( WeightScale.value * pow( w , WeightExponent.value ) ); };
 		{
 			typename FEMIntegrator::template System< IsotropicUIntPack< Dim , FEMSig > , IsotropicUIntPack< Dim , 1 > > F( { 1. , (double)DiffusionTime.value } );
+#ifdef NEW_THREADS
+			heatSolution = tree.solveSystem( IsotropicUIntPack< Dim , FEMSig >() , tp , F , constraints , Depth.value , sInfo );
+#else // !NEW_THREADS
 			heatSolution = tree.solveSystem( IsotropicUIntPack< Dim , FEMSig >() , F , constraints , Depth.value , sInfo );
+#endif // NEW_THREADS
 		}
 		sInfo.baseDepth = BaseDepth.value , sInfo.baseVCycles = BaseVCycles.value;
 		profiler.dumpOutput2( comments , "#   Heat system solved:" );
@@ -374,7 +401,11 @@ void _Execute( int argc , char* argv[] )
 	{
 		profiler.start();
 
+#ifdef NEW_THREADS
+		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< IsotropicUIntPack< Dim , FEMSig > , 0 > evaluator( tp , &tree , heatSolution );
+#else // !NEW_THREADS
 		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< IsotropicUIntPack< Dim , FEMSig > , 0 > evaluator( &tree , heatSolution );
+#endif // NEW_THREDAS
 #ifdef NEW_CODE
 		typedef typename RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >::template ConstNeighbors< IsotropicUIntPack< Dim , 3 > > OneRingNeighbors;
 		typedef typename RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >::template ConstNeighborKey< IsotropicUIntPack< Dim , 1 > , IsotropicUIntPack< Dim , 1 > > OneRingNeighborKey;
@@ -505,7 +536,11 @@ void _Execute( int argc , char* argv[] )
 				for( int dd=0 ; dd<Dim ; dd++ ) derivatives1[dd] = dd==d ? 1 : 0;
 				F.weights[d+1][TensorDerivatives< Derivatives1 >::Index( derivatives1 )][ TensorDerivatives< Derivatives2 >::Index( derivatives2 )] = 1.;
 			}
+#ifdef NEW_THREADS
+			tree.addFEMConstraints( tp , F , leafValues , constraints , Depth.value );
+#else // !NEW_THREADS
 			tree.addFEMConstraints( F , leafValues , constraints , Depth.value );
+#endif // NEW_THREADS
 			profiler.dumpOutput2( comments , "#  Set EDT constraints:" );
 		}
 
@@ -513,9 +548,15 @@ void _Execute( int argc , char* argv[] )
 		if( ValueWeight.value>0 )
 		{
 			profiler.start();
+#ifdef NEW_THREADS
+			if( ExactInterpolation.set ) valueInfo = FEMTree< Dim , Real >::template       InitializeExactPointInterpolationInfo< Real , 0 >( tp , tree , geometrySamples , ConstraintDual< Dim , Real >() , SystemDual< Dim , Real >( std::max< Real >( 0 , (Real)ValueWeight.value ) ) , true , false );
+			else                         valueInfo = FEMTree< Dim , Real >::template InitializeApproximatePointInterpolationInfo< Real , 0 >( tp , tree , geometrySamples , ConstraintDual< Dim , Real >() , SystemDual< Dim , Real >( std::max< Real >( 0 , (Real)ValueWeight.value ) ) , true , 0 );
+			tree.addInterpolationConstraints( tp , constraints , Depth.value , *valueInfo );
+#else // !NEW_THREADS
 			if( ExactInterpolation.set ) valueInfo = FEMTree< Dim , Real >::template       InitializeExactPointInterpolationInfo< Real , 0 >( tree , geometrySamples , ConstraintDual< Dim , Real >() , SystemDual< Dim , Real >( std::max< Real >( 0 , (Real)ValueWeight.value ) ) , true , false );
 			else                         valueInfo = FEMTree< Dim , Real >::template InitializeApproximatePointInterpolationInfo< Real , 0 >( tree , geometrySamples , ConstraintDual< Dim , Real >() , SystemDual< Dim , Real >( std::max< Real >( 0 , (Real)ValueWeight.value ) ) , true , 0 );
 			tree.addInterpolationConstraints( constraints , Depth.value , *valueInfo );
+#endif // NEW_THREADS
 			profiler.dumpOutput2( comments , "#Set point constraints:" );
 		}
 
@@ -529,7 +570,11 @@ void _Execute( int argc , char* argv[] )
 			sInfo.useSupportWeights = true;
 			sInfo.sorRestrictionFunction  = [&]( Real w , Real ){ return (Real)( WeightScale.value * pow( w , WeightExponent.value ) ); }; 
 			typename FEMIntegrator::template System< IsotropicUIntPack< Dim , FEMSig > , IsotropicUIntPack< Dim , 1 > > F( { 0. , 1. } );
+#ifdef NEW_THREADS
+			edtSolution = tree.solveSystem( IsotropicUIntPack< Dim , FEMSig >() , tp , F , constraints , Depth.value , sInfo , valueInfo );
+#else // !NEW_THREADS
 			edtSolution = tree.solveSystem( IsotropicUIntPack< Dim , FEMSig >() , F , constraints , Depth.value , sInfo , valueInfo );
+#endif // NEW_THREADS
 			profiler.dumpOutput2( comments , "#    EDT system solved:" );
 		}
 		if( valueInfo ) delete valueInfo , valueInfo = NULL;
@@ -538,7 +583,11 @@ void _Execute( int argc , char* argv[] )
 			auto GetAverageValueAndError = [&]( const FEMTree< Dim , Real >* tree , const DenseNodeData< Real , IsotropicUIntPack< Dim , FEMSig > >& coefficients , double& average , double& error )
 			{
 				double errorSum = 0 , valueSum = 0 , weightSum = 0;
+#ifdef NEW_THREADS
+				typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< IsotropicUIntPack< Dim , FEMSig > , 0 > evaluator( tp , tree , coefficients );
+#else // !NEW_THREADS
 				typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< IsotropicUIntPack< Dim , FEMSig > , 0 > evaluator( tree , coefficients );
+#endif // NEW_THREADS
 #pragma omp parallel for reduction( + : errorSum , valueSum , weightSum )
 				for( int j=0 ; j<geometrySamples.size() ; j++ )
 				{

@@ -5,6 +5,7 @@ EH_TARGET=EDTInHeat
 IS_TARGET=ImageStitching
 AV_TARGET=AdaptiveTreeVisualization
 CP_TARGET=ConvertPLY
+PT_TARGET=ParallelTest
 PR_SOURCE=PlyFile.cpp PoissonRecon.cpp
 SR_SOURCE=PlyFile.cpp SSDRecon.cpp
 ST_SOURCE=PlyFile.cpp SurfaceTrimmer.cpp
@@ -12,17 +13,18 @@ EH_SOURCE=PlyFile.cpp EDTInHeat.cpp
 IS_SOURCE=ImageStitching.cpp
 AV_SOURCE=PlyFile.cpp AdaptiveTreeVisualization.cpp
 CP_SOURCE=PlyFile.cpp ConvertPLY.cpp
+PT_SOURCE=ParallelTest.cpp
 
 COMPILER = gcc
 #COMPILER = clang
 
 ifeq ($(COMPILER),gcc)
-	CFLAGS += -fopenmp -Wno-deprecated -std=c++11 -Wno-invalid-offsetof
-	LFLAGS += -lgomp -lstdc++
+	CFLAGS += -fopenmp -Wno-deprecated -std=c++11 -pthread -Wno-invalid-offsetof
+	LFLAGS += -lgomp -lstdc++ -lpthread
 else
 # 	CFLAGS += -fopenmp=libiomp5 -Wno-deprecated -Wno-write-strings -std=c++11 -Wno-invalid-offsetof
 # 	LFLAGS += -liomp5 -lstdc++
-	CFLAGS += -Wno-deprecated -std=c++11 -Wno-invalid-offsetof
+	CFLAGS += -Wno-deprecated -std=c++11 -pthread -Wno-invalid-offsetof
 	LFLAGS += -lstdc++
 endif
 #LFLAGS += -lz -lpng -ljpeg
@@ -57,6 +59,7 @@ EH_OBJECTS=$(addprefix $(BIN), $(addsuffix .o, $(basename $(EH_SOURCE))))
 IS_OBJECTS=$(addprefix $(BIN), $(addsuffix .o, $(basename $(IS_SOURCE))))
 AV_OBJECTS=$(addprefix $(BIN), $(addsuffix .o, $(basename $(AV_SOURCE))))
 CP_OBJECTS=$(addprefix $(BIN), $(addsuffix .o, $(basename $(CP_SOURCE))))
+PT_OBJECTS=$(addprefix $(BIN), $(addsuffix .o, $(basename $(PT_SOURCE))))
 
 
 all: CFLAGS += $(CFLAGS_RELEASE)
@@ -69,6 +72,7 @@ all: $(BIN)$(EH_TARGET)
 all: $(BIN)$(IS_TARGET)
 all: $(BIN)$(AV_TARGET)
 all: $(BIN)$(CP_TARGET)
+all: $(BIN)$(PT_TARGET)
 
 debug: CFLAGS += $(CFLAGS_DEBUG)
 debug: LFLAGS += $(LFLAGS_DEBUG)
@@ -80,6 +84,7 @@ debug: $(BIN)$(EH_TARGET)
 debug: $(BIN)$(IS_TARGET)
 debug: $(BIN)$(AV_TARGET)
 debug: $(BIN)$(CP_TARGET)
+debug: $(BIN)$(PT_TARGET)
 
 poissonrecon: CFLAGS += $(CFLAGS_RELEASE)
 poissonrecon: LFLAGS += $(LFLAGS_RELEASE)
@@ -116,6 +121,11 @@ convertply: LFLAGS += $(LFLAGS_RELEASE)
 convertply: make_dir
 convertply: $(BIN)$(CP_TARGET)
 
+paralleltest: CFLAGS += $(CFLAGS_RELEASE)
+paralleltest: LFLAGS += $(LFLAGS_RELEASE)
+paralleltest: make_dir
+paralleltest: $(BIN)$(PT_TARGET)
+
 clean:
 	rm -rf $(BIN)$(PR_TARGET)
 	rm -rf $(BIN)$(SR_TARGET)
@@ -124,6 +134,7 @@ clean:
 	rm -rf $(BIN)$(IS_TARGET)
 	rm -rf $(BIN)$(AV_TARGET)
 	rm -rf $(BIN)$(CP_TARGET)
+	rm -rf $(BIN)$(PT_TARGET)
 	rm -rf $(PR_OBJECTS)
 	rm -rf $(SR_OBJECTS)
 	rm -rf $(ST_OBJECTS)
@@ -131,6 +142,7 @@ clean:
 	rm -rf $(IS_OBJECTS)
 	rm -rf $(AV_OBJECTS)
 	rm -rf $(CP_OBJECTS)
+	rm -rf $(PT_OBJECTS)
 	cd PNG  && make clean
 
 
@@ -163,6 +175,10 @@ $(BIN)$(CP_TARGET): $(CP_OBJECTS)
 	cd PNG  && make
 	$(CXX) -o $@ $(CP_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
 
+$(BIN)$(PT_TARGET): $(PT_OBJECTS)
+	cd PNG  && make
+	$(CXX) -o $@ $(PT_OBJECTS) -L$(BIN) $(LFLAGS) -ljpeg -lmypng -lz
+	
 $(BIN)%.o: $(SRC)%.c
 	$(CC) -c -o $@ -I$(INCLUDE) $<
 

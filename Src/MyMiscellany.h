@@ -190,6 +190,7 @@ struct MessageWriter
 #include <string>
 #include <iostream>
 #include <sstream>
+#include <algorithm>
 namespace MKExceptions
 {
 	template< typename ... Arguments > void _AddToMessageStream( std::stringstream &stream , Arguments ... arguments );
@@ -320,12 +321,265 @@ namespace MKExceptions
 #include <thread>
 #include <mutex>
 #include <vector>
+#include <atomic>
+#include <condition_variable>
+#include <functional>
+#include <chrono>
 
+#if 0
 // The assumption is that Kernel is the type of a function taking two arguments, the first is the index of the thread and the second is index of the iteration
 struct MKThread
 {
 	static unsigned int Threads;
 
+#if 1
+	template< typename Kernel >
+	static void parallel_thread_for( size_t start , size_t end , Kernel kernel )
+	{
+		size_t range = end - start;
+
+		auto _functor = [&]( unsigned int t )
+		{
+			size_t _start = start + ( range * t ) / Threads;
+			size_t _end = start + ( range *(t+1) ) / Threads;
+			for( size_t i=_start ; i<_end ; i++ ) kernel( t , i );
+		};
+
+		std::vector< std::thread > threads( Threads );
+		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
+		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t].join();
+	}
+
+	template< typename Kernel , typename ThreadArg >
+	static void parallel_thread_for( size_t start , size_t end , std::vector< ThreadArg > &threadArgs , Kernel kernel )
+	{
+		size_t range = end - start;
+
+		auto _functor = [&]( unsigned int t )
+		{
+			size_t _start = start + ( range * t ) / Threads;
+			size_t _end = start + ( range *(t+1) ) / Threads;
+			ThreadArg &threadArg = threadArgs[t];
+			for( size_t i=_start ; i<_end ; i++ ) kernel( t , i , threadArg );
+		};
+
+		std::vector< std::thread > threads( Threads );
+		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
+		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t].join();
+	}
+
+	template< typename Kernel , typename ThreadArg >
+	static void parallel_thread_for( size_t start , size_t end , ThreadArg *threadArgs , Kernel kernel )
+	{
+		size_t range = end - start;
+
+		auto _functor = [&]( unsigned int t )
+		{
+			size_t _start = start + ( range * t ) / Threads;
+			size_t _end = start + ( range *(t+1) ) / Threads;
+			ThreadArg &threadArg = threadArgs[t];
+			for( size_t i=_start ; i<_end ; i++ ) kernel( t , i , threadArg );
+		};
+
+		std::vector< std::thread > threads( Threads );
+		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
+		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t].join();
+	}
+
+	template< typename Kernel >
+	static void parallel_thread_block_for( size_t start , size_t end , size_t blockSize , Kernel kernel )
+	{
+		size_t range = end - start;
+		size_t blocks = ( range + blockSize - 1 ) / blockSize;
+
+		auto _functor = [&]( unsigned int t )
+		{
+			for( size_t b=t ; b<blocks ; b+=Threads )
+			{
+				size_t blockStart = start + ( range * b ) / blocks;
+				size_t blockEnd = start + ( range * (b+1) ) / blocks;
+				for( size_t i=blockStart ; i<blockEnd ; i++ ) kernel( t , i );
+			}
+		};
+
+		if( blocks==1 ) for( size_t i=start ; i<end ; i++ ) kernel( 0 , i );
+		else if( blocks>1 )
+		{
+			unsigned int threadCount = (unsigned int)std::min< size_t >( Threads , blocks );
+			std::vector< std::thread > threads( threadCount );
+			for( unsigned int t=0 ; t<threadCount ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
+			for( unsigned int t=0 ; t<threadCount ; t++ ) threads[t].join();
+		}
+	}
+
+	template< typename Kernel , typename ThreadArg >
+	static void parallel_thread_block_for( size_t start , size_t end , size_t blockSize , std::vector< ThreadArg > &threadArgs , Kernel kernel )
+	{
+		size_t range = end - start;
+		size_t blocks = ( range + blockSize - 1 ) / blockSize;
+
+		auto _functor = [&]( unsigned int t )
+		{
+			for( size_t b=t ; b<blocks ; b+=Threads )
+			{
+				size_t blockStart = start + ( range * b ) / blocks;
+				size_t blockEnd = start + ( range * (b+1) ) / blocks;
+				ThreadArg &threadArg = threadArgs[t];
+				for( size_t i=blockStart ; i<blockEnd ; i++ ) kernel( t , i , threadArg );
+			}
+		};
+
+		if( blocks==1 )
+		{
+			ThreadArg &threadArg = threadArgs[0];
+			for( size_t i=start ; i<end ; i++ ) kernel( 0 , i , threadArg );
+		}
+		else if( blocks>1 )
+		{
+			unsigned int threadCount = (unsigned int)std::min< size_t >( Threads , blocks );
+			std::vector< std::thread > threads( threadCount );
+			for( unsigned int t=0 ; t<threadCount ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
+			for( unsigned int t=0 ; t<threadCount ; t++ ) threads[t].join();
+		}
+	}
+
+	template< typename Kernel , typename ThreadArg >
+	static void parallel_thread_block_for( size_t start , size_t end , size_t blockSize , ThreadArg *threadArgs , Kernel kernel )
+	{
+		size_t range = end - start;
+		size_t blocks = ( range + blockSize - 1 ) / blockSize;
+
+		auto _functor = [&]( unsigned int t )
+		{
+			for( size_t b=t ; b<blocks ; b+=Threads )
+			{
+				size_t blockStart = start + ( range * b ) / blocks;
+				size_t blockEnd = start + ( range * (b+1) ) / blocks;
+				ThreadArg &threadArg = threadArgs[t];
+				for( size_t i=blockStart ; i<blockEnd ; i++ ) kernel( t , i , threadArg );
+			}
+		};
+
+		if( blocks==1 )
+		{
+			ThreadArg &threadArg = threadArgs[0];
+			for( size_t i=start ; i<end ; i++ ) kernel( 0 , i , threadArg );
+		}
+		else if( blocks>1 )
+		{
+			unsigned int threadCount = (unsigned int)std::min< size_t >( Threads , blocks );
+			std::vector< std::thread > threads( threadCount );
+			for( unsigned int t=0 ; t<threadCount ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
+			for( unsigned int t=0 ; t<threadCount ; t++ ) threads[t].join();
+		}
+	}
+
+	template< typename Kernel >
+	static void parallel_task_block_for( size_t start , size_t end , size_t blockSize , Kernel &kernel )
+	{
+		std::atomic< size_t > idx = start;
+		auto _functor = [&]( unsigned int t )
+		{
+			while( idx<end )
+			{
+				size_t _start = idx.fetch_add( blockSize );
+				size_t _end = std::min< size_t >( _start + blockSize , end );
+				for( size_t i=_start ; i<_end ; i++ ) kernel( t , i );
+			}
+		};
+
+		if( end-start<=blockSize ) for( size_t i=start ; i<end ; i++ ) kernel( 0 , i ); 
+		else
+		{
+			unsigned int threadCount = (unsigned int)std::min< size_t >( Threads , (end-start+blockSize-1)/blockSize );
+			std::vector< std::thread > threads( threadCount );
+			for( unsigned int t=0 ; t<threadCount ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
+			for( unsigned int t=0 ; t<threadCount ; t++ ) threads[t].join();
+		}
+	}
+
+	template< typename Kernel , typename ThreadArg >
+	static void parallel_task_block_for( size_t start , size_t end , size_t blockSize , std::vector< ThreadArg > &threadArgs , Kernel &kernel )
+	{
+		std::atomic< size_t > idx = start;
+		auto _functor = [&]( unsigned int t )
+		{
+			while( idx<end )
+			{
+				size_t _start = idx.fetch_add( blockSize );
+				size_t _end = std::min< size_t >( _start + blockSize , end );
+				ThreadArg &threadArg = threadArgs[t];
+				for( size_t i=_start ; i<_end ; i++ ) kernel( t , i , threadArg );
+			}
+		};
+
+		if( end-start<=blockSize )
+		{
+			ThreadArg &threadArg = threadArgs[0];
+			for( size_t i=start ; i<end ; i++ ) kernel( 0 , i , threadArg ); 
+		}
+		else
+		{
+			unsigned int threadCount = (unsigned int)std::min< size_t >( Threads , (end-start+blockSize-1)/blockSize );
+			std::vector< std::thread > threads( threadCount );
+			for( unsigned int t=0 ; t<threadCount ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
+			for( unsigned int t=0 ; t<threadCount ; t++ ) threads[t].join();
+		}
+	}
+
+	template< typename Kernel , typename ThreadArg >
+	static void parallel_task_block_for( size_t start , size_t end , size_t blockSize , ThreadArg *threadArgs , Kernel &kernel )
+	{
+		std::atomic< size_t > idx = start;
+		auto _functor = [&]( unsigned int t )
+		{
+			while( idx<end )
+			{
+				size_t _start = idx.fetch_add( blockSize );
+				size_t _end = std::min< size_t >( _start + blockSize , end );
+				ThreadArg &threadArg = threadArgs[t];
+				for( size_t i=_start ; i<_end ; i++ ) kernel( t , i , threadArg );
+			}
+		};
+
+		if( end-start<=blockSize )
+		{
+			ThreadArg &threadArg = threadArgs[0];
+			for( size_t i=start ; i<end ; i++ ) kernel( 0 , i , threadArg ); 
+		}
+		else
+		{
+			unsigned int threadCount = (unsigned int)std::min< size_t >( Threads , (end-start+blockSize-1)/blockSize );
+			std::vector< std::thread > threads( threadCount );
+			for( unsigned int t=0 ; t<threadCount ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
+			for( unsigned int t=0 ; t<threadCount ; t++ ) threads[t].join();
+		}
+	}
+
+	template< typename Kernel >
+	static void parallel_for( size_t start , size_t end , Kernel kernel )
+	{
+//		return parallel_thread_for( start , end , kernel );
+		return parallel_thread_block_for( start , end , 200 , kernel );
+//		return parallel_task_block_for( start , end , 200 , kernel );
+	}
+
+	template< typename Kernel , typename ThreadArg >
+	static void parallel_for( size_t start , size_t end , std::vector< ThreadArg > &threadArgs , Kernel kernel )
+	{
+//		return parallel_thread_for( start , end , threadArgs , kernel );
+		return parallel_thread_block_for( start , end , 200 , threadArgs , kernel );
+//		return parallel_task_block_for( start , end , 200 , threadArgs , kernel );
+	}
+
+	template< typename Kernel , typename ThreadArg >
+	static void parallel_for( size_t start , size_t end , ThreadArg *threadArgs , Kernel kernel )
+	{
+//		return parallel_thread_for( start , end , threadArgs , kernel );
+		return parallel_thread_block_for( start , end , 200 , threadArgs , kernel);
+//		return parallel_task_block_for( start , end , 200 , threadArgs , kernel );
+	}
+#else
 	template< typename Kernel , typename ... Args >
 	static void parallel_thread_for( size_t start , size_t end , Kernel kernel , Args ... args )
 	{
@@ -339,9 +593,7 @@ struct MKThread
 		};
 
 		std::vector< std::thread > threads( Threads );
-
 		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
-
 		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t].join();
 	}
 
@@ -361,15 +613,286 @@ struct MKThread
 		};
 
 		std::vector< std::thread > threads( Threads );
-
 		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
-
 		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t].join();
 	}
+
+	template< typename Kernel , typename ... Args >
+	static void parallel_task_block_for( size_t start , size_t end , size_t blockSize , Kernel &kernel , Args ... args )
+	{
+		std::atomic< size_t > idx = start;
+		auto _functor = [&]( unsigned int t )
+		{
+			while( idx<end )
+			{
+				size_t _start = idx.fetch_add( blockSize );
+				size_t _end = std::min< size_t >( _start + blockSize , end );
+				for( size_t i=_start ; i<_end ; i++ ) kernel( t , i , args ... );
+			}
+		};
+
+		std::vector< std::thread > threads( Threads );
+		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
+		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t].join();
+	}
+
+	template< typename Kernel , typename ... Args >
+	static void parallel_for( size_t start , size_t end , Kernel kernel , Args ... args )
+	{
+		//		return parallel_thread_for( start , end , kernel , args ... );
+		return parallel_thread_block_for( start , end , 100 , kernel , args ... );
+		//		return parallel_task_block_for( start , end , 200 , kernel , args ... );
+	}
+#endif
+
 };
 unsigned int MKThread::Threads = std::thread::hardware_concurrency();
+#endif
+
+// [WARNING] The ThreadPool is not thread safe. Specifically, every thread should have its own ThreadPool.
+struct ThreadPool
+{
+	static unsigned int DefaultThreadNum;
+
+	size_t blockSize( void ) const { return _blockSize; }
+	void setBlockSize( size_t blockSize ){ _blockSize = blockSize; }
+	void parallel_for( size_t begin , size_t end , std::function< void ( unsigned int , size_t ) > iterationFunction )
+	{
+		if( !_threads.size() ) for( size_t i=begin ; i<end ; i++ ) iterationFunction( 0 , i );
+		else
+		{
+			auto WorkersWorking = [&]( void ){ unsigned int c=0 ; for( unsigned int t=0 ; t<_threads.size() ; t++ ) if( _workToBeDone[t] ) c++ ; return c; };
+			auto WorkComplete = [&]( void ){ return WorkersWorking()==0; };
+			if( begin>=end ) return;
+			if( end-begin<_blockSize && _blockSize!=-1 ) for( size_t i=begin ; i<end ; i++ ) iterationFunction( 0 , i );
+			else
+			{
+				_begin = begin;
+				_index = begin;
+				_end = end;
+				_iterationFunction = iterationFunction;
+				for( unsigned int t=0 ; t<_threads.size() ; t++ ) _workToBeDone[t] = 1;
+				_waitingForWorkOrClose.notify_all();
+
+				{
+					std::unique_lock< std::mutex > lock( _mutex );
+					while( !WorkComplete()!=0 ){ _doneWithWork.wait( lock , WorkComplete ); }
+				}
+			}
+		}
+	}
+	void setThreadNum( unsigned int threadNum )
+	{
+		_close = 1;
+		if( _threads.size() )
+		{
+			_waitingForWorkOrClose.notify_all();
+			for( unsigned int t=0 ; t<_threads.size() ; t++ ) _threads[t].join();
+		}
+		_threads.resize( threadNum );
+		_workToBeDone.resize( threadNum , 0 );
+		_close = 0;
+		for( unsigned int t=0 ; t<threadNum ; t++ ) _threads[t] = std::thread( _ThreadFunction , t , this );
+	}
+
+	unsigned int threadNum( void ) const { return (unsigned int)_threads.size(); }
+
+	ThreadPool( unsigned int threadNum=DefaultThreadNum )
+	{
+		_blockSize = 100;
+		_threads.resize( threadNum );
+		_workToBeDone.resize( threadNum , 0 );
+		_close = 0;
+		for( unsigned int t=0 ; t<threadNum ; t++ ) _threads[t] = std::thread( _ThreadFunction , t , this );
+	}
+
+	~ThreadPool( void )
+	{
+		_close = 1;
+		if( _threads.size() )
+		{
+			_waitingForWorkOrClose.notify_all();
+			for( unsigned int t=0 ; t<_threads.size() ; t++ ) _threads[t].join();
+		}
+	}
+protected:
+	ThreadPool( const ThreadPool & ){}
+	ThreadPool &operator = ( const ThreadPool & ){}
+	static void _ThreadFunction( unsigned int thread , ThreadPool *tPool )
+	{
+		unsigned int threads = (unsigned int)tPool->_threads.size();
+
+		// Wait for the first job to come in
+		{
+			std::unique_lock< std::mutex > lock( tPool->_mutex );
+			tPool->_waitingForWorkOrClose.wait( lock , [&]{ return tPool->_workToBeDone[thread] || tPool->_close; } );
+		}
+		while( true )
+		{
+			// do the job (or terminate)
+			if( tPool->_close ) break;
+			if( tPool->_blockSize==-1 )
+			{
+				size_t range = ( tPool->_end - tPool->_begin );
+				size_t begin = tPool->_begin + ( range * (thread+0) )/threads;
+				size_t end   = tPool->_begin + ( range * (thread+1) )/threads;
+				for( size_t i=begin ; i<end ; i++ ) tPool->_iterationFunction( thread , i );
+			}
+			else
+			{
+				while( tPool->_index<tPool->_end )
+				{
+					size_t begin = tPool->_index.fetch_add( tPool->_blockSize );
+					size_t end = std::min< size_t >( begin + tPool->_blockSize , tPool->_end );
+					for( size_t i=begin ; i<end ; i++ ) tPool->_iterationFunction( thread , i );
+				}
+			}
+
+			// Notify and wait for the next job
+			// [NOTE] We are locking the mutex so that the server cannot initiate new jobs until the client has started waiting
+			{
+				std::unique_lock< std::mutex > lock( tPool->_mutex );
+				tPool->_workToBeDone[thread] = false;
+				tPool->_doneWithWork.notify_all();
+				tPool->_waitingForWorkOrClose.wait( lock , [&]{ return tPool->_workToBeDone[thread] || tPool->_close; } );
+			}
+		}
+	}
+
+	char _close;
+	std::vector< bool > _workToBeDone;
+	std::mutex _mutex;
+	std::condition_variable _waitingForWorkOrClose , _doneWithWork;
+	std::vector< std::thread > _threads;
+	std::function< void ( unsigned int , size_t ) > _iterationFunction;
+	size_t _begin , _end , _blockSize;
+	std::atomic< size_t > _index;
+};
+unsigned int ThreadPool::DefaultThreadNum = std::thread::hardware_concurrency();
+
 #endif // NEW_THREADS
 
+#ifdef NEW_CODE
+#ifdef NEW_THREADS
+#if defined( _WIN32 ) || defined( _WIN64 )
+#include <windows.h>
+#endif // _WIN32 || _WIN64
+#endif // NEW_THREADS
+
+template< typename Number >
+void AddAtomic32( Number &a , const Number &b )
+{
+#ifdef NEW_THREADS
+#if defined( _WIN32 ) || defined( _WIN64 )
+	Number current = a;
+	Number sum = current+b;
+	long &_current = *(long *)&current;
+	long &_sum = *(long *)&sum;
+	while( InterlockedCompareExchange( (long*)&a , _sum , _current )!=_current ) current = a , sum = a+b;
+#else // !_WIN32 && !_WIN64
+	Number current = a;
+	Number sum = current+b;
+	uint32_t &_current = *(uint32_t *)&current;
+	uint32_t &_sum = *(uint32_t *)&sum;
+	while( __sync_val_compare_and_swap( (uint32_t *)&a , _current , _sum )!=_current ) current = a , sum = a+b;
+#endif // _WIN32 || _WIN64
+#else // !NEW_THREADS
+#pragma omp atomic
+	a += b;
+#endif // NEW_THREADS
+}
+
+template< typename Number >
+void AddAtomic64( Number &a , const Number &b )
+{
+#ifdef NEW_THREADS
+#if defined( _WIN32 ) || defined( _WIN64 )
+	Number current = a;
+	Number sum = current+b;
+	__int64 &_current = *(__int64 *)&current;
+	__int64 &_sum = *(__int64 *)&sum;
+	while( InterlockedCompareExchange64( (__int64*)&a , _sum , _current )!=_current ) current = a , sum = a+b;
+#else // !_WIN32 && !_WIN64
+	Number current = a;
+	Number sum = current+b;
+	uint64_t &_current = *(uint64_t *)&current;
+	uint64_t &_sum = *(uint64_t *)&sum;
+	while( __sync_val_compare_and_swap( (uint64_t *)&a , _current , _sum )!=_current ) current = a , sum = a+b;
+#endif // _WIN32 || _WIN64
+#else // !NEW_THREADS
+#pragma omp atomic
+	a += b;
+#endif // NEW_THREADS
+}
+
+template< typename Data >
+void AddAtomic( Data& a , const Data& b )
+{
+	switch( sizeof(Data) )
+	{
+	case 4: return AddAtomic32( a , b );
+	case 8: return AddAtomic64( a , b );
+	default:
+		WARN_ONCE( "should not use this function: " , sizeof(Data) );
+#ifdef NEW_THREADS
+		static std::mutex m;
+		std::lock_guard< std::mutex > lock(m);
+		a += b;
+#else // !NEW_THREADS
+#pragma omp critical
+		a += b;
+#endif // NEW_THREADS
+	}
+}
+
+
+#if 0
+void AddAtomic( float& a , const float& b )
+{
+#ifdef NEW_THREADS
+#if defined( _WIN32 ) || defined( _WIN64 )
+	float current = a;
+	float sum = current+b;
+	long &_current = *(long *)&current;
+	long &_sum = *(long *)&sum;
+	while( InterlockedCompareExchange( (long*)&a , _sum , _current )!=_current ) current = a , sum = a+b;
+#else // !_WIN32 && !_WIN64
+	float current = a;
+	float sum = current+b;
+	uint32_t &_current = *(uint32_t *)&current;
+	uint32_t &_sum = *(uint32_t *)&sum;
+	while( __sync_val_compare_and_swap( (uint32_t *)&a , _current , _sum )!=_current ) current = a , sum = a+b;
+#endif // _WIN32 || _WIN64
+#else // !NEW_THREADS
+#pragma omp atomic
+	a += b;
+#endif // NEW_THREADS
+}
+
+void AddAtomic( double& a , const double& b )
+{
+#ifdef NEW_THREADS
+#if defined( _WIN32 ) || defined( _WIN64 )
+	double current = a;
+	double sum = current+b;
+	__int64 &_current = *(__int64 *)&current;
+	__int64 &_sum = *(__int64 *)&sum;
+	while( InterlockedCompareExchange64( (__int64*)&a , _sum , _current )!=_current ) current = a , sum = a+b;
+#else // !_WIN32 && !_WIN64
+	double current = a;
+	double sum = current+b;
+	uint64_t &_current = *(uint64_t *)&current;
+	uint64_t &_sum = *(uint64_t *)&sum;
+	while( __sync_val_compare_and_swap( (uint64_t*)&a , _current , _sum )!=_current ) current = a , sum = a+b;
+#endif // _WIN32 || _WIN64
+#else // !NEW_THREADS
+#pragma omp atomic
+	a += b;
+#endif // NEW_THREADS
+}
+#endif // NEW_CODE
+
+#endif
 /////////////////////////
 // NumberWrapper Stuff //
 /////////////////////////

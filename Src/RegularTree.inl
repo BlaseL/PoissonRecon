@@ -508,8 +508,16 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey
 			if( pNeighbors[pi] )
 			{
 				if( !pNeighbors[pi]->children )
+#ifdef NEW_THREADS
+				{
+					static std::mutex m;
+					std::lock_guard< std::mutex > lock(m);
+					if( !pNeighbors[pi]->children ) pNeighbors[pi]->initChildren( nodeAllocator , Initializer );
+				}
+#else // !NEW_THREADS
 #pragma omp critical ( RegularTreeNode__NeighborKey__Run )
 					if( !pNeighbors[pi]->children ) pNeighbors[pi]->initChildren( nodeAllocator , Initializer );
+#endif // NEW_THREADS
 				cNeighbors[ci] = pNeighbors[pi]->children + ( cornerIndex | ( ( _i&1)<<(Dim-1) ) );
 				count++;
 			}
