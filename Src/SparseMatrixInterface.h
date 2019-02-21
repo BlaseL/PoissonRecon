@@ -196,7 +196,7 @@ template< class SPDFunctor , class Preconditioner , class T , typename Real , cl
 template< class SPDFunctor , class T , typename Real , class TDotTFunctor > size_t SolveCG( ThreadPool &tp , const SPDFunctor& M , size_t dim , ConstPointer( T ) b , size_t iters , Pointer( T ) x , double eps , TDotTFunctor Dot );
 template< class SPDFunctor , class Preconditioner , class T , typename Real , class TDotTFunctor > size_t SolveCG( ThreadPool &tp , const SPDFunctor& M , const Preconditioner& P , size_t dim , ConstPointer( T ) b , size_t iters , Pointer( T ) x , double eps , TDotTFunctor Dot );
 #else // !NEW_THREADS
-template< class SPDFunctor , class T , typename Real , class TDotTFunctor > size_t SolveCG( ThreadPool &tp , const SPDFunctor& M , size_t dim , ConstPointer( T ) b , size_t iters , Pointer( T ) x , double eps , TDotTFunctor Dot );
+template< class SPDFunctor , class T , typename Real , class TDotTFunctor > size_t SolveCG( const SPDFunctor& M , size_t dim , ConstPointer( T ) b , size_t iters , Pointer( T ) x , double eps , TDotTFunctor Dot );
 template< class SPDFunctor , class Preconditioner , class T , typename Real , class TDotTFunctor > size_t SolveCG( const SPDFunctor& M , const Preconditioner& P , size_t dim , ConstPointer( T ) b , size_t iters , Pointer( T ) x , double eps , TDotTFunctor Dot );
 #endif // NEW_THREADS
 #else // !NEW_CODE_SPARSE_MATRIX

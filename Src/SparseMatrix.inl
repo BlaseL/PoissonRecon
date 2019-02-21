@@ -521,12 +521,12 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::transpose( 
 	{
 		for( size_t j=0 ; j<At.rowSizes[i] ; j++ )
 		{
-#ifdef NEW_CODE
+#ifdef NEW_THREADS
 			AddAtomic( A.rowSizes[ At[i][j].N ] , One );
-#else // !NEW_CODE
+#else // !NEW_THREADS
 #pragma omp atomic
 			A.rowSizes[ At[i][j].N ]++;
-#endif // NEW_CODE
+#endif // NEW_THREADS
 		}
 	}
 #ifdef NEW_THREADS

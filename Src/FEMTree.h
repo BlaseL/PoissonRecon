@@ -2740,6 +2740,7 @@ public:
 #else // !NEW_THREADS
 	// For each (valid) fem node, compute the integral of the basis function over the valid space nodes over the integral of the basis function
 	template< unsigned int ... FEMSigs > DenseNodeData< Real , UIntPack< FEMSigs ... > > supportWeights( UIntPack< FEMSigs ... > ) const;
+	template< unsigned int ... FEMSigs > DenseNodeData< Real , UIntPack< FEMSigs ... > > prolongationWeights( UIntPack< FEMSigs ... > , bool prolongToChildren ) const;
 #endif // NEW_THREADS
 protected:
 

@@ -27,6 +27,14 @@ DAMAGE.
 */
 #define NEW_CODE
 
+#ifdef NEW_CODE
+#define BIG_DATA								// Supports processing requiring more than 32-bit integers for indexing
+												// Note: enabling BIG_DATA can generate .ply files using "longlong" for face indices instead of "int".
+												// These are not standardly supported by .ply reading/writing applications.
+//#define NEW_THREADS								// Enabling this flag replaces the OpenMP implementation of parallelism with C++11's
+//#define FORCE_PARALLEL							// Forces parallel methods to pass in a thread pool
+#endif // NEW_CODE
+
 #undef FAST_COMPILE				// If enabled, only a single version of the reconstruction code is compiled
 #undef USE_DOUBLE				// If enabled, double-precesion is used
 #undef ARRAY_DEBUG				// If enabled, array access is tested for validity
@@ -67,7 +75,11 @@ cmdLineParameter< int >
 	BaseDepth( "baseDepth" , 0 ) ,
 	BaseVCycles( "baseVCycles" , 1 ) ,
 	MaxMemoryGB( "maxMemory" , 0 ) ,
+#ifdef NEW_THREADS
+	Threads( "threads" , ThreadPool::DefaultThreadNum );
+#else // !NEW_THREADS
 	Threads( "threads" , omp_get_num_procs() );
+#endif // NEW_THREADS
 
 cmdLineParameter< float >
 	Scale( "scale" , 2.f ) ,
@@ -312,14 +324,27 @@ void _Execute( int argc , char* argv[] )
 		}
 
 		double area = 0;
+#ifdef NEW_THREADS
+		std::vector< double > area( tp.threadNum() , 0 );
+		tp.parallel_for( 0 , triangles.size() , [&]( unsigned int thread , size_t i )
+#else // !NEW_THREADS
 #pragma omp parallel for reduction( + : area )
 		for( int i=0 ; i<triangles.size() ; i++ )
+#endif // NEW_THREADS
 		{
 			Simplex< Real , Dim , Dim-1 > s;
 			for( int k=0 ; k<Dim ; k++ ) for( int j=0 ; j<Dim ; j++ ) s[k][j] = vertices[ triangles[i][k] ][j];
 			Real a2 = s.squareMeasure();
+#ifdef NEW_THREADS
+			if( a2>0 ) areas[thread] += sqrt(a2) / 2;
+#else // !NEW_THREADS
 			if( a2>0 ) area += sqrt(a2) / 2;
+#endif // NEW_THREADS
 		}
+#ifdef NEW_THREADS
+		);
+		for( unsigned int t=0 ; t<tp.threadNum() ; t++ ) area += areas[t];
+#endif // NEW_THREADS
 #ifdef NEW_CODE
 		messageWriter( "Input Vertices / Triangle / Samples / Area: %llu / %llu / %llu / %g\n" , (unsigned long long)vertices.size() , (unsigned long long)triangles.size() , (unsigned long long)geometrySamples.size() , area );
 #else // !NEW_CODE
@@ -405,7 +430,7 @@ void _Execute( int argc , char* argv[] )
 		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< IsotropicUIntPack< Dim , FEMSig > , 0 > evaluator( tp , &tree , heatSolution );
 #else // !NEW_THREADS
 		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< IsotropicUIntPack< Dim , FEMSig > , 0 > evaluator( &tree , heatSolution );
-#endif // NEW_THREDAS
+#endif // NEW_THREADS
 #ifdef NEW_CODE
 		typedef typename RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >::template ConstNeighbors< IsotropicUIntPack< Dim , 3 > > OneRingNeighbors;
 		typedef typename RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >::template ConstNeighborKey< IsotropicUIntPack< Dim , 1 > , IsotropicUIntPack< Dim , 1 > > OneRingNeighborKey;
@@ -413,22 +438,40 @@ void _Execute( int argc , char* argv[] )
 		typedef typename RegularTreeNode< Dim , FEMTreeNodeData >::template ConstNeighbors< IsotropicUIntPack< Dim , 3 > > OneRingNeighbors;
 		typedef typename RegularTreeNode< Dim , FEMTreeNodeData >::template ConstNeighborKey< IsotropicUIntPack< Dim , 1 > , IsotropicUIntPack< Dim , 1 > > OneRingNeighborKey;
 #endif // NEW_CODE
+#ifdef NEW_THREADS
+		std::vector< OneRingNeighborKey > oneRingNeighborKeys( tp.threadNum() );
+#else // !NEW_THREADS
 		std::vector< OneRingNeighborKey > oneRingNeighborKeys( omp_get_max_threads() );
+#endif // NEW_THREADS
 		int treeDepth = tree.tree().maxDepth();
 		for( int i=0 ; i<oneRingNeighborKeys.size() ; i++ ) oneRingNeighborKeys[i].set( treeDepth );
 		DenseNodeData< Real , IsotropicUIntPack< Dim , FEMTrivialSignature > > leafCenterValues = tree.initDenseNodeData( IsotropicUIntPack< Dim , FEMTrivialSignature >() );
 
+#ifdef NEW_THREADS
+		tp.parallel_for( tree.nodesBegin(0) , tree.nodesEnd(Depth.value) , [&]( unsigned int thread , size_t i )
+#else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
-		for( node_index_type i=tree.nodesBegin(0) ; i<tree.nodesEnd(Depth.value) ; i++ ) if( tree.isValidSpaceNode( tree.node(i) ) )
+		for( node_index_type i=tree.nodesBegin(0) ; i<tree.nodesEnd(Depth.value) ; i++ )
 #else // !NEW_CODE
-		for( int i=tree.nodesBegin(0) ; i<tree.nodesEnd(Depth.value) ; i++ ) if( tree.isValidSpaceNode( tree.node(i) ) )
+		for( int i=tree.nodesBegin(0) ; i<tree.nodesEnd(Depth.value) ; i++ )
 #endif // NEW_CODE
+#endif // NEW_THREADS
 		{
-			Point< Real , Dim > center ; Real width;
-			tree.centerAndWidth( i , center , width );
-			leafCenterValues[i] = evaluator.values( center , omp_get_thread_num() )[0];
+			if( tree.isValidSpaceNode( tree.node(i) ) )
+			{
+				Point< Real , Dim > center ; Real width;
+				tree.centerAndWidth( i , center , width );
+#ifdef NEW_THREADS
+				leafCenterValues[i] = evaluator.values( center , thread )[0];
+#else // !NEW_THREADS
+				leafCenterValues[i] = evaluator.values( center , omp_get_thread_num() )[0];
+#endif // NEW_THREADS
+			}
 		}
+#ifdef NEW_THREADS
+		);
+#endif // NEW_THREADS
 
 #ifdef NEW_CODE
 		auto CenterGradient = [&] ( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* leaf , int thread )
@@ -492,25 +535,39 @@ void _Execute( int argc , char* argv[] )
 			leafValues[leaf] *= 0;
 		}
 
+#ifdef NEW_THREADS
+		tp.parallel_for( tree.nodesBegin(0) , tree.nodesEnd(Depth.value) , [&]( unsigned int thread , size_t i  )
+#else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
-		for( node_index_type i=tree.nodesBegin(0) ; i<tree.nodesEnd(Depth.value) ; i++ ) if( tree.isValidSpaceNode( tree.node(i) ) && !tree.isValidSpaceNode( tree.node(i)->children ) )
+		for( node_index_type i=tree.nodesBegin(0) ; i<tree.nodesEnd(Depth.value) ; i++ )
 #else // !NEW_CODE
-		for( int i=tree.nodesBegin(0) ; i<tree.nodesEnd(Depth.value) ; i++ ) if( tree.isValidSpaceNode( tree.node(i) ) && !tree.isValidSpaceNode( tree.node(i)->children ) )
+		for( int i=tree.nodesBegin(0) ; i<tree.nodesEnd(Depth.value) ; i++ )
 #endif // NEW_CODE
+#endif // NEW_THREADS
 		{
+			if( tree.isValidSpaceNode( tree.node(i) ) && !tree.isValidSpaceNode( tree.node(i)->children ) )
+			{
 #ifdef NEW_CODE
-			RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* leaf = ( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* )tree.node(i);
+				RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* leaf = ( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* )tree.node(i);
 #else // !NEW_CODE
-			RegularTreeNode< Dim , FEMTreeNodeData >* leaf = ( RegularTreeNode< Dim , FEMTreeNodeData >* )tree.node(i);
+				RegularTreeNode< Dim , FEMTreeNodeData >* leaf = ( RegularTreeNode< Dim , FEMTreeNodeData >* )tree.node(i);
 #endif // NEW_CODE
-			Point< Real , Dim > g = CenterGradient( leaf , omp_get_thread_num() );
-			Real len = (Real)Length( g );
-			if( len>GradientCutOff ) g /= len;
-			Point< Real , Dim+1 >* leafValue = leafValues(leaf);
-			if( leafValue ) for( int d=0 ; d<Dim ; d++ ) (*leafValue)[d+1] = -g[d];
-			else ERROR_OUT( "Leaf value doesn't exist" );
+#ifdef NEW_THREADS
+				Point< Real , Dim > g = CenterGradient( leaf , thread );
+#else // !NEW_THREADS
+				Point< Real , Dim > g = CenterGradient( leaf , omp_get_thread_num() );
+#endif // NEW_THREADS
+				Real len = (Real)Length( g );
+				if( len>GradientCutOff ) g /= len;
+				Point< Real , Dim+1 >* leafValue = leafValues(leaf);
+				if( leafValue ) for( int d=0 ; d<Dim ; d++ ) (*leafValue)[d+1] = -g[d];
+				else ERROR_OUT( "Leaf value doesn't exist" );
+			}
 		}
+#ifdef NEW_THREADS
+		);
+#endif // NEW_THREADS
 		profiler.dumpOutput2( comments , "#  Evaluated gradients:" );
 	}
 
@@ -585,30 +642,47 @@ void _Execute( int argc , char* argv[] )
 				double errorSum = 0 , valueSum = 0 , weightSum = 0;
 #ifdef NEW_THREADS
 				typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< IsotropicUIntPack< Dim , FEMSig > , 0 > evaluator( tp , tree , coefficients );
+				std::vector< double > errorSums( tp.threadNum() , 0 ) , valueSums( tp.threadNum() , 0 ) , weightSums( tp.threadNum() , 0 );
+				tp.parallel_for( 0 , geometrySamples.size() , [&]( unsigned int thread , size_t j )
 #else // !NEW_THREADS
 				typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< IsotropicUIntPack< Dim , FEMSig > , 0 > evaluator( tree , coefficients );
-#endif // NEW_THREADS
 #pragma omp parallel for reduction( + : errorSum , valueSum , weightSum )
 				for( int j=0 ; j<geometrySamples.size() ; j++ )
+#endif // NEW_THREADS
 				{
 					ProjectiveData< Point< Real , Dim > , Real >& sample = geometrySamples[j].sample;
 					Real w = sample.weight;
+#ifdef NEW_THREADS
+					Real value = evaluator.values( sample.data / sample.weight , thread , geometrySamples[j].node )[0];
+					errorSums[thread] += value * value * w;
+					valueSums[thread] += value * w;
+					weightSums[thread] += w;
+#else // !NEW_THREADS
 					Real value = evaluator.values( sample.data / sample.weight , omp_get_thread_num() , geometrySamples[j].node )[0];
 					errorSum += value * value * w;
 					valueSum += value * w;
 					weightSum += w;
+#endif // NEW_THREADS
 				}
+#ifdef NEW_THREADS
+				);
+				for( unsigned int t=0 ; t<tp.threadNum() ; t++ ) errorSum += errorSums[t] , valueSum += valueSums[t] , weightSum += weightSums[t];
+#endif // NEW_THREADS
 				average = valueSum / weightSum , error = sqrt( errorSum / weightSum );
 			};
 			double average , error;
 			GetAverageValueAndError( &tree , edtSolution , average , error );
 			if( Verbose.set ) printf( "Interpolation average / error: %g / %g\n" , average , error );
+#ifdef NEW_THREADS
+			tp.parallel_for( tree.nodesBegin(0) , i<tree.nodesEnd(0) , [&]( unsigned int , size_t i ){ edtSolution[i] -= (Real)average; } );
+#else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
 			for( node_index_type i=tree.nodesBegin(0) ; i<tree.nodesEnd(0) ; i++ ) edtSolution[i] -= (Real)average;
 #else // !NEW_CODE
 			for( int i=tree.nodesBegin(0) ; i<tree.nodesEnd(0) ; i++ ) edtSolution[i] -= (Real)average;
 #endif // NEW_CODE
+#endif // NEW_THREADS
 		}
 
 		if( Out.set )
@@ -645,7 +719,11 @@ int main( int argc , char* argv[] )
 	WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
 	cmdLineParse( argc-1 , &argv[1] , params );
+#ifdef NEW_THREADS
+	ThreadPool::DefaultThreadNum = Threads.value > 1 ? Threads.value : 0;
+#else // !NEW_THREADS
 	omp_set_num_threads( Threads.value > 1 ? Threads.value : 1 );
+#endif // NEW_THREADS
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
 	messageWriter.echoSTDOUT = Verbose.set;
 

@@ -815,6 +815,7 @@ public:
 	void addPolygon_s( unsigned int thread , const std::vector< CoredVertexIndex< Index > >& vertices );
 	void addPolygon_s( unsigned int thread , const std::vector< Index >& vertices );
 #else // !NEW_THREADS
+	Index addOutOfCorePoint_s( const Vertex& p );
 	void addPolygon_s( const std::vector< CoredVertexIndex< Index > >& vertices );
 	void addPolygon_s( const std::vector< Index >& vertices );
 #endif // NEW_THREADS

@@ -56,7 +56,11 @@ cmdLineReadable
 	Verbose( "verbose" );
 
 cmdLineParameter< int >
+#ifdef NEW_THREADS
+	Threads( "threads" , ThreadPool::DefaultThreadNum );
+#else // !NEW_THREADS
 	Threads( "threads" , omp_get_num_procs() );
+#endif // NEW_THREADS
 
 cmdLineParameter< float >
 	IsoValue( "iso" , 0.f );
@@ -296,7 +300,11 @@ int main( int argc , char* argv[] )
 	WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG
 	cmdLineParse( argc-1 , &argv[1] , params );
+#ifdef NEW_THREADS
+	ThreadPool::DefaultThreadNum = Threads.value > 1 ? Threads.value : 0;
+#else // !NEW_THREADS
 	omp_set_num_threads( Threads.value > 1 ? Threads.value : 1 );
+#endif //NEW_THREADS
 	if( Verbose.set )
 	{
 		printf( "**************************************************\n" );
