@@ -413,7 +413,6 @@ SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim 
 	SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > normalField;
 	Real _pointWeightSum = 0;
 #ifdef NEW_THREADS
-	std::vector< Real > weightSums( tp.threadNum() , 0 ) , _pointWeightSums( tp.threadNum() , 0 );
 	tp.parallel_for( 0 , samples.size() , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : weightSum , _pointWeightSum )
@@ -446,7 +445,7 @@ SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim 
 			n *= sample.weight / l;
 			Real depthBias = BiasFunction( confidence );
 #ifdef NEW_THREADS
-			weightSums[ thread ] += sample.weight;
+			AddAtomic( weightSum , sample.weight );
 #else // !NEW_THREADS
 			weightSum += sample.weight;
 #endif // NEW_THREADS
@@ -461,21 +460,21 @@ SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim 
 			}
 #ifdef NEW_THREADS
 #if defined( __GNUC__ ) && __GNUC__ < 5
-			#warning "you've got me gcc version<5"
-				if( density ) _pointWeightSums[thread] += _splatPointData< true , DensityDegree , Point< Real , Dim > >( *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight;
+#warning "you've got me gcc version<5"
+			if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , DensityDegree , Point< Real , Dim > >( *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight );
 #else // !__GNUC__ || __GNUC__ >=5
-			if( density ) _pointWeightSums[thread] += _splatPointData< true , DensityDegree , Point< Real , Dim > , NormalSigs ... >( *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight;
+			if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , DensityDegree , Point< Real , Dim > , NormalSigs ... >( *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight );
 #endif // __GNUC__ || __GNUC__ < 4
 			else
 			{
 				Real width = (Real)( 1.0 / ( 1<<maxDepth ) );
 #if defined( __GNUC__ ) && __GNUC__ < 5
-				#warning "you've got me gcc version<5"
-					_splatPointData< true , Point< Real , Dim > >( leaf( p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+#warning "you've got me gcc version<5"
+				_splatPointData< true , Point< Real , Dim > >( leaf( p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
 #else // !__GNUC__ || __GNUC__ >=5
 				_splatPointData< true , Point< Real , Dim > , NormalSigs ... >( leaf( p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
 #endif // __GNUC__ || __GNUC__ < 4
-				_pointWeightSums[thread] += sample.weight;
+				AddAtomic( _pointWeightSum , sample.weight );
 			}
 #else // !NEW_THREADS
 #if defined( __GNUC__ ) && __GNUC__ < 5
@@ -500,7 +499,6 @@ SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim 
 	}
 #ifdef NEW_THREADS
 	);
-	for( unsigned int t=0 ; t<tp.threadNum() ; t++ ) _pointWeightSum += _pointWeightSums[t] , weightSum += weightSums[t];
 #endif // NEW_THREADS
 	pointWeightSum = _pointWeightSum / weightSum;
 	MemoryUsage();

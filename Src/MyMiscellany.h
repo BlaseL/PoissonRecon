@@ -772,6 +772,8 @@ unsigned int ThreadPool::DefaultThreadNum = std::thread::hardware_concurrency();
 size_t ThreadPool::DefaultBlockSize = 100;
 size_t ThreadPool::DefaultMinParallelSize = 100;
 
+#define PARALLEL_FOR( threadPool , begin , end , functor ) if( (begin)<(end) ) threadPool.parallel_for( (begin) , (end) , functor )
+
 #endif // NEW_THREADS
 
 #ifdef NEW_CODE
