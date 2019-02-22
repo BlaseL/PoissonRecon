@@ -2318,8 +2318,11 @@ int FEMTree< Dim , Real >::_getSliceMatrixAndProlongationConstraints( UIntPack< 
 #endif // NEW_CODE
 {
 #ifdef NEW_THREADS
+#ifdef FIXED_BLOCK_SIZE
+#else // !FIXED_BLOCK_SIZE
 	size_t blockSize = tp.blockSize();
 	tp.setBlockSize( 50 );
+#endif // FIXED_BLOCK_SIZE
 #endif // NEW_THREADS
 
 	typedef UIntPack< FEMSignature< FEMSigs >::Degree ... > FEMDegrees;
@@ -2379,7 +2382,10 @@ int FEMTree< Dim , Real >::_getSliceMatrixAndProlongationConstraints( UIntPack< 
 #endif // !_WIN32 && !_WIN64
 	MemoryUsage();
 #ifdef NEW_THREADS
+#ifdef FIXED_BLOCK_SIZE
+#else // !FIXED_BLOCK_SIZE
 	tp.setBlockSize( blockSize );
+#endif // FIXED_BLOCK_SIZE
 #endif // NEW_THREADS
 	return 1;
 }

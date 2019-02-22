@@ -55,7 +55,11 @@ cmdLineParameter< int >
 #else // !FAST_COMPILE
 	Degree( "degree" , DEFAULT_FEM_DEGREE ) ,
 #endif // FAST_COMPILE
+#ifdef NEW_THREADS
+	Threads( "threads" , ThreadPool::DefaultThreadNum ) ,
+#else // !NEW_THREADS
 	Threads( "threads" , omp_get_num_procs() ) ,
+#endif // NEW_THREADS
 	MaxMemoryGB( "maxMemory" , 0 ) ,
 	GSIterations( "iters" , 8 ) ,
 	FullDepth( "fullDepth" , 6 ) ,
@@ -202,6 +206,9 @@ struct BufferedImageDerivativeStream : public FEMTreeInitializer< DIMENSION , Re
 	void advance( void ){ _c = _dir = 0 , _r++; }
 	void prefetch( void )
 	{
+#ifdef NEW_THREADS
+		static ThreadPool tp;
+#endif // NEW_THREADS
 		if( _r+2<(int)_resolution[1] )
 		{
 			int j = (_r+2)%3;
@@ -219,8 +226,12 @@ struct BufferedImageDerivativeStream : public FEMTreeInitializer< DIMENSION , Re
 				_labels->nextRow( __labelRow );
 				for( int i=0 ; i<(int)_resolution[0] ; i++ ) labelRow[i][0] = labelRow[i][1] = labelRow[i][2] = __labelRow[i];
 			}
+#ifdef NEW_THREADS
+			tp.parallel_for( 0 , _resolution[0] , [&]( unsigned int , size_ i ){ maskRow[i] = labelRow[i].mask(); } );
+#else // !NEW_THREADS
 #pragma omp parallel for
 			for( int i=0 ; i<(int)_resolution[0] ; i++ ) maskRow[i] = labelRow[i].mask();
+#endif // NEW_THREADS
 		}
 	}
 
@@ -302,6 +313,14 @@ void _Execute( void )
 		BufferedImageDerivativeStream< Real , Colors > dStream( resolution , pixels , labels );
 		for( int j=0 ; j<h ; j++ )
 		{
+#ifdef NEW_THREADS
+			tp.parallel_for( 0 , 2 , [&]( unsigned int , size_t i )
+			{
+				if( i==0 ) dStream.prefetch();
+				else maxDepth = FEMTreeInitializer< Dim , Real >::template Initialize< (Degree&1)==0 , Point< Real , Colors > >( tree.spaceRoot() , dStream , derivatives , tree.nodeAllocator , tree.initializer() );
+			} , 1
+			);
+#else // !NEW_THREADS
 #pragma omp parallel sections
 			{
 #pragma omp section
@@ -313,6 +332,7 @@ void _Execute( void )
 					maxDepth = FEMTreeInitializer< Dim , Real >::template Initialize< (Degree&1)==0 , Point< Real , Colors > >( tree.spaceRoot() , dStream , derivatives , tree.nodeAllocator , tree.initializer() );
 				}
 			}
+#endif // NEW_THREADS
 			dStream.advance();
 		}
 		delete pixels;
@@ -435,6 +455,9 @@ void _Execute( void )
 
 		auto FetchInput = [&]( unsigned int block )
 		{
+#ifdef NEW_THREADS
+			static ThreadPool tp;
+#endif // NEW_THREADS
 			int rStart = block*ROW_BLOCK_SIZE;
 			int rEnd = rStart + ROW_BLOCK_SIZE < h ? rStart + ROW_BLOCK_SIZE : h;
 			for( int r=rStart , rr=0 ; r<rEnd ; r++ , rr++ )
@@ -444,8 +467,12 @@ void _Execute( void )
 				{
 					in->nextRow( inRow );
 					RGBPixel *_inRow = inRows[block&1] + rr*w;
+#ifdef NEW_THREADS
+					tp.parallel_for( 0 , w , [&]( unsigned int , size_t i ){ _inRow[i][0] = _inRow[i][1] = _inRow[i][2] = inRow[i]; } );
+#else // !NEW_THREADS
 #pragma omp parallel for
 					for( int i=0 ; i<w ; i++ ) _inRow[i][0] = _inRow[i][1] = _inRow[i][2] = inRow[i];
+#endif // NEW_THREADS
 				}
 			}
 		};
@@ -459,9 +486,43 @@ void _Execute( void )
 
 		// Prefetch the first block
 		FetchInput( 0 );
+#ifdef NEW_THREADS
+#else // !NEW_THREADS
 		omp_set_nested( true );
+#endif // NEW_THREADS
 		for( int rStart=0 , block=0 ; rStart<h ; rStart+=ROW_BLOCK_SIZE , block++ )
 		{
+#ifdef NEW_THREADS
+			tp.parallel_for( 0 , 3 , [&]( unsigned int thread , size_t i )
+			{
+				switch( i )
+				{
+				case 0: if( block<blockNum ) FetchInput( block+1 ) ; break;
+				case 1: if( block>0 ) SetOutput( block-1 ) ; break;
+				case 2:
+				{
+					static ThreadPool tp;
+					RGBPixel *_inRows = inRows[block&1] , *_outRows = outRows[block&1];
+					int rEnd = rStart + ROW_BLOCK_SIZE < h ? rStart + ROW_BLOCK_SIZE : h;
+
+					// Expand the next block of values
+					begin[0] = 0 , begin[1] = rStart , end[0] = w , end[1] = rEnd;
+					Pointer( Point< Real , Colors > ) outBlock = tree.template regularGridUpSample< true >( tp , solution , begin , end );
+					int size = (rEnd-rStart)*w;
+					tp.parallel_for( 0 , size , [&]( unsigned int , size_t ii )
+					{
+						Point< Real , Colors > c = Point< Real , Colors >( _inRows[ii][0] , _inRows[ii][1] , _inRows[ii][2] ) / 255;
+						c += outBlock[ii] - average;
+						_outRows[ii] = RGBPixel( c[0] , c[1] , c[2] );
+					}
+					);
+					DeletePointer( outBlock );
+					break;
+				}
+				}
+			} , 1
+			);
+#else // !NEW_THREADS
 #pragma omp parallel sections
 			{
 #pragma omp section
@@ -498,6 +559,7 @@ void _Execute( void )
 					DeletePointer( outBlock );
 				}
 			}
+#endif // NEW_THREADS
 		}
 		// Write out the last block
 		SetOutput( blockNum-1 );
@@ -533,7 +595,11 @@ int main( int argc , char* argv[] )
 	Timer timer;
 	cmdLineParse( argc-1 , &argv[1] , params );
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
+#ifdef NEW_THREADS
+	ThreadPool::DefaultThreadNum = Threads.value > 1 ? Threads.value : 0;
+#else // !NEW_THREADS
 	omp_set_num_threads( Threads.value > 1 ? Threads.value : 1 );
+#endif // NEW_THREADS
 	if( Verbose.set )
 	{
 		printf( "*********************************************\n" );

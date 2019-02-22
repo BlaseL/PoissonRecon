@@ -32,8 +32,9 @@ DAMAGE.
 #define BIG_DATA								// Supports processing requiring more than 32-bit integers for indexing
 												// Note: enabling BIG_DATA can generate .ply files using "longlong" for face indices instead of "int".
 												// These are not standardly supported by .ply reading/writing applications.
-//#define NEW_THREADS								// Enabling this flag replaces the OpenMP implementation of parallelism with C++11's
-//#define FORCE_PARALLEL							// Forces parallel methods to pass in a thread pool
+#define NEW_THREADS								// Enabling this flag replaces the OpenMP implementation of parallelism with C++11's
+#define FORCE_PARALLEL							// Forces parallel methods to pass in a thread pool
+#define FIXED_BLOCK_SIZE
 #endif // NEW_CODE
 
 #undef SHOW_WARNINGS							// Display compilation warnings
@@ -106,6 +107,9 @@ cmdLineParameter< int >
 #endif // !FAST_COMPILE
 	MaxMemoryGB( "maxMemory" , 0 ) ,
 #ifdef NEW_THREADS
+#ifdef FIXED_BLOCK_SIZE
+	ThreadBlockSize( "tBlockSize" , ThreadPool::DefaultBlockSize ) ,
+#endif // FIXED_BLOCK_SIZE
 	Threads( "threads" , ThreadPool::DefaultThreadNum );
 #else // !NEW_THREADS
 	Threads( "threads" , omp_get_num_procs() );
@@ -148,6 +152,9 @@ cmdLineReadable* params[] =
 	&Performance ,
 	&MaxMemoryGB ,
 	&InCore ,
+#ifdef FIXED_BLOCK_SIZE
+	&ThreadBlockSize ,
+#endif // FIXED_BLOCK_SIZE
 	NULL
 };
 
@@ -176,9 +183,15 @@ void ShowUsage(char* ex)
 	printf( "\t[--%s <pull factor>=%f]\n" , DataX.name , DataX.value );
 	printf( "\t[--%s]\n" , Colors.name );
 	printf( "\t[--%s]\n" , Normals.name );
+#ifdef NEW_THREADS
+	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
+	printf( "\t[--%s <thread block size>=%d]\n" , ThreadBlockSize.name , ThreadBlockSize.value );
+#else // !NEW_THREADS
 #ifdef _OPENMP
 	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
 #endif // _OPENMP
+#endif // NEW_THREADS
+
 	printf( "\t[--%s <normal confidence exponent>=%f]\n" , Confidence.name , Confidence.value );
 	printf( "\t[--%s <normal confidence bias exponent>=%f]\n" , ConfidenceBias.name , ConfidenceBias.value );
 	printf( "\t[--%s]\n" , NonManifold.name );

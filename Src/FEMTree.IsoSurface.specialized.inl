@@ -2956,7 +2956,6 @@ public:
 				isoStats.edgesTime += Time()-t , t = Time();
 
 #ifdef NEW_THREADS
-				size_t blockSize = tp.blockSize();
 				auto SlabSet = [&]( unsigned int , size_t i )
 				{
 					switch( i )
@@ -2972,9 +2971,14 @@ public:
 					case 8: slabValues[d].xSliceValues(o-1).setFaceEdgeMap() ; return;
 					}
 				};
+#ifdef FIXED_BLOCK_SIZE
+				tp.parallel_for( 0 , 9 , SlabSet , 1 );
+#else // !FIXED_BLOCK_SIZE
+				size_t blockSize = tp.blockSize();
 				tp.setBlockSize( 1 );
 				tp.parallel_for( 0 , 9 , SlabSet );
 				tp.setBlockSize( blockSize );
+#endif // FIXED_BLOCK_SIZE
 #else // !NEW_THREADS
 #pragma omp parallel sections
 				{

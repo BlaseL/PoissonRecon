@@ -653,11 +653,21 @@ unsigned int MKThread::Threads = std::thread::hardware_concurrency();
 struct ThreadPool
 {
 	static unsigned int DefaultThreadNum;
+#ifdef FIXED_BLOCK_SIZE
+	static size_t DefaultBlockSize;
+#endif // FIXED_BLOCK_SIZE
 
+#ifdef FIXED_BLOCK_SIZE
+	void parallel_for( size_t begin , size_t end , std::function< void ( unsigned int , size_t ) > iterationFunction , size_t blockSize=DefaultBlockSize )
+#else // !FIXED_BLOCK_SIZE
 	size_t blockSize( void ) const { return _blockSize; }
 	void setBlockSize( size_t blockSize ){ _blockSize = blockSize; }
 	void parallel_for( size_t begin , size_t end , std::function< void ( unsigned int , size_t ) > iterationFunction )
+#endif // FIXED_BLOCK_SIZE
 	{
+#ifdef FIXED_BLOCK_SIZE
+		_blockSize = blockSize;
+#endif // FIXED_BLOCK_SIZE
 		if( !_threads.size() ) for( size_t i=begin ; i<end ; i++ ) iterationFunction( 0 , i );
 		else
 		{
@@ -699,7 +709,10 @@ struct ThreadPool
 
 	ThreadPool( unsigned int threadNum=DefaultThreadNum )
 	{
+#ifdef FIXED_BLOCK_SIZE
+#else // !FIXED_BLOCK_SIZE
 		_blockSize = 100;
+#endif // FIXED_BLOCK_SIZE
 		_threads.resize( threadNum );
 		_workToBeDone.resize( threadNum , 0 );
 		_close = 0;
@@ -769,6 +782,9 @@ protected:
 	std::atomic< size_t > _index;
 };
 unsigned int ThreadPool::DefaultThreadNum = std::thread::hardware_concurrency();
+#ifdef FIXED_BLOCK_SIZE
+size_t ThreadPool::DefaultBlockSize = 100;
+#endif // FIXED_BLOCK_SIZE
 
 #endif // NEW_THREADS
 
