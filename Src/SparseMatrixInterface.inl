@@ -396,11 +396,6 @@ void SparseMatrixInterface< T , const_iterator >::gsIteration( const std::vector
 #endif // NEW_CODE_SPARSE_MATRIX
 {
 #ifdef NEW_THREADS
-#ifdef FIXED_BLOCK_SIZE
-#else // !FIXED_BLOCK_SIZE
-	size_t blockSize = tp.blockSize();
-	tp.setBlockSize( 400 );
-#endif // FIXED_BLOCK_SIZE
 	if( dReciprocal )
 	{
 #define ITERATE( indices )                                                                               \
@@ -437,10 +432,6 @@ void SparseMatrixInterface< T , const_iterator >::gsIteration( const std::vector
 		else for( size_t j=multiColorIndices.size()-1 ; j>=0 ; j-- ){ ITERATE( multiColorIndices[j] ); }
 #undef ITERATE
 	}
-#ifdef FIXED_BLOCK_SIZE
-#else // !FIXED_BLOCK_SIZE
-	tp.setBlockSize( blockSize );
-#endif // FIXED_BLOCK_SIZE
 #else // !NEW_THREADS
 #ifdef _WIN32
 #define SetOMPParallel __pragma( omp parallel for )

@@ -653,28 +653,19 @@ unsigned int MKThread::Threads = std::thread::hardware_concurrency();
 struct ThreadPool
 {
 	static unsigned int DefaultThreadNum;
-#ifdef FIXED_BLOCK_SIZE
 	static size_t DefaultBlockSize;
-#endif // FIXED_BLOCK_SIZE
+	static size_t DefaultMinParallelSize;
 
-#ifdef FIXED_BLOCK_SIZE
-	void parallel_for( size_t begin , size_t end , std::function< void ( unsigned int , size_t ) > iterationFunction , size_t blockSize=DefaultBlockSize )
-#else // !FIXED_BLOCK_SIZE
-	size_t blockSize( void ) const { return _blockSize; }
-	void setBlockSize( size_t blockSize ){ _blockSize = blockSize; }
-	void parallel_for( size_t begin , size_t end , std::function< void ( unsigned int , size_t ) > iterationFunction )
-#endif // FIXED_BLOCK_SIZE
+	void parallel_for( size_t begin , size_t end , std::function< void ( unsigned int , size_t ) > iterationFunction , size_t blockSize=DefaultBlockSize , size_t minParallelSize=DefaultMinParallelSize )
 	{
-#ifdef FIXED_BLOCK_SIZE
 		_blockSize = blockSize;
-#endif // FIXED_BLOCK_SIZE
 		if( !_threads.size() ) for( size_t i=begin ; i<end ; i++ ) iterationFunction( 0 , i );
 		else
 		{
 			auto WorkersWorking = [&]( void ){ unsigned int c=0 ; for( unsigned int t=0 ; t<_threads.size() ; t++ ) if( _workToBeDone[t] ) c++ ; return c; };
 			auto WorkComplete = [&]( void ){ return WorkersWorking()==0; };
 			if( begin>=end ) return;
-			if( end-begin<_blockSize && _blockSize!=-1 ) for( size_t i=begin ; i<end ; i++ ) iterationFunction( 0 , i );
+			if( end-begin<minParallelSize && _blockSize!=-1 ) for( size_t i=begin ; i<end ; i++ ) iterationFunction( 0 , i );
 			else
 			{
 				_begin = begin;
@@ -709,10 +700,6 @@ struct ThreadPool
 
 	ThreadPool( unsigned int threadNum=DefaultThreadNum )
 	{
-#ifdef FIXED_BLOCK_SIZE
-#else // !FIXED_BLOCK_SIZE
-		_blockSize = 100;
-#endif // FIXED_BLOCK_SIZE
 		_threads.resize( threadNum );
 		_workToBeDone.resize( threadNum , 0 );
 		_close = 0;
@@ -782,9 +769,8 @@ protected:
 	std::atomic< size_t > _index;
 };
 unsigned int ThreadPool::DefaultThreadNum = std::thread::hardware_concurrency();
-#ifdef FIXED_BLOCK_SIZE
 size_t ThreadPool::DefaultBlockSize = 100;
-#endif // FIXED_BLOCK_SIZE
+size_t ThreadPool::DefaultMinParallelSize = 100;
 
 #endif // NEW_THREADS
 
@@ -851,8 +837,8 @@ void AddAtomic( Data& a , const Data& b )
 	default:
 		WARN_ONCE( "should not use this function: " , sizeof(Data) );
 #ifdef NEW_THREADS
-		static std::mutex m;
-		std::lock_guard< std::mutex > lock(m);
+		static std::mutex addAtomicMutex;
+		std::lock_guard< std::mutex > lock( addAtomicMutex );
 		a += b;
 #else // !NEW_THREADS
 #pragma omp critical

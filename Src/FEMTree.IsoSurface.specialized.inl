@@ -59,6 +59,9 @@ struct IsoSurfaceExtractor< 3 , Real , Vertex >
 	template< unsigned int WeightDegree > using DensityEstimator = typename FEMTree< Dim , Real >::template DensityEstimator< WeightDegree >;
 	template< typename FEMSigPack , unsigned int PointD > using _Evaluator = typename FEMTree< Dim , Real >::template _Evaluator< FEMSigPack , PointD >;
 protected:
+#ifdef NEW_THREADS
+	static std::mutex _pointInsertionMutex;
+#endif // NEW_THREADS
 #ifdef NEW_HASH
 	//////////
 	// _Key //
@@ -1510,9 +1513,8 @@ protected:
 									std::pair< int , Vertex > hashed_vertex;
 #endif // NEW_CODE
 #ifdef NEW_THREADS
-									static std::mutex m;
 									{
-										std::lock_guard< std::mutex > lock(m);
+										std::lock_guard< std::mutex > lock( _pointInsertionMutex );
 										if( !sValues.edgeSet[vIndex] )
 										{
 											mesh.addOutOfCorePoint( vertex );
@@ -1708,9 +1710,8 @@ protected:
 									std::pair< int , Vertex > hashed_vertex;
 #endif // NEW_CODE
 #ifdef NEW_THREADS
-									static std::mutex m;
 									{
-										std::lock_guard< std::mutex > lock(m);
+										std::lock_guard< std::mutex > lock( _pointInsertionMutex );
 										if( !xValues.edgeSet[vIndex] )
 										{
 											mesh.addOutOfCorePoint( vertex );
@@ -2696,8 +2697,7 @@ protected:
 #endif // NEW_CODE
 #ifdef NEW_THREADS
 				{
-					static std::mutex m;
-					std::lock_guard< std::mutex > lock(m);
+					std::lock_guard< std::mutex > lock( _pointInsertionMutex );
 					cIdx = mesh.addOutOfCorePoint( c );
 					vOffset++;
 				}
@@ -2971,14 +2971,7 @@ public:
 					case 8: slabValues[d].xSliceValues(o-1).setFaceEdgeMap() ; return;
 					}
 				};
-#ifdef FIXED_BLOCK_SIZE
 				tp.parallel_for( 0 , 9 , SlabSet , 1 );
-#else // !FIXED_BLOCK_SIZE
-				size_t blockSize = tp.blockSize();
-				tp.setBlockSize( 1 );
-				tp.parallel_for( 0 , 9 , SlabSet );
-				tp.setBlockSize( blockSize );
-#endif // FIXED_BLOCK_SIZE
 #else // !NEW_THREADS
 #pragma omp parallel sections
 				{
@@ -3037,6 +3030,9 @@ public:
 		return isoStats;
 	}
 };
+#ifdef NEW_THREADS
+template< class Real , class Vertex > std::mutex IsoSurfaceExtractor< 3 , Real , Vertex >::_pointInsertionMutex;
+#endif // NEW_THREADS
 
 template< class Real , class Vertex > template< unsigned int D , unsigned int K >
 unsigned int IsoSurfaceExtractor< 3 , Real , Vertex >::SliceData::HyperCubeTables< D , K >::CellOffset[ HyperCube::Cube< D >::template ElementNum< K >() ][ HyperCube::Cube< D >::template IncidentCubeNum< K >() ];

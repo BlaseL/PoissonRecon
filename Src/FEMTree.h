@@ -485,8 +485,9 @@ struct SparseNodeData< Data , UIntPack< FEMSigs ... > > : public _SparseOrDenseN
 #endif // NEW_CODE
 	{
 #ifdef NEW_THREADS
-		static std::mutex m;
+		static std::mutex _insertionMutex;
 #endif // NEW_THREADS
+
 		// If the node hasn't been indexed yet
 #ifdef NEW_CODE
 		if( node->nodeData.nodeIndex>=(node_index_type)_indices.size() )
@@ -495,7 +496,7 @@ struct SparseNodeData< Data , UIntPack< FEMSigs ... > > : public _SparseOrDenseN
 #endif // NEW_CODE
 		{
 #ifdef NEW_THREADS
-			std::lock_guard< std::mutex > lock(m);
+			std::lock_guard< std::mutex > lock( _insertionMutex );
 #else // !NEW_THREADS
 #pragma omp critical( SparseNodeData__operator )
 #endif // NEW_THREADS
@@ -511,7 +512,7 @@ struct SparseNodeData< Data , UIntPack< FEMSigs ... > > : public _SparseOrDenseN
 		if( _indices[ node->nodeData.nodeIndex ]==-1 )
 		{
 #ifdef NEW_THREADS
-			std::lock_guard< std::mutex > lock(m);
+			std::lock_guard< std::mutex > lock( _insertionMutex );
 #else // !NEW_THREADS
 #pragma omp critical( SparseNodeData__operator )
 #endif // NEW_THREADS
@@ -566,6 +567,7 @@ protected:
 	BlockedVector< int > _indices; 
 #endif // NEW_CODE
 	BlockedVector< Data > _data;
+
 };
 
 template< class Data , typename Pack > struct DenseNodeData{};
@@ -1566,8 +1568,8 @@ void AddAtomic( Data& a , const Data& b )
 {
 	WARN_ONCE( "should not use this function: " , sizeof(Data) );
 #ifdef NEW_THREADS
-	static std::mutex m;
-	std::lock_guard< std::mutex > lock(m);
+	static std::mutex addAtomicMutex;
+	std::lock_guard< std::mutex > lock( addAtomicMutex );
 	a += b;
 #else // !NEW_THREADS
 #pragma omp critical

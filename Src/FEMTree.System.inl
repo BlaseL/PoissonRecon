@@ -2317,14 +2317,6 @@ int FEMTree< Dim , Real >::_getSliceMatrixAndProlongationConstraints( UIntPack< 
 int FEMTree< Dim , Real >::_getSliceMatrixAndProlongationConstraints( UIntPack< FEMSigs ... > , const typename BaseFEMIntegrator::template System< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& F , SparseMatrix< Real , int , WindowSize< UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > >::Size >& matrix , Pointer( Real ) diagonalR , const PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bsData , LocalDepth depth , int nBegin , int nEnd , ConstPointer( T ) prolongedSolution , Pointer( T ) constraints , const CCStencil< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& ccStencil , const PCStencils< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& pcStencils , const InterpolationInfo< T , PointDs >* ... interpolationInfo ) const
 #endif // NEW_CODE
 {
-#ifdef NEW_THREADS
-#ifdef FIXED_BLOCK_SIZE
-#else // !FIXED_BLOCK_SIZE
-	size_t blockSize = tp.blockSize();
-	tp.setBlockSize( 50 );
-#endif // FIXED_BLOCK_SIZE
-#endif // NEW_THREADS
-
 	typedef UIntPack< FEMSignature< FEMSigs >::Degree ... > FEMDegrees;
 	typedef UIntPack< BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapSize ... > OverlapSizes;
 	typedef UIntPack< ( -BSplineOverlapSizes< FEMSignature< FEMSigs >::Degree >::OverlapStart ) ... > OverlapRadii;
@@ -2382,10 +2374,6 @@ int FEMTree< Dim , Real >::_getSliceMatrixAndProlongationConstraints( UIntPack< 
 #endif // !_WIN32 && !_WIN64
 	MemoryUsage();
 #ifdef NEW_THREADS
-#ifdef FIXED_BLOCK_SIZE
-#else // !FIXED_BLOCK_SIZE
-	tp.setBlockSize( blockSize );
-#endif // FIXED_BLOCK_SIZE
 #endif // NEW_THREADS
 	return 1;
 }

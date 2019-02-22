@@ -34,7 +34,6 @@ DAMAGE.
 												// These are not standardly supported by .ply reading/writing applications.
 #define NEW_THREADS								// Enabling this flag replaces the OpenMP implementation of parallelism with C++11's
 #define FORCE_PARALLEL							// Forces parallel methods to pass in a thread pool
-#define FIXED_BLOCK_SIZE
 #endif // NEW_CODE
 
 #undef SHOW_WARNINGS							// Display compilation warnings
@@ -107,9 +106,8 @@ cmdLineParameter< int >
 #endif // !FAST_COMPILE
 	MaxMemoryGB( "maxMemory" , 0 ) ,
 #ifdef NEW_THREADS
-#ifdef FIXED_BLOCK_SIZE
-	ThreadBlockSize( "tBlockSize" , ThreadPool::DefaultBlockSize ) ,
-#endif // FIXED_BLOCK_SIZE
+	ThreadBlockSize( "tBlockSize" , (int)ThreadPool::DefaultBlockSize ) ,
+	MinMultiThreadingSize( "minParallelSize" , (int)ThreadPool::DefaultMinParallelSize ) ,
 	Threads( "threads" , ThreadPool::DefaultThreadNum );
 #else // !NEW_THREADS
 	Threads( "threads" , omp_get_num_procs() );
@@ -152,9 +150,10 @@ cmdLineReadable* params[] =
 	&Performance ,
 	&MaxMemoryGB ,
 	&InCore ,
-#ifdef FIXED_BLOCK_SIZE
+#ifdef NEW_THREADS
 	&ThreadBlockSize ,
-#endif // FIXED_BLOCK_SIZE
+	&MinMultiThreadingSize ,
+#endif // NEW_THREADS
 	NULL
 };
 
@@ -186,6 +185,7 @@ void ShowUsage(char* ex)
 #ifdef NEW_THREADS
 	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
 	printf( "\t[--%s <thread block size>=%d]\n" , ThreadBlockSize.name , ThreadBlockSize.value );
+	printf( "\t[--%s <minimum block size for multithreading>=%d]\n" , MinMultiThreadingSize.name , MinMultiThreadingSize.value );
 #else // !NEW_THREADS
 #ifdef _OPENMP
 	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
@@ -915,6 +915,8 @@ int main( int argc , char* argv[] )
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
 #ifdef NEW_THREADS
 	ThreadPool::DefaultThreadNum = Threads.value > 1 ? Threads.value : 0;
+	ThreadPool::DefaultBlockSize = ThreadBlockSize.value;
+	ThreadPool::DefaultMinParallelSize = MinMultiThreadingSize.value;
 #else // !NEW_THREADS
 	omp_set_num_threads( Threads.value > 1 ? Threads.value : 1 );
 #endif // NEW_THREADS
