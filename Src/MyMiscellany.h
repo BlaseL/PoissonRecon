@@ -656,7 +656,6 @@ unsigned int MKThread::Threads = std::thread::hardware_concurrency();
 #include <memory>
 inline int get_max_threads( void ) { return std::max< int >( (int)std::thread::hardware_concurrency() , 1 ); }
 
-//class ThreadPoolIndexedTask : noncopyable
 class ThreadPoolIndexedTask
 {
 public:
@@ -671,15 +670,9 @@ public:
 	{
 		{
 			std::unique_lock< std::mutex > lock( _mutex );
-#if 1
 			if( !_running ) ERROR_OUT( "not running" );
 			if( _num_remaining_tasks ) ERROR_OUT( "tasks remaining" );
 			if( _task_index!=_num_tasks ) ERROR_OUT( "task index and num tasks don't match" );
-#else
-			assertx( _running );
-			assertx( !_num_remaining_tasks );
-			assertx( _task_index==_num_tasks );
-#endif
 			_running = false;
 			_task_index = 0;
 			_num_tasks = 1;
@@ -712,7 +705,7 @@ public:
 	{
 		static std::unique_ptr< ThreadPoolIndexedTask > thread_pool;
 		// This is safe because thread_pool is nullptr only in the main thread before any other thread is launched.
-		if( !thread_pool ) thread_pool = std::make_unique< ThreadPoolIndexedTask >();
+		if( !thread_pool ) thread_pool = std::unique_ptr< ThreadPoolIndexedTask >( new ThreadPoolIndexedTask() );
 		return *thread_pool;
 	}
 
@@ -761,10 +754,14 @@ struct ThreadPool
 {
 	struct ThreadNum
 	{
+#ifdef FORCE_OMP
+		unsigned int operator()( void ) const { return (unsigned int)omp_get_thread_num(); }
+#else // !FORCE_OMP
 		ThreadNum( unsigned int threadNum ) : _threadNum( threadNum ){}
 		unsigned int operator()( void ) const { return _threadNum; }
 	protected:
 		unsigned int _threadNum;
+#endif // FORCE_OMP
 	};
 
 	static size_t DefaultThreadNum;
@@ -776,6 +773,11 @@ struct ThreadPool
 
 	void parallel_for( size_t begin , size_t end , const std::function< void ( const ThreadNum & , size_t ) >& function , uint64_t estimated_cycles_per_element=k_parallelism_always )
 	{
+#ifdef FORCE_OMP
+		ThreadFunction threadFunction;
+#pragma omp parallel for
+		for( long long i=(long long)begin ; i<(long long)end ; i++ ) function( threadFunction , i );
+#else // !FORCE_OMP
 		const size_t num_elements = size_t( end - begin );
 		uint64_t total_num_cycles = num_elements * estimated_cycles_per_element;
 		const int max_num_threads = get_max_threads();
@@ -800,6 +802,7 @@ struct ThreadPool
 			}
 			);
 		}
+#endif // FORCE_OMP
 	}
 };
 size_t ThreadPool::DefaultThreadNum;
