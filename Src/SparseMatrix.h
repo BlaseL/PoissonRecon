@@ -38,7 +38,11 @@ template< class T , class IndexType > class SparseMatrix< T , IndexType , 0 > : 
 	template< class T2 , class IndexType2 , size_t MaxRowSize2 > friend class SparseMatrix;
 	Pointer( Pointer( MatrixEntry< T , IndexType > ) ) _entries;
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+	void _parallel_for( size_t begin , size_t end , std::function< void ( const ThreadPool::ThreadNum & , size_t ) > iterationFunction ) const
+#else // !NEW_THREAD_NUM
 	void _parallel_for( size_t begin , size_t end , std::function< void ( unsigned int , size_t ) > iterationFunction ) const
+#endif // NEW_THREAD_NUM
 	{
 		if( threadPool )
 		{

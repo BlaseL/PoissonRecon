@@ -649,9 +649,23 @@ struct MKThread
 unsigned int MKThread::Threads = std::thread::hardware_concurrency();
 #endif
 
+#define NEW_THREAD_NUM
+
 // [WARNING] The ThreadPool is not thread safe. Specifically, every thread should have its own ThreadPool.
 struct ThreadPool
 {
+	struct ThreadNum
+	{
+#ifdef FORCE_OMP
+		unsigned int operator()( void ) const { return (unsigned int)omp_get_thread_num(); }
+#else // !FORCE_OMP
+		ThreadNum( unsigned int threadNum ) : _threadNum( threadNum ){}
+		unsigned int operator()( void ) const { return _threadNum; }
+	protected:
+		unsigned int _threadNum;
+#endif // FORCE_OMP
+	};
+
 	static unsigned int DefaultThreadNum;
 #ifdef NEW_THREAD_POOL
 	static size_t DefaultMaxBlocksPerThread;
@@ -662,11 +676,24 @@ struct ThreadPool
 #endif // NEW_THREAD_POOL
 
 #ifdef NEW_THREAD_POOL
+#ifdef NEW_THREAD_NUM
+	void parallel_for( size_t begin , size_t end , std::function< void ( const ThreadNum & , size_t ) > iterationFunction , size_t maxBlocksPerThread=DefaultMaxBlocksPerThread , size_t minBlockSize=DefaultMinBlockSize )
+#else // !NEW_THREAD_NUM
 	void parallel_for( size_t begin , size_t end , std::function< void ( unsigned int , size_t ) > iterationFunction , size_t maxBlocksPerThread=DefaultMaxBlocksPerThread , size_t minBlockSize=DefaultMinBlockSize )
+#endif // NEW_THREAD_NUM
 #else // !NEW_THREAD_POOL
+#ifdef NEW_THREAD_NUM
+	void parallel_for( size_t begin , size_t end , std::function< void ( const ThreadNum & , size_t ) > iterationFunction , size_t blockSize=DefaultBlockSize , size_t minParallelSize=DefaultMinParallelSize )
+#else // !NEW_THREAD_NUM
 	void parallel_for( size_t begin , size_t end , std::function< void ( unsigned int , size_t ) > iterationFunction , size_t blockSize=DefaultBlockSize , size_t minParallelSize=DefaultMinParallelSize )
+#endif //NEW_THREAD_NUM
 #endif // NEW_THREAD_POOL
 	{
+#ifdef FORCE_OMP
+		ThreadNum threadNum;
+#pragma omp parallel for num_threads( (int)_threads.size() )
+		for( long long i=(long long)begin ; i<(long long)end ; i++ ) iterationFunction( threadNum , i );
+#else // !FORCE_OMP
 #ifdef NEW_THREAD_POOL
 		size_t blocks = _threads.size() * maxBlocksPerThread;
 		_blockSize = std::max< size_t >( minBlockSize , ( end - begin ) / blocks );
@@ -699,9 +726,13 @@ struct ThreadPool
 				}
 			}
 		}
+#endif // FORCE_OMP
 	}
 	void setThreadNum( unsigned int threadNum )
 	{
+#ifdef FORCE_OMP
+		_threads.resize( threadNum );
+#else // !FORCE_OMP
 		_close = 1;
 		if( _threads.size() )
 		{
@@ -712,6 +743,7 @@ struct ThreadPool
 		_workToBeDone.resize( threadNum , 0 );
 		_close = 0;
 		for( unsigned int t=0 ; t<threadNum ; t++ ) _threads[t] = std::thread( _ThreadFunction , t , this );
+#endif // FORCE_OMP
 	}
 
 	unsigned int threadNum( void ) const { return (unsigned int)_threads.size(); }
@@ -721,24 +753,35 @@ struct ThreadPool
 		_threads.resize( threadNum );
 		_workToBeDone.resize( threadNum , 0 );
 		_close = 0;
+#ifdef FORCE_OMP
+#else // !FORCE_OMP
 		for( unsigned int t=0 ; t<threadNum ; t++ ) _threads[t] = std::thread( _ThreadFunction , t , this );
+#endif // FORCE_OMP
 	}
 
 	~ThreadPool( void )
 	{
+#ifdef FORCE_OMP
+#else // !FORCE_OMP
 		_close = 1;
 		if( _threads.size() )
 		{
 			_waitingForWorkOrClose.notify_all();
 			for( unsigned int t=0 ; t<_threads.size() ; t++ ) _threads[t].join();
 		}
+#endif // FORCE_OMP
 	}
 protected:
 	ThreadPool( const ThreadPool & ){}
 	ThreadPool &operator = ( const ThreadPool & ){}
+#ifdef FORCE_OMP
+#else // !FORCE_OMP
 	static void _ThreadFunction( unsigned int thread , ThreadPool *tPool )
 	{
 		unsigned int threads = (unsigned int)tPool->_threads.size();
+#ifdef NEW_THREAD_NUM
+		ThreadNum threadNum( thread );
+#endif // NEW_THREAD_NUM
 
 		// Wait for the first job to come in
 		{
@@ -754,7 +797,11 @@ protected:
 				size_t range = ( tPool->_end - tPool->_begin );
 				size_t begin = tPool->_begin + ( range * (thread+0) )/threads;
 				size_t end   = tPool->_begin + ( range * (thread+1) )/threads;
+#ifdef NEW_THREAD_NUM
+				for( size_t i=begin ; i<end ; i++ ) tPool->_iterationFunction( threadNum , i );
+#else // !NEW_THREAD_NUM
 				for( size_t i=begin ; i<end ; i++ ) tPool->_iterationFunction( thread , i );
+#endif // NEW_THREAD_NUM
 			}
 			else
 			{
@@ -762,7 +809,11 @@ protected:
 				{
 					size_t begin = tPool->_index.fetch_add( tPool->_blockSize );
 					size_t end = std::min< size_t >( begin + tPool->_blockSize , tPool->_end );
+#ifdef NEW_THREAD_NUM
+					for( size_t i=begin ; i<end ; i++ ) tPool->_iterationFunction( threadNum , i );
+#else // !NEW_THREAD_NUM
 					for( size_t i=begin ; i<end ; i++ ) tPool->_iterationFunction( thread , i );
+#endif // NEW_THREAD_NUM
 				}
 			}
 
@@ -776,13 +827,18 @@ protected:
 			}
 		}
 	}
+#endif // FORCE_OMP
 
 	char _close;
 	std::vector< bool > _workToBeDone;
 	std::mutex _mutex;
 	std::condition_variable _waitingForWorkOrClose , _doneWithWork;
 	std::vector< std::thread > _threads;
+#ifdef NEW_THREAD_NUM
+	std::function< void ( const ThreadNum & , size_t ) > _iterationFunction;
+#else // !NEW_THREAD_NUM
 	std::function< void ( unsigned int , size_t ) > _iterationFunction;
+#endif // NEW_THREAD_NUM
 	size_t _begin , _end , _blockSize;
 	std::atomic< size_t > _index;
 };

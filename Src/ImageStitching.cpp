@@ -227,7 +227,11 @@ struct BufferedImageDerivativeStream : public FEMTreeInitializer< DIMENSION , Re
 				for( int i=0 ; i<(int)_resolution[0] ; i++ ) labelRow[i][0] = labelRow[i][1] = labelRow[i][2] = __labelRow[i];
 			}
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+			tp.parallel_for( 0 , _resolution[0] , [&]( const ThreadPool::ThreadNum & , size_ i ){ maskRow[i] = labelRow[i].mask(); } );
+#else // !NEW_THREAD_NUM
 			tp.parallel_for( 0 , _resolution[0] , [&]( unsigned int , size_ i ){ maskRow[i] = labelRow[i].mask(); } );
+#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 			for( int i=0 ; i<(int)_resolution[0] ; i++ ) maskRow[i] = labelRow[i].mask();
@@ -314,7 +318,11 @@ void _Execute( void )
 		for( int j=0 ; j<h ; j++ )
 		{
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+			tp.parallel_for( 0 , 2 , [&]( const ThreadPool::ThreadNum & , size_t i )
+#else // !NEW_THREAD_NUM
 			tp.parallel_for( 0 , 2 , [&]( unsigned int , size_t i )
+#endif // NEW_THREAD_NUM
 			{
 				if( i==0 ) dStream.prefetch();
 				else maxDepth = FEMTreeInitializer< Dim , Real >::template Initialize< (Degree&1)==0 , Point< Real , Colors > >( tree.spaceRoot() , dStream , derivatives , tree.nodeAllocator , tree.initializer() );
@@ -472,7 +480,11 @@ void _Execute( void )
 					in->nextRow( inRow );
 					RGBPixel *_inRow = inRows[block&1] + rr*w;
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+					tp.parallel_for( 0 , w , [&]( const ThreadPool::ThreadNum & , size_t i ){ _inRow[i][0] = _inRow[i][1] = _inRow[i][2] = inRow[i]; } );
+#else // !NEW_THREAD_NUM
 					tp.parallel_for( 0 , w , [&]( unsigned int , size_t i ){ _inRow[i][0] = _inRow[i][1] = _inRow[i][2] = inRow[i]; } );
+#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 					for( int i=0 ; i<w ; i++ ) _inRow[i][0] = _inRow[i][1] = _inRow[i][2] = inRow[i];
@@ -497,7 +509,11 @@ void _Execute( void )
 		for( int rStart=0 , block=0 ; rStart<h ; rStart+=ROW_BLOCK_SIZE , block++ )
 		{
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+			tp.parallel_for( 0 , 3 , [&]( const ThreadPool::ThreadNum & , size_t i )
+#else // !NEW_THREAD_NUM
 			tp.parallel_for( 0 , 3 , [&]( unsigned int thread , size_t i )
+#endif // NEW_THREAD_NUM
 			{
 				switch( i )
 				{

@@ -122,7 +122,11 @@ void SparseMatrixInterface< T , const_iterator >::multiply( ConstPointer( T2 ) I
 {
 	ConstPointer( T2 ) in = In;
 #ifdef NEW_THREADS
-	tp.parallel_for( 0 , rows() , [&]( unsigned int , size_t i )
+#ifdef NEW_THREAD_NUM
+	tp.parallel_for( 0 , rows() , [&]( const ThreadPool::ThreadNum & , size_t i )
+#else // !NEW_THREAD_NUM
+	tp.parallel_for( 0 , rows() , [&]( const ThreadPool::ThreadNum & , size_t i )
+#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
@@ -159,7 +163,11 @@ void SparseMatrixInterface< T , const_iterator >::multiplyScaled( T scale , Cons
 {
 	ConstPointer( T2 ) in = In;
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+	tp.parallel_for( 0 , rows() , [&]( const ThreadPool::ThreadNum & , size_t i )
+#else // !NEW_THREAD_NUM
 	tp.parallel_for( 0 , rows() , [&]( unsigned int , size_t i )
+#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
@@ -192,7 +200,11 @@ void SparseMatrixInterface< T , const_iterator >::setDiagonal( Pointer( T ) diag
 #endif // NEW_THREADS
 {
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+	tp.parallel_for( 0 , rows() , [&]( const ThreadPool::ThreadNum & , size_t i )
+#else // !NEW_THREAD_NUM
 	tp.parallel_for( 0 , rows() , [&]( unsigned int , size_t i )
+#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
@@ -219,7 +231,11 @@ void SparseMatrixInterface< T , const_iterator >::setDiagonalR( Pointer( T ) dia
 #endif // NEW_THREADS
 {
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+	tp.parallel_for( 0 , rows() , [&]( const ThreadPool::ThreadNum & , size_t i )
+#else // !NEW_THREAD_NUM
 	tp.parallel_for( 0 , rows() , [&]( unsigned int , size_t i )
+#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
@@ -254,7 +270,11 @@ void SparseMatrixInterface< T , const_iterator >::jacobiIteration( ConstPointer(
 #endif // NEW_THREADS
 	if( dReciprocal )
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+		tp.parallel_for( 0 , rows() , [&]( const ThreadPool::ThreadNum & , size_t i ){ out[i] = in[i] + ( b[i] - out[i] ) * diagonal[i]; } );
+#else // !NEW_THREAD_NUM
 		tp.parallel_for( 0 , rows() , [&]( unsigned int , size_t i ){ out[i] = in[i] + ( b[i] - out[i] ) * diagonal[i]; } );
+#endif //NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
@@ -265,7 +285,11 @@ void SparseMatrixInterface< T , const_iterator >::jacobiIteration( ConstPointer(
 #endif // NEW_THREADS
 	else
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+		tp.parallel_for( 0 , rows() , [&]( const ThreadPool::ThreadNum & , size_t i ){ out[i] = in[i] + ( b[i] - out[i] ) / diagonal[i]; } );
+#else // !NEW_THREAD_NUM
 		tp.parallel_for( 0 , rows() , [&]( unsigned int , size_t i ){ out[i] = in[i] + ( b[i] - out[i] ) / diagonal[i]; } );
+#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
@@ -332,7 +356,11 @@ void SparseMatrixInterface< T , const_iterator >::gsIteration( const std::vector
 {
 	if( dReciprocal )
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+		tp.parallel_for( 0 , multiColorIndices.size() , [&]( const ThreadPool::ThreadNum & , size_t j )
+#else // !NEW_THREAD_NUM
 		tp.parallel_for( 0 , multiColorIndices.size() , [&]( unsigned int , size_t j )
+#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
@@ -357,7 +385,11 @@ void SparseMatrixInterface< T , const_iterator >::gsIteration( const std::vector
 #endif // NEW_THREADS
 	else
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+		tp.parallel_for( 0 , multiColorIndices.size() , [&]( const ThreadPool::ThreadNum & , size_t j )
+#else // !NEW_THREAD_NUM
 		tp.parallel_for( 0 , multiColorIndices.size() , [&]( unsigned int , size_t j )
+#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
@@ -396,6 +428,44 @@ void SparseMatrixInterface< T , const_iterator >::gsIteration( const std::vector
 #endif // NEW_CODE_SPARSE_MATRIX
 {
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+	if( dReciprocal )
+	{
+#define ITERATE( indices )                                                                               \
+	{                                                                                                    \
+		tp.parallel_for( 0 , indices.size() , [&]( const ThreadPool::ThreadNum & , size_t k )            \
+		{                                                                                                \
+			size_t jj = indices[k];                                                                      \
+			T2 _b = b[jj];                                                                               \
+			const_iterator e = end( jj );                                                                \
+			for( const_iterator iter = begin( jj ) ; iter!=e ; iter++ ) _b -= x[iter->N] * iter->Value;  \
+			x[jj] += _b * diagonal[jj];                                                                  \
+		}                                                                                                \
+		);                                                                                               \
+	}
+		if( forward ) for( size_t j=0 ; j<multiColorIndices.size() ; j++ ){ ITERATE( multiColorIndices[j] ); }
+		else for( size_t j=multiColorIndices.size()-1 ; j>=0 ; j-- ){ ITERATE( multiColorIndices[j] ); }
+#undef ITERATE
+	}
+	else
+	{
+#define ITERATE( indices )                                                                               \
+	{                                                                                                    \
+		tp.parallel_for( 0 , indices.size() , [&]( const ThreadPool::ThreadNum & , size_t k )            \
+		{                                                                                                \
+			size_t jj = indices[k];                                                                      \
+			T2 _b = b[jj];                                                                               \
+			const_iterator e = end( jj );                                                                \
+			for( const_iterator iter = begin( jj ) ; iter!=e ; iter++ ) _b -= x[iter->N] * iter->Value;  \
+			x[jj] += _b / diagonal[jj];                                                                  \
+		}                                                                                                \
+		);                                                                                               \
+	}
+		if( forward ) for( size_t j=0 ; j<multiColorIndices.size()  ; j++ ){ ITERATE( multiColorIndices[j] ); }
+		else for( size_t j=multiColorIndices.size()-1 ; j>=0 ; j-- ){ ITERATE( multiColorIndices[j] ); }
+#undef ITERATE
+	}
+#else // !NEW_THREAD_NUM
 	if( dReciprocal )
 	{
 #define ITERATE( indices )                                                                               \
@@ -432,6 +502,7 @@ void SparseMatrixInterface< T , const_iterator >::gsIteration( const std::vector
 		else for( size_t j=multiColorIndices.size()-1 ; j>=0 ; j-- ){ ITERATE( multiColorIndices[j] ); }
 #undef ITERATE
 	}
+#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #ifdef _WIN32
 #define SetOMPParallel __pragma( omp parallel for )
@@ -540,7 +611,11 @@ template< class SPDFunctor , class T , typename Real , class TDotTFunctor > int 
 	Real delta_new = 0 , delta_0;
 	M( ( ConstPointer( T ) )x , r );
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+	tp.parallel_for( 0 , dim , [&]( const ThreadPool::ThreadNum &thread , size_t i ){ d[i] = r[i] = b[i] - r[i] , scratch[thread()] += Dot( r[i] , r[i] ); } );
+#else // !NEW_THREAD_NUM
 	tp.parallel_for( 0 , dim , [&]( unsigned int thread , size_t i ){ d[i] = r[i] = b[i] - r[i] , scratch[thread] += Dot( r[i] , r[i] ); } );
+#endif //NEW_THREAD_NUM
 	for( unsigned int t=0 ; t<tp.threadNum() ; t++ ){ delta_new += scratch[t] ; scratch[t] = 0; }
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : delta_new )
@@ -569,7 +644,11 @@ template< class SPDFunctor , class T , typename Real , class TDotTFunctor > int 
 		M( ( ConstPointer( T ) )d , q );
 		Real dDotQ = 0;
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+		tp.parallel_for( 0 , dim , [&]( const ThreadPool::ThreadNum &thread , size_t i ){ scratch[thread()] += Dot( d[i] , q[i] ); } );
+#else // !NEW_THREAD_NUM
 		tp.parallel_for( 0 , dim , [&]( unsigned int thread , size_t i ){ scratch[thread] += Dot( d[i] , q[i] ); } );
+#endif // NEW_THREAD_NUM
 		for( unsigned int t=0 ; t<tp.threadNum() ; t++ ){ dDotQ += scratch[t] ; scratch[t] = 0; }
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : dDotQ )
@@ -587,7 +666,11 @@ template< class SPDFunctor , class T , typename Real , class TDotTFunctor > int 
 		if( (ii%50)==(50-1) )
 		{
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+			tp.parallel_for( 0 , dim , [&]( const ThreadPool::ThreadNum & , size_t i ){ x[i] += (T)( d[i] * alpha ); } );
+#else // !NEW_THREAD_NUM
 			tp.parallel_for( 0 , dim , [&]( unsigned int , size_t i ){ x[i] += (T)( d[i] * alpha ); } );
+#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
@@ -598,7 +681,11 @@ template< class SPDFunctor , class T , typename Real , class TDotTFunctor > int 
 #endif // NEW_THREADS
 			M( ( ConstPointer( T ) )x , r );
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+			tp.parallel_for( 0 , dim , [&]( const ThreadPool::ThreadNum &thread , size_t i ){ r[i] = b[i] - r[i] , scratch[thread()] += Dot( r[i] , r[i] ) , x[i] += (T)( d[i] * alpha ); } );
+#else // !NEW_THREAD_NUM
 			tp.parallel_for( 0 , dim , [&]( unsigned int thread , size_t i ){ r[i] = b[i] - r[i] , scratch[thread] += Dot( r[i] , r[i] ) , x[i] += (T)( d[i] * alpha ); } );
+#endif // NEW_THREAD_NUM
 			for( unsigned int t=0 ; t<tp.threadNum() ; t++ ){ delta_new += scratch[t] ; scratch[t] = 0; }
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : delta_new )
@@ -612,7 +699,11 @@ template< class SPDFunctor , class T , typename Real , class TDotTFunctor > int 
 		else
 #ifdef NEW_THREADS
 		{
+#ifdef NEW_THREAD_NUM
+			tp.parallel_for( 0 , dim , [&]( const ThreadPool::ThreadNum &thread , size_t i ){ r[i] -=(T)( q[i] * alpha ) , scratch[thread()] += Dot( r[i] , r[i] ) ,  x[i] += (T)( d[i] * alpha ); } );
+#else // !NEW_THREAD_NUM
 			tp.parallel_for( 0 , dim , [&]( unsigned int thread , size_t i ){ r[i] -=(T)( q[i] * alpha ) , scratch[thread] += Dot( r[i] , r[i] ) ,  x[i] += (T)( d[i] * alpha ); } );
+#endif //NEW_THREAD_NUM
 			for( unsigned int t=0 ; t<tp.threadNum() ; t++ ){ delta_new += scratch[t] ; scratch[t] = 0; }
 		}
 #else // !NEW_THREADS
@@ -626,7 +717,11 @@ template< class SPDFunctor , class T , typename Real , class TDotTFunctor > int 
 
 		Real beta = delta_new / delta_old;
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+		tp.parallel_for( 0 , dim , [&]( const ThreadPool::ThreadNum & , size_t i ){ d[i] = r[i] + (T)( d[i] * beta ); } );
+#else // !NEW_THREAD_NUM
 		tp.parallel_for( 0 , dim , [&]( unsigned int , size_t i ){ d[i] = r[i] + (T)( d[i] * beta ); } );
+#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
@@ -671,7 +766,11 @@ template< class SPDFunctor , class Preconditioner , class T , typename Real , cl
 	P( b , Pb );
 	PM( ( ConstPointer( T ) )x , r );
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+	tp.parallel_for( 0 , dim , [&]( const ThreadPool::ThreadNum &thread , size_t i ){ d[i] = r[i] = Pb[i] - r[i] , scratch[thread()] += Dot( r[i] , r[i] ); } );
+#else // !NEW_THREAD_NUM
 	tp.parallel_for( 0 , dim , [&]( unsigned int thread , size_t i ){ d[i] = r[i] = Pb[i] - r[i] , scratch[thread] += Dot( r[i] , r[i] ); } );
+#endif // NEW_THREAD_NUM
 	for( unsigned int t=0 ; t<tp.threadNum() ; t++ ){ delta_new += scratch[t] ; scratch[t] = 0; }
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : delta_new )
@@ -702,7 +801,11 @@ template< class SPDFunctor , class Preconditioner , class T , typename Real , cl
 		PM( ( ConstPointer( T ) )d , q );
 		Real dDotQ = 0;
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+		tp.parallel_for( 0 , dim , [&]( const ThreadPool::ThreadNum &thread , size_t i ){ scratch[thread()] += Dot( d[i] , q[i] ); } );
+#else // !NEW_THREAD_NUM
 		tp.parallel_for( 0 , dim , [&]( unsigned int thread , size_t i ){ scratch[thread] += Dot( d[i] , q[i] ); } );
+#endif // NEW_THREAD_NUM
 		for( unsigned int t=0 ; t<tp.threadNum() ; t++ ){ dDotQ += scratch[t] ; scratch[t] = 0; }
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : dDotQ )
@@ -720,7 +823,11 @@ template< class SPDFunctor , class Preconditioner , class T , typename Real , cl
 		if( (ii%50)==(50-1) )
 		{
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+			tp.parallel_for( 0 , dim , [&]( const ThreadPool::ThreadNum & , size_t i ){ x[i] += (T)( d[i] * alpha ); } );
+#else // !NEW_THREAD_NUM
 			tp.parallel_for( 0 , dim , [&]( unsigned int , size_t i ){ x[i] += (T)( d[i] * alpha ); } );
+#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
@@ -731,7 +838,11 @@ template< class SPDFunctor , class Preconditioner , class T , typename Real , cl
 #endif // NEW_THREADS
 			PM( ( ConstPointer( T ) )x , r );
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+			tp.parallel_for( 0 , dim , [&]( const ThreadPool::ThreadNum &thread , size_t i ){ r[i] = Pb[i] - r[i] , scratch[thread()] += Dot( r[i] , r[i] ) , x[i] += (T)( d[i] * alpha ); } );
+#else // !NEW_THREAD_NUM
 			tp.parallel_for( 0 , dim , [&]( unsigned int thread , size_t i ){ r[i] = Pb[i] - r[i] , scratch[thread] += Dot( r[i] , r[i] ) , x[i] += (T)( d[i] * alpha ); } );
+#endif // NEW_THREAD_NUM
 			for( unsigned int t=0 ; t<tp.threadNum() ; t++ ) delta_new += scratch[t];
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : delta_new )
@@ -745,7 +856,11 @@ template< class SPDFunctor , class Preconditioner , class T , typename Real , cl
 		else
 		{
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+			tp.parallel_for( 0 , dim , [&]( const ThreadPool::ThreadNum &thread , size_t i ){ r[i] -=(T)( q[i] * alpha ) , scratch[thread()] += Dot( r[i] , r[i] ) ,  x[i] += (T)( d[i] * alpha ); } );
+#else // !NEW_THREAD_NUM
 			tp.parallel_for( 0 , dim , [&]( unsigned int thread , size_t i ){ r[i] -=(T)( q[i] * alpha ) , scratch[thread] += Dot( r[i] , r[i] ) ,  x[i] += (T)( d[i] * alpha ); } );
+#endif // NEW_THREAD_NUM
 			for( unsigned int t=0 ; t<tp.threadNum() ; t++ ) delta_new += scratch[t];
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : delta_new )
@@ -759,7 +874,11 @@ template< class SPDFunctor , class Preconditioner , class T , typename Real , cl
 
 		Real beta = delta_new / delta_old;
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+		tp.parallel_for( 0 , dim , [&]( const ThreadPool::ThreadNum & , size_t i ){ d[i] = r[i] + (T)( d[i] * beta ); } );
+#else // !NEW_THREAD_NUM
 		tp.parallel_for( 0 , dim , [&]( unsigned int , size_t i ){ d[i] = r[i] + (T)( d[i] * beta ); } );
+#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX

@@ -35,6 +35,7 @@ DAMAGE.
 #undef NEW_THREADS								// Enabling this flag replaces the OpenMP implementation of parallelism with C++11's
 #undef FORCE_PARALLEL							// Forces parallel methods to pass in a thread pool
 #undef NEW_THREAD_POOL
+#undef FORCE_OMP
 #endif // NEW_CODE
 
 #undef SHOW_WARNINGS							// Display compilation warnings
@@ -430,7 +431,11 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 		Real avg = 0;
 #ifdef NEW_THREADS
 		std::vector< Real > avgs( tp.threadNum() , 0 );
+#ifdef NEW_THREAD_NUM
+		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum &thread , size_t i ){ avgs[thread()] += values[i]; } );
+#else // !NEW_THREAD_NUM
 		tp.parallel_for( 0 , resolution , [&]( unsigned int thread , size_t i ){ avgs[thread] += values[i]; } );
+#endif // NEW_THREAD_NUM
 		for( unsigned int t=0 ; t<tp.threadNum() ; t++ ) avg += avgs[t];
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : avg )
@@ -441,7 +446,11 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 		Real std = 0;
 #ifdef NEW_THREADS
 		std::vector< Real > stds( tp.threadNum() , 0 );
+#ifdef NEW_THREAD_NUM
+		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum &thread , size_t i ){ stds[thread()] += ( values[i] - avg ) * ( values[i] - avg ); } );
+#else // !NEW_THREAD_NUM
 		tp.parallel_for( 0 , resolution , [&]( unsigned int thread , size_t i ){ stds[thread] += ( values[i] - avg ) * ( values[i] - avg ); } );
+#endif // NEW_THREAD_NUM
 		for( unsigned int t=0 ; t<tp.threadNum() ; t++ ) std += stds[t];
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : std )
@@ -453,7 +462,11 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 
 		unsigned char *pixels = new unsigned char[ resolution*3 ];
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum & , size_t i )
+#else // !NEW_THREAD_NUM
 		tp.parallel_for( 0 , resolution , [&]( unsigned int , size_t i )
+#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 		for( int i=0 ; i<resolution ; i++ )
@@ -668,7 +681,11 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 #ifdef NEW_THREADS
 			if( ConfidenceBias.value>0 ) *normalInfo = tree.setNormalField( NormalSigs() , tp , *samples , *sampleData , density , pointWeightSum , [&]( Real conf ){ return (Real)( log( conf ) * ConfidenceBias.value / log( 1<<(Dim-1) ) ); } );
 			else                         *normalInfo = tree.setNormalField( NormalSigs() , tp , *samples , *sampleData , density , pointWeightSum );
+#ifdef NEW_THREAD_NUM
+			tp.parallel_for( 0 , normalInfo->size() , [&]( const ThreadPool::ThreadNum & , size_t i ){ (*normalInfo)[i] *= (Real)-1.; } );
+#else // !NEW_THREAD_NUM
 			tp.parallel_for( 0 , normalInfo->size() , [&]( unsigned int , size_t i ){ (*normalInfo)[i] *= (Real)-1.; } );
+#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 			if( ConfidenceBias.value>0 ) *normalInfo = tree.setNormalField( NormalSigs() , *samples , *sampleData , density , pointWeightSum , [&]( Real conf ){ return (Real)( log( conf ) * ConfidenceBias.value / log( 1<<(Dim-1) ) ); } );
 			else                         *normalInfo = tree.setNormalField( NormalSigs() , *samples , *sampleData , density , pointWeightSum );
@@ -765,7 +782,11 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 #ifdef NEW_THREADS
 		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 0 > evaluator( tp , &tree , solution );
 		std::vector< double > valueSums( tp.threadNum() , 0 ) , weightSums( tp.threadNum() , 0 );
+#ifdef NEW_THREAD_NUM
+		tp.parallel_for( 0 , samples->size() , [&]( const ThreadPool::ThreadNum &thread , size_t j )
+#else // !NEW_THREAD_NUM
 		tp.parallel_for( 0 , samples->size() , [&]( unsigned int thread , size_t j )
+#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 0 > evaluator( &tree , solution );
 #pragma omp parallel for reduction( + : valueSum , weightSum )
@@ -775,7 +796,11 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 			ProjectiveData< Point< Real , Dim > , Real >& sample = (*samples)[j].sample;
 			Real w = sample.weight;
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+			if( w>0 ) weightSums[thread()] += w , valueSums[thread()] += evaluator.values( sample.data / sample.weight , thread() , (*samples)[j].node )[0] * w;
+#else // !NEW_THREAD_NUM
 			if( w>0 ) weightSums[thread] += w , valueSums[thread] += evaluator.values( sample.data / sample.weight , thread , (*samples)[j].node )[0] * w;
+#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 			if( w>0 ) weightSum += w , valueSum += evaluator.values( sample.data / sample.weight , omp_get_thread_num() , (*samples)[j].node )[0] * w;
 #endif // NEW_THREADS
@@ -812,7 +837,11 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 		size_t resolution = 1;
 		for( int d=0 ; d<Dim ; d++ ) resolution *= res;
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum & , size_t i ){ values[i] -= isoValue; } );
+#else // !NEW_THREAD_NUM
 		tp.parallel_for( 0 , resolution , [&]( unsigned int , size_t i ){ values[i] -= isoValue; } );
+#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 		for( int i=0 ; i<resolution ; i++ ) values[i] -= isoValue;

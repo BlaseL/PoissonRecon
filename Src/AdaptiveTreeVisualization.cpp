@@ -112,7 +112,11 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 		Real avg = 0;
 #ifdef NEW_THREADS
 		std::vector< Real > avgs( tp.threadNum() , 0 );
+#ifdef NEW_THREAD_NUM
+		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum &thread , size_t i ){ avgs[thread()] += values[i]; } );
+#else // !NEW_THREAD_NUM
 		tp.parallel_for( 0 , resolution , [&]( unsigned int thread , size_t i ){ avgs[thread] += values[i]; } );
+#endif // NEW_THREAD_NUM
 		for( unsigned int t=0 ; t<tp.threadNum() ; t++ ) avg += avgs[t];
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : avg )
@@ -123,7 +127,11 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 		Real std = 0;
 #ifdef NEW_THREADS
 		std::vector< Real > stds( tp.threadNum() , 0 );
+#ifdef NEW_THREAD_NUM
+		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum &thread , size_t i ){ stds[thread()] += ( values[i] - avg ) * ( values[i] - avg ); } );
+#else // !NEW_THREAD_NUM
 		tp.parallel_for( 0 , resolution , [&]( unsigned int thread , size_t i ){ stds[thread] += ( values[i] - avg ) * ( values[i] - avg ); } );
+#endif // NEW_THREAD_NUM
 		for( unsigned int t=0 ; t<tp.threadNum() ; t++ ) std += stds[t];
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : std )
@@ -135,7 +143,11 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 
 		unsigned char *pixels = new unsigned char[ resolution*3 ];
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_NUM
+		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum & , size_t i )
+#else // !NEW_THREAD_NUM
 		tp.parallel_for( 0 , resolution , [&]( unsigned int , size_t i )
+#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 		for( int i=0 ; i<resolution ; i++ )
