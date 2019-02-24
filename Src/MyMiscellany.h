@@ -650,6 +650,162 @@ unsigned int MKThread::Threads = std::thread::hardware_concurrency();
 #endif
 
 #define NEW_THREAD_NUM
+#define USE_HH_THREAD_POOL
+
+#ifdef USE_HH_THREAD_POOL
+#include <memory>
+inline int get_max_threads( void ) { return std::max< int >( (int)std::thread::hardware_concurrency() , 1 ); }
+
+//class ThreadPoolIndexedTask : noncopyable
+class ThreadPoolIndexedTask
+{
+public:
+	using Task = std::function< void (int) >;
+	ThreadPoolIndexedTask( void )
+	{
+		const int num_threads = get_max_threads();
+		_threads.reserve( num_threads );
+		for( int i=0 ; i<num_threads ; i++ ) _threads.emplace_back( &ThreadPoolIndexedTask::worker_main , this );
+	}
+	~ThreadPoolIndexedTask( void )
+	{
+		{
+			std::unique_lock< std::mutex > lock( _mutex );
+#if 1
+			if( !_running ) ERROR_OUT( "not running" );
+			if( _num_remaining_tasks ) ERROR_OUT( "tasks remaining" );
+			if( _task_index!=_num_tasks ) ERROR_OUT( "task index and num tasks don't match" );
+#else
+			assertx( _running );
+			assertx( !_num_remaining_tasks );
+			assertx( _task_index==_num_tasks );
+#endif
+			_running = false;
+			_task_index = 0;
+			_num_tasks = 1;
+			_condition_variable_worker.notify_all();
+		}
+		for( int i=0 ; i<_threads.size() ; i++ ) _threads[i].join();
+	}
+	int num_threads( void ) const { return (int)_threads.size(); }
+	bool already_active( void ) const { return _num_remaining_tasks!=0; }  // detect nested execution
+	void execute( int num_tasks , const Task& task_function )
+	{
+		if( already_active() )
+		{
+			WARN( "Nested execution of ThreadPoolIndexedTask is run serially" );
+			for( int i=0 ; i<num_tasks ; i++ ) task_function( i );
+			for( int i=0 ; i<num_tasks ; i++ ) task_function(i);
+		}
+		else
+		{
+			std::unique_lock< std::mutex > lock( _mutex );
+			_task_function = task_function;
+			_num_tasks = num_tasks;
+			_num_remaining_tasks = num_tasks;
+			_task_index = 0;
+			_condition_variable_worker.notify_all();
+			_condition_variable_master.wait( lock , [this]{ return !_num_remaining_tasks; } );
+		}
+	}
+	static ThreadPoolIndexedTask& default_threadpool( void )
+	{
+		static std::unique_ptr< ThreadPoolIndexedTask > thread_pool;
+		// This is safe because thread_pool is nullptr only in the main thread before any other thread is launched.
+		if( !thread_pool ) thread_pool = std::make_unique< ThreadPoolIndexedTask >();
+		return *thread_pool;
+	}
+
+private:
+	std::mutex _mutex;
+	bool _running = true;
+	std::vector< std::thread > _threads;
+	Task _task_function;
+	int _num_tasks = 0;
+	int _num_remaining_tasks = 0;
+	int _task_index = 0;
+	std::condition_variable _condition_variable_worker;
+	std::condition_variable _condition_variable_master;
+
+	void worker_main( void )
+	{
+		std::unique_lock< std::mutex > lock( _mutex );
+		// Consider: https://stackoverflow.com/questions/233127/how-can-i-propagate-exceptions-between-threads
+		// However, rethrowing the exception in the main thread loses the stack state, so not useful for debugging.
+		for (;;)
+		{
+			_condition_variable_worker.wait( lock , [this]{ return _task_index < _num_tasks; } );
+			if( !_running ) break;
+			while( _task_index<_num_tasks )
+			{
+				int i = _task_index++;
+				lock.unlock();
+				_task_function(i);
+				lock.lock();
+				if( _num_remaining_tasks<=0 ) ERROR_OUT( "num remaining tasks not greater than zero" );
+				if (!--_num_remaining_tasks) _condition_variable_master.notify_all();
+			}
+		}
+	}
+};
+
+
+// Evaluates function(element) for each element in range by parallelizing across chunks of elements using
+// a cached thread pool.  The range must support begin/end functions returning random-access iterators.
+// Parallelism is disabled if the estimated cost (estimated_cycles_per_element * size(range)) is less than some
+// internal threshold, or if this parallel_for_each() is already executing (nested) within another parallel_for_each().
+// Exceptions within function() cause program termination as they are not caught.
+// One drawback over OpenMP is that if an exception or abort occurs within function(), the stack trace will not
+// include the functions that called parallel_for_each() because these lie in the stack frames of a different thread.
+struct ThreadPool
+{
+	struct ThreadNum
+	{
+		ThreadNum( unsigned int threadNum ) : _threadNum( threadNum ){}
+		unsigned int operator()( void ) const { return _threadNum; }
+	protected:
+		unsigned int _threadNum;
+	};
+
+	static size_t DefaultThreadNum;
+	static size_t DefaultMaxBlocksPerThread;
+	static const uint64_t k_omp_thresh = 100*1000; // number of instruction cycles above which a loop should be parallelized
+	static constexpr uint64_t k_parallelism_always = k_omp_thresh;
+
+	unsigned int threadNum( void ) const { return get_max_threads(); }
+
+	void parallel_for( size_t begin , size_t end , const std::function< void ( const ThreadNum & , size_t ) >& function , uint64_t estimated_cycles_per_element=k_parallelism_always )
+	{
+		const size_t num_elements = size_t( end - begin );
+		uint64_t total_num_cycles = num_elements * estimated_cycles_per_element;
+		const int max_num_threads = get_max_threads();
+		const int num_threads = (int)std::min< size_t >( max_num_threads , num_elements );
+		const bool desire_parallelism = num_threads > 1 && total_num_cycles >= k_omp_thresh;
+		ThreadPoolIndexedTask* const thread_pool = desire_parallelism ? &ThreadPoolIndexedTask::default_threadpool() : nullptr;
+		if( !thread_pool || thread_pool->already_active() )
+		{
+			// Traverse the range elements sequentially.
+			ThreadNum threadNum(0);
+			for( size_t index=begin ; index<end ; ++index) function( threadNum , index );
+		}
+		else
+		{
+			// Traverse the range elements in parallel.
+			const size_t chunk_size = ( num_elements + num_threads - 1 ) / num_threads;
+			thread_pool->execute( num_threads , [ begin , num_elements , chunk_size , &function ]( int thread_index )
+			{
+				size_t index_start = thread_index * chunk_size;
+				size_t index_stop = begin + std::min< size_t >( ( thread_index + 1 ) * chunk_size , num_elements );
+				for( size_t index = begin + index_start ; index< index_stop ; ++index ) function( thread_index , index );
+			}
+			);
+		}
+	}
+};
+size_t ThreadPool::DefaultThreadNum;
+size_t ThreadPool::DefaultMaxBlocksPerThread;
+
+#else // !USE_HH_THREAD_POOL
 
 // [WARNING] The ThreadPool is not thread safe. Specifically, every thread should have its own ThreadPool.
 struct ThreadPool
@@ -722,7 +878,8 @@ struct ThreadPool
 
 				{
 					std::unique_lock< std::mutex > lock( _mutex );
-					while( !WorkComplete()!=0 ){ _doneWithWork.wait( lock , WorkComplete ); }
+//					while( !WorkComplete()!=0 ){ _doneWithWork.wait( lock , WorkComplete ); }
+					_doneWithWork.wait( lock , WorkComplete );
 				}
 			}
 		}
@@ -850,8 +1007,8 @@ size_t ThreadPool::DefaultMinBlockSize=100;
 size_t ThreadPool::DefaultBlockSize = 100;
 size_t ThreadPool::DefaultMinParallelSize = 100;
 #endif // NEW_THREAD_POOL
-
 #define PARALLEL_FOR( threadPool , begin , end , functor ) if( (begin)<(end) ) threadPool.parallel_for( (begin) , (end) , functor )
+#endif // USE_HH_THREAD_POOL
 
 #endif // NEW_THREADS
 
