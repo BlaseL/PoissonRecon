@@ -34,6 +34,7 @@ DAMAGE.
 												// These are not standardly supported by .ply reading/writing applications.
 #undef NEW_THREADS								// Enabling this flag replaces the OpenMP implementation of parallelism with C++11's
 #undef FORCE_PARALLEL							// Forces parallel methods to pass in a thread pool
+#undef NEW_THREAD_POOL
 #endif // NEW_CODE
 
 #undef SHOW_WARNINGS							// Display compilation warnings
@@ -106,8 +107,12 @@ cmdLineParameter< int >
 #endif // !FAST_COMPILE
 	MaxMemoryGB( "maxMemory" , 0 ) ,
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_POOL
+	MaxBlocksPerThread( "blocksPerThread" , (int)ThreadPool::DefaultMaxBlocksPerThread ) ,
+#else // !NEW_THREAD_POOL
 	ThreadBlockSize( "tBlockSize" , (int)ThreadPool::DefaultBlockSize ) ,
 	MinMultiThreadingSize( "minParallelSize" , (int)ThreadPool::DefaultMinParallelSize ) ,
+#endif // NEW_THREAD_POOL
 	Threads( "threads" , ThreadPool::DefaultThreadNum );
 #else // !NEW_THREADS
 	Threads( "threads" , omp_get_num_procs() );
@@ -151,8 +156,12 @@ cmdLineReadable* params[] =
 	&MaxMemoryGB ,
 	&InCore ,
 #ifdef NEW_THREADS
+#ifdef NEW_THREAD_POOL
+	&MaxBlocksPerThread ,
+#else // !NEW_THREAD_POOL
 	&ThreadBlockSize ,
 	&MinMultiThreadingSize ,
+#endif // NEW_THREAD_POOL
 #endif // NEW_THREADS
 	NULL
 };
@@ -184,8 +193,12 @@ void ShowUsage(char* ex)
 	printf( "\t[--%s]\n" , Normals.name );
 #ifdef NEW_THREADS
 	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
+#ifdef NEW_THREAD_POOL
+	printf( "\t[--%s <maximum number of blocks per thread>=%d]\n" , MaxBlocksPerThread.name , MaxBlocksPerThread.value );
+#else // !NEW_THREAD_POOL
 	printf( "\t[--%s <thread block size>=%d]\n" , ThreadBlockSize.name , ThreadBlockSize.value );
 	printf( "\t[--%s <minimum block size for multithreading>=%d]\n" , MinMultiThreadingSize.name , MinMultiThreadingSize.value );
+#endif // NEW_THREAD_POOL
 #else // !NEW_THREADS
 #ifdef _OPENMP
 	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
@@ -915,8 +928,12 @@ int main( int argc , char* argv[] )
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
 #ifdef NEW_THREADS
 	ThreadPool::DefaultThreadNum = Threads.value > 1 ? Threads.value : 0;
+#ifdef NEW_THREAD_POOL
+	ThreadPool::DefaultMaxBlocksPerThread = MaxBlocksPerThread.value;
+#else // !NEW_THREAD_POOL
 	ThreadPool::DefaultBlockSize = ThreadBlockSize.value;
 	ThreadPool::DefaultMinParallelSize = MinMultiThreadingSize.value;
+#endif // NEW_THREAD_POOL
 #else // !NEW_THREADS
 	omp_set_num_threads( Threads.value > 1 ? Threads.value : 1 );
 #endif // NEW_THREADS

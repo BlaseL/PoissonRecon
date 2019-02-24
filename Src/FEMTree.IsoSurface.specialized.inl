@@ -2971,7 +2971,11 @@ public:
 					case 8: slabValues[d].xSliceValues(o-1).setFaceEdgeMap() ; return;
 					}
 				};
+#ifdef NEW_THREAD_LOOP
+				tp.parallel_for( 0 , 9 , SlabSet , 1 , 1 );
+#else // !NEW_THREAD_LOOP
 				tp.parallel_for( 0 , 9 , SlabSet , 1 );
+#endif // NEW_THREAD_LOOP
 #else // !NEW_THREADS
 #pragma omp parallel sections
 				{

@@ -653,19 +653,37 @@ unsigned int MKThread::Threads = std::thread::hardware_concurrency();
 struct ThreadPool
 {
 	static unsigned int DefaultThreadNum;
+#ifdef NEW_THREAD_POOL
+	static size_t DefaultMaxBlocksPerThread;
+	static size_t DefaultMinBlockSize;
+#else // !NEW_THREAD_POOL
 	static size_t DefaultBlockSize;
 	static size_t DefaultMinParallelSize;
+#endif // NEW_THREAD_POOL
 
+#ifdef NEW_THREAD_POOL
+	void parallel_for( size_t begin , size_t end , std::function< void ( unsigned int , size_t ) > iterationFunction , size_t maxBlocksPerThread=DefaultMaxBlocksPerThread , size_t minBlockSize=DefaultMinBlockSize )
+#else // !NEW_THREAD_POOL
 	void parallel_for( size_t begin , size_t end , std::function< void ( unsigned int , size_t ) > iterationFunction , size_t blockSize=DefaultBlockSize , size_t minParallelSize=DefaultMinParallelSize )
+#endif // NEW_THREAD_POOL
 	{
+#ifdef NEW_THREAD_POOL
+		size_t blocks = _threads.size() * maxBlocksPerThread;
+		_blockSize = std::max< size_t >( minBlockSize , ( end - begin ) / blocks );
+#else // !NEW_THREAD_POOL
 		_blockSize = blockSize;
+#endif // NEW_THREAD_POOL
 		if( !_threads.size() ) for( size_t i=begin ; i<end ; i++ ) iterationFunction( 0 , i );
 		else
 		{
 			auto WorkersWorking = [&]( void ){ unsigned int c=0 ; for( unsigned int t=0 ; t<_threads.size() ; t++ ) if( _workToBeDone[t] ) c++ ; return c; };
 			auto WorkComplete = [&]( void ){ return WorkersWorking()==0; };
 			if( begin>=end ) return;
+#ifdef NEW_THREAD_POOL
+			if( end-begin<_blockSize && _blockSize!=-1 ) for( size_t i=begin ; i<end ; i++ ) iterationFunction( 0 , i );
+#else // !NEW_THREAD_POOL
 			if( end-begin<minParallelSize && _blockSize!=-1 ) for( size_t i=begin ; i<end ; i++ ) iterationFunction( 0 , i );
+#endif // NEW_THREAD_POOL
 			else
 			{
 				_begin = begin;
@@ -769,8 +787,13 @@ protected:
 	std::atomic< size_t > _index;
 };
 unsigned int ThreadPool::DefaultThreadNum = std::thread::hardware_concurrency();
+#ifdef NEW_THREAD_POOL
+size_t ThreadPool::DefaultMaxBlocksPerThread=100;
+size_t ThreadPool::DefaultMinBlockSize=100;
+#else // !NEW_THREAD_POOL
 size_t ThreadPool::DefaultBlockSize = 100;
 size_t ThreadPool::DefaultMinParallelSize = 100;
+#endif // NEW_THREAD_POOL
 
 #define PARALLEL_FOR( threadPool , begin , end , functor ) if( (begin)<(end) ) threadPool.parallel_for( (begin) , (end) , functor )
 

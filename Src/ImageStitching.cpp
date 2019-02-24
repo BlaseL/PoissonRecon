@@ -318,7 +318,11 @@ void _Execute( void )
 			{
 				if( i==0 ) dStream.prefetch();
 				else maxDepth = FEMTreeInitializer< Dim , Real >::template Initialize< (Degree&1)==0 , Point< Real , Colors > >( tree.spaceRoot() , dStream , derivatives , tree.nodeAllocator , tree.initializer() );
+#ifdef NEW_THREAD_LOOP
+			} , 1 , 1
+#else // !NEW_THREAD_LOOP
 			} , 1
+#endif // NEW_THREAD_LOOP
 			);
 #else // !NEW_THREADS
 #pragma omp parallel sections
