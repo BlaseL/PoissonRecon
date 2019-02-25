@@ -211,7 +211,7 @@ int Execute( void )
 						printf( "\t\t" ) ; PrintBoundingBox( _min , _max ) ; printf( "\n" );
 
 #if 1
-						WARN( "Not writing mesh: " stream.str() );
+						WARN( "Not writing mesh: " , stream.str() );
 #else
 						WriteMesh( stream.str().c_str() , ASCII.set ? PLY_ASCII : ft , subVertices , subPolygons , comments );
 #endif
@@ -232,7 +232,7 @@ int Execute( void )
 						printf( "\t\t" ) ; PrintBoundingBox( _min , _max ) ; printf( "\n" );
 
 #if 1
-						WARN( "Not writing points: " stream.str() );
+						WARN( "Not writing points: " , stream.str() );
 #else
 						WritePoints( stream.str().c_str() , ASCII.set ? PLY_ASCII : ft , subVertices , comments );
 #endif
