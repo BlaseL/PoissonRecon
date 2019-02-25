@@ -35,7 +35,9 @@ DAMAGE.
 #undef NEW_THREADS								// Enabling this flag replaces the OpenMP implementation of parallelism with C++11's
 #undef FORCE_PARALLEL							// Forces parallel methods to pass in a thread pool
 #undef NEW_THREAD_POOL
+#undef USE_HH_THREAD_POOL
 #undef FORCE_OMP
+#define TEST_ALLOCATOR_LOCK
 #endif // NEW_CODE
 
 #undef SHOW_WARNINGS							// Display compilation warnings
@@ -114,7 +116,7 @@ cmdLineParameter< int >
 	ThreadBlockSize( "tBlockSize" , (int)ThreadPool::DefaultBlockSize ) ,
 	MinMultiThreadingSize( "minParallelSize" , (int)ThreadPool::DefaultMinParallelSize ) ,
 #endif // NEW_THREAD_POOL
-	Threads( "threads" , ThreadPool::DefaultThreadNum );
+	Threads( "threads" , (int)ThreadPool::DefaultThreadNum );
 #else // !NEW_THREADS
 	Threads( "threads" , omp_get_num_procs() );
 #endif // NEW_THREADS

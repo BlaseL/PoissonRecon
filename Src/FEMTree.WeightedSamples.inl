@@ -150,6 +150,7 @@ void FEMTree< Dim , Real >::_getSampleDepthAndWeight( const DensityEstimator< We
 	return _getSampleDepthAndWeight( densityWeights , temp , position , weightKey , depth , weight );
 }
 
+#include <mutex>
 template< unsigned int Dim , class Real >
 template< bool CreateNodes , class V , unsigned int ... DataSigs >
 void FEMTree< Dim , Real >::_splatPointData( FEMTreeNode* node , Point< Real , Dim > position , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& dataInfo , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey )
@@ -157,7 +158,6 @@ void FEMTree< Dim , Real >::_splatPointData( FEMTreeNode* node , Point< Real , D
 	typedef UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > SupportSizes;
 	double values[ Dim ][ SupportSizes::Max() ];
 	typename FEMTreeNode::template Neighbors< UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > >& neighbors = dataKey.template getNeighbors< CreateNodes >( node , nodeAllocator , _NodeInitializer( *this ) );
-
 	Point< Real , Dim > start;
 	Real w;
 	_startAndWidth( node , start , w );

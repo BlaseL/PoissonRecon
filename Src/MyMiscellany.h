@@ -650,7 +650,6 @@ unsigned int MKThread::Threads = std::thread::hardware_concurrency();
 #endif
 
 #define NEW_THREAD_NUM
-#define USE_HH_THREAD_POOL
 
 #ifdef USE_HH_THREAD_POOL
 #include <memory>
@@ -688,7 +687,6 @@ public:
 		{
 			WARN( "Nested execution of ThreadPoolIndexedTask is run serially" );
 			for( int i=0 ; i<num_tasks ; i++ ) task_function( i );
-			for( int i=0 ; i<num_tasks ; i++ ) task_function(i);
 		}
 		else
 		{
@@ -771,12 +769,13 @@ struct ThreadPool
 
 	unsigned int threadNum( void ) const { return get_max_threads(); }
 
-	void parallel_for( size_t begin , size_t end , const std::function< void ( const ThreadNum & , size_t ) >& function , uint64_t estimated_cycles_per_element=k_parallelism_always )
+	template< typename Function >
+	void parallel_for( size_t begin , size_t end , const Function &function , uint64_t estimated_cycles_per_element=k_parallelism_always )
 	{
 #ifdef FORCE_OMP
-		ThreadFunction threadFunction;
+		ThreadNum threadNum;
 #pragma omp parallel for
-		for( long long i=(long long)begin ; i<(long long)end ; i++ ) function( threadFunction , i );
+		for( long long i=(long long)begin ; i<(long long)end ; i++ ) function( threadNum , i );
 #else // !FORCE_OMP
 		const size_t num_elements = size_t( end - begin );
 		uint64_t total_num_cycles = num_elements * estimated_cycles_per_element;
