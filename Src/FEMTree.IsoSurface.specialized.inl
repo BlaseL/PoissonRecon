@@ -1877,7 +1877,11 @@ protected:
 						{
 #ifdef NEW_CODE
 							_Key key1 = cSliceValues.edgeKeys[cIndex1] , key2 = cSliceValues.edgeKeys[cIndex2];
+#ifdef NEW_THREADS
 							pSliceValues.vertexPairKeyValues[ thread() ].push_back( std::pair< _Key , _Key >( key1 , key2 ) );
+#else // !NEW_THREADS
+							pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< _Key , _Key >( key1 , key2 ) );
+#endif // NEW_THREADS
 #else // !NEW_CODE
 							long long key1 = cSliceValues.edgeKeys[cIndex1] , key2 = cSliceValues.edgeKeys[cIndex2];
 							pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< long long , long long >( key1 , key2 ) );
@@ -1891,7 +1895,11 @@ protected:
 								node = node->parent , _depth-- , _slice >>= 1;
 								_SliceValues& _pSliceValues = slabValues[_depth].sliceValues(_slice);
 #ifdef NEW_CODE
+#ifdef NEW_THREADS
 								_pSliceValues.vertexPairKeyValues[ thread() ].push_back( std::pair< _Key , _Key >( key1 , key2 ) );
+#else // !NEW_THREADS
+								_pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< _Key , _Key >( key1 , key2 ) );
+#endif // NEW_THREADS
 #else // !NEW_CODE
 								_pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< long long , long long >( key1 , key2 ) );
 #endif // NEW_CODE
@@ -1987,7 +1995,11 @@ protected:
 						{
 #ifdef NEW_CODE
 							_Key key0 = cSliceValues0.edgeKeys[cIndex0] , key1 = cSliceValues1.edgeKeys[cIndex1];
+#ifdef NEW_THREADS
 							pSliceValues.vertexPairKeyValues[ thread() ].push_back( std::pair< _Key , _Key >( key0 , key1 ) );
+#else // !NEW_THREADS
+							pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< _Key , _Key >( key0 , key1 ) );
+#endif // NEW_THREADS
 #else // !NEW_CODE
 							long long key0 = cSliceValues0.edgeKeys[cIndex0] , key1 = cSliceValues1.edgeKeys[cIndex1];
 							pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< long long , long long >( key0 , key1 ) );
@@ -2004,7 +2016,11 @@ protected:
 								node = node->parent , _depth-- , _slab>>= 1;
 								_SliceValues& _pSliceValues = slabValues[_depth].sliceValues(_slab);
 #ifdef NEW_CODE
+#ifdef NEW_THREADS
 								_pSliceValues.vertexPairKeyValues[ thread() ].push_back( std::pair< _Key , _Key >( key0 , key1 ) );
+#else // !NEW_THREADS
+								_pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< _Key , _Key >( key0 , key1 ) );
+#endif // NEW_THREADS
 #else // !NEW_CODE
 								_pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< long long , long long >( key0 , key1 ) );
 #endif // NEW_CODE

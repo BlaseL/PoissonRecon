@@ -3575,7 +3575,11 @@ void FEMTree< Dim , Real >::_RegularGridUpSample( UIntPack< FEMSigs ... > , cons
 		[&]( int t )
 #endif // NEW_THREADS
 		{
+#ifdef NEW_THREADS
 			const UpdateData& data = updateData[t()];
+#else // !NEW_THREADS
+			const UpdateData& data = updateData[t];
+#endif // NEW_THREADS
 			const long long highIdx = data.highIndex[Dim] , lowIndex = data.lowIndex[Dim];
 			const int c = data.c;
 			const bool isInterior = data.isInterior[Dim];
