@@ -36,8 +36,9 @@ DAMAGE.
 #undef FORCE_PARALLEL							// Forces parallel methods to pass in a thread pool
 #undef NEW_THREAD_POOL
 #undef USE_HH_THREAD_POOL
+#undef USE_ASYNC_THREADING
 #undef FORCE_OMP
-#define TEST_ALLOCATOR_LOCK
+#undef TEST_ALLOCATOR_LOCK
 #endif // NEW_CODE
 
 #undef SHOW_WARNINGS							// Display compilation warnings

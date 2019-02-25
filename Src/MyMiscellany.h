@@ -325,6 +325,7 @@ namespace MKExceptions
 #include <condition_variable>
 #include <functional>
 #include <chrono>
+#include <future>
 
 #if 0
 // The assumption is that Kernel is the type of a function taking two arguments, the first is the index of the thread and the second is index of the iteration
@@ -809,6 +810,69 @@ size_t ThreadPool::DefaultMaxBlocksPerThread;
 
 #else // !USE_HH_THREAD_POOL
 
+#ifdef USE_ASYNC_THREADING
+struct ThreadPool
+{
+	struct ThreadNum
+	{
+#ifdef FORCE_OMP
+		unsigned int operator()( void ) const { return (unsigned int)omp_get_thread_num(); }
+#else // !FORCE_OMP
+		ThreadNum( unsigned int threadNum ) : _threadNum( threadNum ){}
+		unsigned int operator()( void ) const { return _threadNum; }
+	protected:
+		unsigned int _threadNum;
+#endif // FORCE_OMP
+	};
+
+	static unsigned int DefaultThreadNum;
+#ifdef NEW_THREAD_POOL
+	static size_t DefaultMaxBlocksPerThread;
+	static size_t DefaultMinBlockSize;
+#else // !NEW_THREAD_POOL
+	static size_t DefaultBlockSize;
+	static size_t DefaultMinParallelSize;
+#endif // NEW_THREAD_POOL
+
+	unsigned int threadNum( void ) const { return DefaultThreadNum; }
+	template< typename Function >
+	void parallel_for( size_t begin , size_t end , const Function &iterationFunction , size_t maxBlocksPerThread=DefaultMaxBlocksPerThread , size_t minBlockSize=DefaultMinBlockSize )
+	{
+		if( !DefaultThreadNum ) for( size_t i=begin ; i<end ; i++ ) iterationFunction( 0 , i );
+		else if( begin>=end ) ;
+		else
+		{
+			const size_t blocks = DefaultThreadNum * maxBlocksPerThread;
+			const size_t blockSize = std::max< size_t >( minBlockSize , ( end - begin ) / blocks );
+			if( end-begin<blockSize ) for( size_t i=begin ; i<end ; i++ ) iterationFunction( 0 , i );
+			else
+			{
+				static std::vector< std::future< void > > futures;
+				futures.resize( DefaultThreadNum );
+				std::atomic< size_t > index;
+				index.store(begin);
+				for( unsigned int t=0 ; t<DefaultThreadNum ; t++ ) futures[t] = std::async( std::launch::async , _ThreadFunction< Function > , std::ref(index) , t , end , blockSize , iterationFunction );
+				for( unsigned int t=0 ; t<DefaultThreadNum ; t++ ) futures[t].get();
+			}
+		}
+	}
+protected:
+	template< typename Function >
+	static void _ThreadFunction( std::atomic< size_t > &index , unsigned int t , size_t end , size_t blockSize , const Function &iterationFunction )
+	{
+		ThreadNum threadNum(t);
+		while( index<end )
+		{
+			size_t _begin = index.fetch_add( blockSize );
+			size_t _end = std::min< size_t >( _begin + blockSize , end );
+			for( size_t i=_begin ; i<_end ; i++ ) iterationFunction( threadNum , i );
+		}
+	}
+};
+unsigned int ThreadPool::DefaultThreadNum = std::thread::hardware_concurrency();
+size_t ThreadPool::DefaultMaxBlocksPerThread=100;
+size_t ThreadPool::DefaultMinBlockSize=100;
+#else // !USE_ASYNC_THREADING
 // [WARNING] The ThreadPool is not thread safe. Specifically, every thread should have its own ThreadPool.
 struct ThreadPool
 {
@@ -1010,6 +1074,7 @@ size_t ThreadPool::DefaultBlockSize = 100;
 size_t ThreadPool::DefaultMinParallelSize = 100;
 #endif // NEW_THREAD_POOL
 #define PARALLEL_FOR( threadPool , begin , end , functor ) if( (begin)<(end) ) threadPool.parallel_for( (begin) , (end) , functor )
+#endif // USE_ASYNC_THREADING
 #endif // USE_HH_THREAD_POOL
 
 #endif // NEW_THREADS
