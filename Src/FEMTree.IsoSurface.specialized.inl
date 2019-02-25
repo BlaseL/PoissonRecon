@@ -2944,12 +2944,15 @@ public:
 		}
 	};
 #ifdef NEW_THREADS
+#ifdef FORCE_PARALLEL
+#else // !FORCE_PARALLEL
 	template< typename Data , unsigned int ... FEMSigs , unsigned int WeightDegree , unsigned int DataSig >
 	static IsoStats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , CoredMeshData< Vertex , node_index_type >& mesh , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex , bool nonLinearFit , bool addBarycenter , bool polygonMesh , bool flipOrientation )
 	{
 		ThreadPool tp;
 		return Extract( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tp , tree , densityWeights , data , coefficients , isoValue , mesh , SetVertex , nonLinearFit , addBarycenter , polygonMesh , flipOrientation );
 	}
+#endif // FORCE_PARALLEL
 #endif // NEW_THREADS
 	template< typename Data , unsigned int ... FEMSigs , unsigned int WeightDegree , unsigned int DataSig >
 #ifdef NEW_CODE
@@ -3132,11 +3135,11 @@ public:
 					case 8: slabValues[d].xSliceValues(o-1).setFaceEdgeMap() ; return;
 					}
 				};
-#ifdef NEW_THREAD_LOOP
-				tp.parallel_for( 0 , 9 , SlabSet , 1 , 1 );
-#else // !NEW_THREAD_LOOP
+#ifdef MERGE_PARALLEL
+				tp.parallel_for( 0 , 9 , SlabSet , ThreadPool::STATIC , 1 );
+#else // !MERGE_PARALLEL
 				tp.parallel_for( 0 , 9 , SlabSet , 1 );
-#endif // NEW_THREAD_LOOP
+#endif // MERGE_PARALLEL
 #else // !NEW_THREADS
 #pragma omp parallel sections
 				{

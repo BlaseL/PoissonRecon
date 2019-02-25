@@ -51,8 +51,12 @@ template< class T , class IndexType > class SparseMatrix< T , IndexType , 0 > : 
 		}
 		else
 		{
+#ifdef MERGE_PARALLEL
+			ERROR_OUT( "require an input thread pool" );
+#else // !MERGE_PARALLEL
 			ThreadPool tp;
 			tp.parallel_for( begin , end , iterationFunction );
+#endif // MERGE_PARALLEL
 		}
 	}
 #endif // NEW_THREADS
