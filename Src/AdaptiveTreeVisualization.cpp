@@ -66,8 +66,8 @@ cmdLineReadable
 
 cmdLineParameter< int >
 #ifdef NEW_THREADS
-	ParallelType( "parallelType" , (int)ThreadPool::OPEN_MP ) ,
-	ScheduleType( "scheduleType" , (int)ThreadPool::DefaultSchedule ) ,
+	ParallelType( "parallel" , (int)ThreadPool::OPEN_MP ) ,
+	ScheduleType( "schedule" , (int)ThreadPool::DefaultSchedule ) ,
 	ThreadChunkSize( "tChunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
 	Threads( "threads" , (int)std::thread::hardware_concurrency() );
 #else // !NEW_THREADS

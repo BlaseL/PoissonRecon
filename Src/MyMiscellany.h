@@ -490,7 +490,7 @@ struct ThreadPool
 		}
 		else if( _parallelType==THREAD_POOL_HH )
 		{
-			const size_t num_elements = size_t( end - begin );
+			const size_t num_elements = end - begin;
 			uint64_t total_num_cycles = num_elements * k_parallelism_always;
 			const int max_num_threads = threadNum();
 			const int num_threads = (int)std::min< size_t >( max_num_threads , num_elements );
@@ -505,6 +505,41 @@ struct ThreadPool
 			else
 			{
 				// Traverse the range elements in parallel.
+#if 1
+				if( schedule==ThreadPool::DYNAMIC )
+				{
+					_index = begin;
+					std::atomic< size_t > &index = _index;
+					const size_t chunkSize = _chunkSize;
+					thread_pool->execute( num_threads , [ &index , end , chunkSize , &iterationFunction ]( int thread_index )
+					{
+						ThreadNum threadNum( ThreadPool::THREAD_POOL_HH , thread_index );
+						while( index<end )
+						{
+							size_t _begin = index.fetch_add( chunkSize );
+							size_t _end = std::min< size_t >( _begin + chunkSize , end );
+							for( size_t i=_begin ; i<_end ; i++ ) iterationFunction( threadNum , i );
+						}
+					}
+					);
+				}
+				else if( schedule==ThreadPool::STATIC )
+				{
+					const size_t chunkSize = _chunkSize;
+					thread_pool->execute( num_threads , [ begin , end , num_threads , chunkSize , &iterationFunction ]( int thread_index )
+					{
+						ThreadNum threadNum( ThreadPool::THREAD_POOL_HH , thread_index );
+						size_t _begin = begin + chunkSize * thread_index;
+						for( size_t c=_begin ; c<end ; c+=(num_threads*chunkSize) )
+						{
+							size_t __begin = c;
+							size_t __end = std::min< size_t >( c + chunkSize , end );
+							for( size_t i=__begin ; i<__end ; i++ ) iterationFunction( threadNum , i );
+						}
+					}
+					);
+				}
+#else
 				const size_t chunk_size = ( num_elements + num_threads - 1 ) / num_threads;
 				thread_pool->execute( num_threads , [ begin , num_elements , chunk_size , &iterationFunction ]( int thread_index )
 				{
@@ -514,6 +549,7 @@ struct ThreadPool
 					for( size_t index = begin + index_start ; index< index_stop ; ++index ) iterationFunction( threadNum , index );
 				}
 				);
+#endif
 			}
 		}
 		else if( _parallelType==ASYNC )

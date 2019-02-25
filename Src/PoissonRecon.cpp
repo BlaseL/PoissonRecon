@@ -27,14 +27,13 @@ DAMAGE.
 */
 #define NEW_CODE
 
-
 #ifdef NEW_CODE
 #define BIG_DATA								// Supports processing requiring more than 32-bit integers for indexing
 												// Note: enabling BIG_DATA can generate .ply files using "longlong" for face indices instead of "int".
 												// These are not standardly supported by .ply reading/writing applications.
 #undef NEW_THREADS								// Enabling this flag replaces the OpenMP implementation of parallelism with C++11's
 #undef FORCE_PARALLEL							// Forces parallel methods to pass in a thread pool
-#undef TEST_ALLOCATOR_LOCK
+#define TEST_ALLOCATOR_LOCK
 #undef USE_SUB_NODES							// It appears that most nodes valid, so this probably won't help load balancing
 #endif // NEW_CODE
 
@@ -108,8 +107,8 @@ cmdLineParameter< int >
 #endif // !FAST_COMPILE
 	MaxMemoryGB( "maxMemory" , 0 ) ,
 #ifdef NEW_THREADS
-	ParallelType( "parallelType" , (int)ThreadPool::OPEN_MP ) ,
-	ScheduleType( "scheduleType" , (int)ThreadPool::DefaultSchedule ) ,
+	ParallelType( "parallel" , (int)ThreadPool::OPEN_MP ) ,
+	ScheduleType( "schedule" , (int)ThreadPool::DefaultSchedule ) ,
 	ThreadChunkSize( "tChunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
 	Threads( "threads" , (int)std::thread::hardware_concurrency() );
 #else // !NEW_THREADS

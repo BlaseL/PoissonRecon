@@ -43,7 +43,8 @@ DAMAGE.
 // -- [TODO] Make thread pool static
 // -- [TODO] Support nested parallelism with thread pools
 // -- [TODO] Make thread pool function taking unsinged int instead of ThreadNum
-// -- [TODO] Make parallel for  only iterate over valid nodes
+// -- [TODO] Make parallel for only iterate over valid nodes
+// -- [TODO] Make a preprocessor file
 
 #ifndef FEM_TREE_INCLUDED
 #define FEM_TREE_INCLUDED

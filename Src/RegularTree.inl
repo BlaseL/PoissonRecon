@@ -512,24 +512,36 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey
 				{
 					static std::mutex m;
 					std::lock_guard< std::mutex > lock(m);
+#ifdef NEW_CODE
+#else // !NEW_CODE
 #ifdef TEST_ALLOCATOR_LOCK
 					if( nodeAllocator ) nodeAllocator->enableThreadIDTest = false;
 #endif // TEST_ALLOCATOR_LOCK
+#endif // NEW_CODE
 					if( !pNeighbors[pi]->children ) pNeighbors[pi]->initChildren( nodeAllocator , Initializer );
+#ifdef NEW_CODE
+#else // !NEW_CODE
 #ifdef TEST_ALLOCATOR_LOCK
 					if( nodeAllocator ) nodeAllocator->enableThreadIDTest = true;
 #endif // TEST_ALLOCATOR_LOCK
+#endif //  NEW_CODE
 				}
 #else // !NEW_THREADS
 #pragma omp critical ( RegularTreeNode__NeighborKey__Run )
 				{
+#ifdef NEW_CODE
+#else // !NEW_CODE
 #ifdef TEST_ALLOCATOR_LOCK
 					if( nodeAllocator ) nodeAllocator->enableThreadIDTest = false;
 #endif // TEST_ALLOCATOR_LOCK
+#endif // NEW_CODE
 					if( !pNeighbors[pi]->children ) pNeighbors[pi]->initChildren( nodeAllocator , Initializer );
+#ifdef NEW_CODE
+#else // !NEW_CODE
 #ifdef TEST_ALLOCATOR_LOCK
 					if( nodeAllocator ) nodeAllocator->enableThreadIDTest = true;
 #endif // TEST_ALLOCATOR_LOCK
+#endif // NEW_CODE
 				}
 #endif // NEW_THREADS
 				cNeighbors[ci] = pNeighbors[pi]->children + ( cornerIndex | ( ( _i&1)<<(Dim-1) ) );

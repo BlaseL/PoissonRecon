@@ -48,7 +48,11 @@ struct AllocatorState{ int index , remains; };
   * ensuring that appropriate constructors and destructors are called as necessary.
   */
 template< class T >
+#ifdef NEW_CODE
+class Allocator
+#else // !NEW_CODE
 class SingleThreadedAllocator
+#endif // NEW_CODE
 {
 #ifdef NEW_CODE
 	size_t _blockSize;
@@ -61,11 +65,12 @@ class SingleThreadedAllocator
 #endif // NEW_CODE
 public:
 #ifdef NEW_CODE
-	SingleThreadedAllocator( void ) : _blockSize(0) {}
+	Allocator( void ) : _blockSize(0) {}
+	~Allocator( void ){ reset(); }
 #else // !NEW_CODE
 	SingleThreadedAllocator( void ){ blockSize = index = remains = 0; }
-#endif // NEW_CODE
 	~SingleThreadedAllocator( void ){ reset(); }
+#endif // NEW_CODE
 
 	/** This method is the allocators destructor. It frees up any of the memory that
 	  * it has allocated. */
@@ -266,6 +271,9 @@ public:
 	}
 #endif // NEW_CODE
 };
+
+#ifdef NEW_CODE
+#else // !NEW_CODE
 #ifdef NEW_CODE
 #include <thread>
 #endif // NEW_CODE
@@ -311,5 +319,5 @@ public:
 	T* newElements( int elements=1 ){ return _allocators[ omp_get_thread_num() ].newElements( elements ); }
 #endif // NEW_CODE
 };
-
+#endif // NEW_CODE
 #endif // ALLOCATOR_INCLUDE
