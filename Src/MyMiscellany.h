@@ -911,17 +911,17 @@ struct ThreadPool
 #endif //NEW_THREAD_NUM
 #endif // NEW_THREAD_POOL
 	{
-#ifdef FORCE_OMP
-		ThreadNum threadNum;
-#pragma omp parallel for num_threads( (int)_threads.size() )
-		for( long long i=(long long)begin ; i<(long long)end ; i++ ) iterationFunction( threadNum , i );
-#else // !FORCE_OMP
 #ifdef NEW_THREAD_POOL
 		size_t blocks = _threads.size() * maxBlocksPerThread;
 		_blockSize = std::max< size_t >( minBlockSize , ( end - begin ) / blocks );
 #else // !NEW_THREAD_POOL
 		_blockSize = blockSize;
 #endif // NEW_THREAD_POOL
+#ifdef FORCE_OMP
+		ThreadNum threadNum;
+#pragma omp parallel for num_threads( (int)_threads.size() ) schedule( dynamic , _blockSize )
+		for( long long i=(long long)begin ; i<(long long)end ; i++ ) iterationFunction( threadNum , i );
+#else // !FORCE_OMP
 		if( !_threads.size() ) for( size_t i=begin ; i<end ; i++ ) iterationFunction( 0 , i );
 		else
 		{
