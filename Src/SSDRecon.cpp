@@ -102,7 +102,10 @@ cmdLineParameter< int >
 #endif // !FAST_COMPILE
 	MaxMemoryGB( "maxMemory" , 0 ) ,
 #ifdef NEW_THREADS
-	Threads( "threads" , ThreadPool::DefaultThreadNum );
+	ParallelType( "parallelType" , (int)ThreadPool::OPEN_MP ) ,
+	ScheduleType( "scheduleType" , (int)ThreadPool::DefaultSchedule ) ,
+	ThreadChunkSize( "tChunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
+	Threads( "threads" , (int)std::thread::hardware_concurrency() );
 #else // !NEW_THREADS
 	Threads( "threads" , omp_get_num_procs() );
 #endif // NEW_THREADS
@@ -147,6 +150,11 @@ cmdLineReadable* params[] =
 	&Performance ,
 	&MaxMemoryGB ,
 	&InCore ,
+#ifdef NEW_THREADS
+	&ParallelType ,
+	&ScheduleType ,
+	&ThreadChunkSize ,
+#endif // NEW_THREADS
 	NULL
 };
 
@@ -177,9 +185,18 @@ void ShowUsage(char* ex)
 	printf( "\t[--%s <pull factor>=%f]\n" , DataX.name , DataX.value );
 	printf( "\t[--%s]\n" , Colors.name );
 	printf( "\t[--%s]\n" , Normals.name );
+#ifdef NEW_THREADS
+	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
+	printf( "\t[--%s <parallel type>=%d]\n" , ParallelType.name , ParallelType.value );
+	for( size_t i=0 ; i<ThreadPool::ParallelNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ParallelNames[i].c_str() );
+	printf( "\t[--%s <schedue type>=%d]\n" , ScheduleType.name , ScheduleType.value );
+	for( size_t i=0 ; i<ThreadPool::ScheduleNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ScheduleNames[i].c_str() );
+	printf( "\t[--%s <thread chunk size>=%d]\n" , ThreadChunkSize.name , ThreadChunkSize.value );
+#else // !NEW_THREADS
 #ifdef _OPENMP
 	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
 #endif // _OPENMP
+#endif // NEW_THREADS
 	printf( "\t[--%s <normal confidence exponent>=%f]\n" , Confidence.name , Confidence.value );
 	printf( "\t[--%s <normal confidence bias exponent>=%f]\n" , ConfidenceBias.name , ConfidenceBias.value );
 	printf( "\t[--%s]\n" , NonManifold.name );
@@ -333,7 +350,11 @@ struct SystemDual< Dim , double , TotalPointSampleData >
 };
 
 template< typename Vertex , typename Real , unsigned int ... FEMSigs , typename ... SampleData >
+#ifdef NEW_THREADS
+void ExtractMesh( UIntPack< FEMSigs ... > , std::tuple< SampleData ... > , ThreadPool &tp , FEMTree< sizeof ... ( FEMSigs ) , Real >& tree , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& solution , Real isoValue , const std::vector< typename FEMTree< sizeof ... ( FEMSigs ) , Real >::PointSample >* samples , std::vector< MultiPointStreamData< Real , PointStreamNormal< Real , DIMENSION > , MultiPointStreamData< Real , SampleData ... > > >* sampleData , const typename FEMTree< sizeof ... ( FEMSigs ) , Real >::template DensityEstimator< WEIGHT_DEGREE >* density , std::function< void ( Vertex& , Point< Real , DIMENSION > , Real , MultiPointStreamData< Real , PointStreamNormal< Real , DIMENSION > , MultiPointStreamData< Real , SampleData ... > > ) > SetVertex , std::vector< std::string > &comments , XForm< Real , sizeof...(FEMSigs)+1 > iXForm )
+#else // !NEW_THREADS
 void ExtractMesh( UIntPack< FEMSigs ... > , std::tuple< SampleData ... > , FEMTree< sizeof ... ( FEMSigs ) , Real >& tree , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& solution , Real isoValue , const std::vector< typename FEMTree< sizeof ... ( FEMSigs ) , Real >::PointSample >* samples , std::vector< MultiPointStreamData< Real , PointStreamNormal< Real , DIMENSION > , MultiPointStreamData< Real , SampleData ... > > >* sampleData , const typename FEMTree< sizeof ... ( FEMSigs ) , Real >::template DensityEstimator< WEIGHT_DEGREE >* density , std::function< void ( Vertex& , Point< Real , DIMENSION > , Real , MultiPointStreamData< Real , PointStreamNormal< Real , DIMENSION > , MultiPointStreamData< Real , SampleData ... > > ) > SetVertex , std::vector< std::string > &comments , XForm< Real , sizeof...(FEMSigs)+1 > iXForm )
+#endif // NEW_THREADS
 {
 	static const int Dim = sizeof ... ( FEMSigs );
 	typedef UIntPack< FEMSigs ... > Sigs;
@@ -379,14 +400,27 @@ void ExtractMesh( UIntPack< FEMSigs ... > , std::tuple< SampleData ... > , FEMTr
 			ProjectiveData< TotalPointSampleData , Real >* clr = _sampleData( n );
 			if( clr ) (*clr) *= (Real)pow( DataX.value , tree.depth( n ) );
 		}
+#ifdef NEW_THREADS
+		isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< TotalPointSampleData >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tp , tree , density , &_sampleData , solution , isoValue , *mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , false );
+#else // !NEW_THREADS
 		isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< TotalPointSampleData >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , density , &_sampleData , solution , isoValue , *mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , false );
+#endif // NEW_THREADS
 	}
+#ifdef NEW_THREADS
 #if defined( __GNUC__ ) && __GNUC__ < 5
-	#warning "you've got me gcc version<5"
+#warning "you've got me gcc version<5"
+	else isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< TotalPointSampleData >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tp , tree , density , (SparseNodeData< ProjectiveData< TotalPointSampleData , Real > , IsotropicUIntPack< Dim , DataSig > > *)NULL , solution , isoValue , *mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , false );
+#else // !__GNUC__ || __GNUC__ >=5
+	else isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< TotalPointSampleData >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tp , tree , density , NULL , solution , isoValue , *mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , false );
+#endif // __GNUC__ || __GNUC__ < 4
+#else // !NEW_THREADS
+#if defined( __GNUC__ ) && __GNUC__ < 5
+#warning "you've got me gcc version<5"
 	else isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< TotalPointSampleData >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , density , (SparseNodeData< ProjectiveData< TotalPointSampleData , Real > , IsotropicUIntPack< Dim , DataSig > > *)NULL , solution , isoValue , *mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , false );
 #else // !__GNUC__ || __GNUC__ >=5
 	else isoStats = IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< TotalPointSampleData >( Sigs() , UIntPack< WEIGHT_DEGREE >() , UIntPack< DataSig >() , tree , density , NULL , solution , isoValue , *mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , false );
 #endif // __GNUC__ || __GNUC__ < 4
+#endif // NEW_THREADS
 #ifdef NEW_CODE
 	messageWriter( "Vertices / Polygons: %llu / %llu\n" , (unsigned long long)( mesh->outOfCorePointCount()+mesh->inCorePoints.size() ) , (unsigned long long)mesh->polygonCount() );
 #else // !NEW_CODE
@@ -424,11 +458,7 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 		Real avg = 0;
 #ifdef NEW_THREADS
 		std::vector< Real > avgs( tp.threadNum() , 0 );
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum &thread , size_t i ){ avgs[thread()] += values[i]; } );
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( 0 , resolution , [&]( unsigned int thread , size_t i ){ avgs[thread] += values[i]; } );
-#endif // NEW_THREAD_NUM
 		for( unsigned int t=0 ; t<tp.threadNum() ; t++ ) avg += avgs[t];
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : avg )
@@ -439,11 +469,7 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 		Real std = 0;
 #ifdef NEW_THREADS
 		std::vector< Real > stds( tp.threadNum() , 0 );
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum &thread , size_t i ){ stds[thread()] += ( values[i] - avg ) * ( values[i] - avg ); } );
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( 0 , resolution , [&]( unsigned int thread , size_t i ){ stds[thread] += ( values[i] - avg ) * ( values[i] - avg ); } );
-#endif // NEW_THREAD_NUM
 		for( unsigned int t=0 ; t<tp.threadNum() ; t++ ) std += stds[t];
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : std )
@@ -455,11 +481,7 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 
 		unsigned char *pixels = new unsigned char[ resolution*3 ];
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum & , size_t i )
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( 0 , resolution , [&]( unsigned int , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 		for( int i=0 ; i<resolution ; i++ )
@@ -523,7 +545,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 
 
 #ifdef NEW_THREADS
-	ThreadPool tp;
+	ThreadPool tp( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
 #endif // NEW_THREADS
 
 	XForm< Real , Dim+1 > xForm , iXForm;
@@ -749,11 +771,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 #ifdef NEW_THREADS
 		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 0 > evaluator( tp , &tree , solution );
 		std::vector< double > valueSums( tp.threadNum() , 0 ) , weightSums( tp.threadNum() , 0 );
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( 0 , samples->size() , [&]( const ThreadPool::ThreadNum &thread , size_t j )
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( 0 , samples->size() , [&]( unsigned int thread , size_t j )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 0 > evaluator( &tree , solution );
 #pragma omp parallel for reduction( + : valueSum , weightSum )
@@ -763,11 +781,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 			ProjectiveData< Point< Real , Dim > , Real >& sample = (*samples)[j].sample;
 			Real w = sample.weight;
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
-			if( w>0 ) weightSums[thread()] += w , valueSums[thread()] += evaluator.values( sample.data / sample.weight , thread , (*samples)[j].node )[0] * w;
-#else // !NEW_THREAD_NUM
-			if( w>0 ) weightSums[thread] += w , valueSums[thread] += evaluator.values( sample.data / sample.weight , thread , (*samples)[j].node )[0] * w;
-#endif // NEW_THREAD_NUM
+			if( w>0 ) weightSums[thread()] += w , valueSums[thread()] += evaluator.values( sample.data / sample.weight , thread() , (*samples)[j].node )[0] * w;
 #else // !NEW_THREADS
 			if( w>0 ) weightSum += w , valueSum += evaluator.values( sample.data / sample.weight , omp_get_thread_num() , (*samples)[j].node )[0] * w;
 #endif // NEW_THREADS
@@ -804,11 +818,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 		size_t resolution = 1;
 		for( int d=0 ; d<Dim ; d++ ) resolution *= res;
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum & , size_t i ){ values[i] -= isoValue; } );
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( 0 , resolution , [&]( unsigned int , size_t i ){ values[i] -= isoValue; } );
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 		for( int i=0 ; i<resolution ; i++ ) values[i] -= isoValue;
@@ -840,13 +850,21 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 			{
 				typedef PlyVertexWithData< Real , Dim , MultiPointStreamData< Real , PointStreamNormal< Real , Dim > , PointStreamValue< Real > , AdditionalPointSampleData > > Vertex;
 				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , std::get< 0 >( v.data.data ) = std::get< 0 >( d.data ) , std::get< 1 >( v.data.data ).data = w , std::get< 2 >( v.data.data ) = std::get< 1 >( d.data ); };
+#ifdef NEW_THREADS
+				ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , std::tuple< SampleData ... >() , tp , tree , solution , isoValue , samples , sampleData , density , SetVertex , comments , iXForm );
+#else // !NEW_THREADS
 				ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , std::tuple< SampleData ... >() , tree , solution , isoValue , samples , sampleData , density , SetVertex , comments , iXForm );
+#endif // NEW_THREADS
 			}
 			else
 			{
 				typedef PlyVertexWithData< Real , Dim , MultiPointStreamData< Real , PointStreamNormal< Real , Dim > , AdditionalPointSampleData > > Vertex;
 				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , std::get< 0 >( v.data.data ) = std::get< 0 >( d.data ) , std::get< 1 >( v.data.data ) = std::get< 1 >( d.data ); };
+#ifdef NEW_THREADS
+				ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , std::tuple< SampleData ... >() , tp , tree , solution , isoValue , samples , sampleData , density , SetVertex , comments , iXForm );
+#else // !NEW_THREADS
 				ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , std::tuple< SampleData ... >() , tree , solution , isoValue , samples , sampleData , density , SetVertex , comments , iXForm );
+#endif // NEW_THREADS
 			}
 		}
 		else
@@ -855,13 +873,21 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 			{
 				typedef PlyVertexWithData< Real , Dim , MultiPointStreamData< Real , PointStreamValue< Real > , AdditionalPointSampleData > > Vertex;
 				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , std::get< 0 >( v.data.data ).data = w , std::get< 1 >( v.data.data ) = std::get< 1 >( d.data ); };
+#ifdef NEW_THREADS
+				ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , std::tuple< SampleData ... >() , tp , tree , solution , isoValue , samples , sampleData , density , SetVertex , comments , iXForm );
+#else // !NEW_THREADS
 				ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , std::tuple< SampleData ... >() , tree , solution , isoValue , samples , sampleData , density , SetVertex , comments , iXForm );
+#endif // NEW_THREADS
 			}
 			else
 			{
 				typedef PlyVertexWithData< Real , Dim , MultiPointStreamData< Real , AdditionalPointSampleData > > Vertex;
 				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , std::get< 0 >( v.data.data ) = std::get< 1 >( d.data ); };
+#ifdef NEW_THREADS
+				ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , std::tuple< SampleData ... >() , tp , tree , solution , isoValue , samples , sampleData , density , SetVertex , comments , iXForm );
+#else // !NEW_THREADS
 				ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , std::tuple< SampleData ... >() , tree , solution , isoValue , samples , sampleData , density , SetVertex , comments , iXForm );
+#endif // NEW_THREADS
 			}
 		}
 		if( sampleData ){ delete sampleData ; sampleData = NULL; }
@@ -921,7 +947,8 @@ int main( int argc , char* argv[] )
 	cmdLineParse( argc-1 , &argv[1] , params );
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
 #ifdef NEW_THREADS
-	ThreadPool::DefaultThreadNum = Threads.value > 1 ? Threads.value : 0;
+	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;
+	ThreadPool::DefaultSchedule = (ThreadPool::ScheduleType)ScheduleType.value;
 #else // !NEW_THREADS
 	omp_set_num_threads( Threads.value > 1 ? Threads.value : 1 );
 #endif // NEW_THREADS

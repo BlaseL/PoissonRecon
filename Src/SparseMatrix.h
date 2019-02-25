@@ -38,11 +38,7 @@ template< class T , class IndexType > class SparseMatrix< T , IndexType , 0 > : 
 	template< class T2 , class IndexType2 , size_t MaxRowSize2 > friend class SparseMatrix;
 	Pointer( Pointer( MatrixEntry< T , IndexType > ) ) _entries;
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 	void _parallel_for( size_t begin , size_t end , std::function< void ( const ThreadPool::ThreadNum & , size_t ) > iterationFunction ) const
-#else // !NEW_THREAD_NUM
-	void _parallel_for( size_t begin , size_t end , std::function< void ( unsigned int , size_t ) > iterationFunction ) const
-#endif // NEW_THREAD_NUM
 	{
 		if( threadPool )
 		{
@@ -51,12 +47,7 @@ template< class T , class IndexType > class SparseMatrix< T , IndexType , 0 > : 
 		}
 		else
 		{
-#ifdef MERGE_PARALLEL
 			ERROR_OUT( "require an input thread pool" );
-#else // !MERGE_PARALLEL
-			ThreadPool tp;
-			tp.parallel_for( begin , end , iterationFunction );
-#endif // MERGE_PARALLEL
 		}
 	}
 #endif // NEW_THREADS
@@ -148,11 +139,7 @@ template< class T , class IndexType , size_t MaxRowSize > class SparseMatrix : p
 	Pointer( size_t ) _rowSizes;
 	size_t _maxRows;
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 	void _parallel_for( size_t begin , size_t end , std::function< void ( const ThreadPool::ThreadNum & , size_t ) > iterationFunction ) const
-#else // !NEW_THREAD_NUM
-	void _parallel_for( size_t begin , size_t end , std::function< void ( unsigned int , size_t ) > iterationFunction ) const
-#endif // NEW_THREAD_NUM
 	{
 		if( threadPool )
 		{

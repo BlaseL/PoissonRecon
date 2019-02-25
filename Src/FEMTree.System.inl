@@ -244,11 +244,7 @@ void FEMTree< Dim , Real >::_setMultiColorIndices( UIntPack< FEMSigs ... > , int
 		return index;
 	};
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 	tp.parallel_for( start , end , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#else // !NEW_THREAD_NUM
-	tp.parallel_for( start , end , [&]( unsigned int thread , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -262,11 +258,7 @@ void FEMTree< Dim , Real >::_setMultiColorIndices( UIntPack< FEMSigs ... > , int
 		{
 			int idx = MCIndex( _sNodes.treeNodes[i] );
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			counts[thread()].count[idx]++;
-#else // !NEW_THREAD_NUM
-			counts[thread].count[idx]++;
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp atomic
 			count[idx]++;
@@ -325,11 +317,7 @@ int FEMTree< Dim , Real >::_solveFullSystemGS( UIntPack< FEMSigs ... > , const t
 #endif // NEW_THREADS
 #ifdef NEW_CODE
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( const ThreadPool::ThreadNum & , size_t i ){ _constraints[ i - _sNodesBegin(depth) ] = constraints[ _sNodes.treeNodes[i]->nodeData.nodeIndex ] - _constraints[ i - _sNodesBegin(depth) ]; } );
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _constraints[ i - _sNodesBegin(depth) ] = constraints[ _sNodes.treeNodes[i]->nodeData.nodeIndex ] - _constraints[ i - _sNodesBegin(depth) ]; } );
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 		for( node_index_type i=_sNodesBegin(depth) ; i<_sNodesEnd(depth) ; i++ ) _constraints[ i - _sNodesBegin(depth) ] = constraints[ _sNodes.treeNodes[i]->nodeData.nodeIndex ] - _constraints[ i - _sNodesBegin(depth) ];
@@ -366,11 +354,7 @@ int FEMTree< Dim , Real >::_solveFullSystemGS( UIntPack< FEMSigs ... > , const t
 		{
 #ifdef NEW_THREADS
 			std::vector< double > bNorms( tp.threadNum() , 0 ) , inRNorms( tp.threadNum() , 0 );
-#ifdef NEW_THREAD_NUM
 			tp.parallel_for( 0 , M.rows() , [&]( const ThreadPool::ThreadNum &thread , size_t j )
-#else // !NEW_THREAD_NUM
-			tp.parallel_for( 0 , M.rows() , [&]( unsigned int thread , size_t j )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : bNorm , inRNorm )
 #ifdef NEW_CODE
@@ -392,13 +376,8 @@ int FEMTree< Dim , Real >::_solveFullSystemGS( UIntPack< FEMSigs ... > , const t
 #endif // NEW_CODE_SPARSE_MATRIX
 				for( e=start ; e!=end ; e++ ) temp += X[ e->N ] * e->Value;
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 				bNorms[thread()] += Dot( B[j] , B[j] );
 				inRNorms[thread()] += Dot( temp - B[j] , temp - B[j] );
-#else // !NEW_THREAD_NUM
-				bNorms[thread] += Dot( B[j] , B[j] );
-				inRNorms[thread] += Dot( temp - B[j] , temp - B[j] );
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 				bNorm += Dot( B[j] , B[j] );
 				inRNorm += Dot( temp - B[j] , temp - B[j] );
@@ -424,11 +403,7 @@ int FEMTree< Dim , Real >::_solveFullSystemGS( UIntPack< FEMSigs ... > , const t
 		{
 #ifdef NEW_THREADS
 			std::vector< double > outRNorms( tp.threadNum() , 0 );
-#ifdef NEW_THREAD_NUM
 			tp.parallel_for( 0 , M.rows() , [&]( const ThreadPool::ThreadNum &thread , size_t j )
-#else // !NEW_THREAD_NUM
-			tp.parallel_for( 0 , M.rows() , [&]( unsigned int thread , size_t j )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : outRNorm )
 #ifdef NEW_CODE
@@ -450,11 +425,7 @@ int FEMTree< Dim , Real >::_solveFullSystemGS( UIntPack< FEMSigs ... > , const t
 #endif // NEW_CODE_SPARSE_MATRIX
 				for( e=start ; e!=end ; e++ ) temp += X[ e->N ] * e->Value;
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 				outRNorms[thread()] += Dot( temp-B[j] , temp-B[j] );
-#else // !NEW_THREAD_NUM
-				outRNorms[thread] += Dot( temp-B[j] , temp-B[j] );
-#endif //NEW_THREAD_NUM
 #else // !NEW_THREADS
 				outRNorm += Dot( temp-B[j] , temp-B[j] );
 #endif // NEW_THREADS
@@ -652,11 +623,7 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 #ifdef NEW_CODE
 #ifdef NEW_THREADS
 					size_t begin = _sNodesBegin( depth , BlockFirst( b ) ) , end = _sNodesEnd( depth , BlockLast( b ) );
-#ifdef NEW_THREAD_NUM
 					tp.parallel_for( begin , end , [&]( const ThreadPool::ThreadNum & , size_t i ){  _constraints[_b][ i-begin ] = constraints[i] - _constraints[_b][ i-begin ]; } );
-#else // !NEW_THREAD_NUM
-					tp.parallel_for( begin , end , [&]( unsigned int , size_t i ){  _constraints[_b][ i-begin ] = constraints[i] - _constraints[_b][ i-begin ]; } );
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 					for( node_index_type i=_sNodesBegin( depth , BlockFirst( b ) ) ; i<_sNodesEnd( depth , BlockLast( b ) ) ; i++ ) _constraints[_b][ i - _sNodesBegin( depth , BlockFirst( b ) ) ] = constraints[i] - _constraints[_b][ i - _sNodesBegin( depth , BlockFirst( b ) ) ];
@@ -680,11 +647,7 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 						ConstPointer( T ) X = XBlocks( depth , b , solution );
 #ifdef NEW_THREADS
 						std::vector< double > bNorms( tp.threadNum() , 0 ) , inRNorms( tp.threadNum() , 0 );
-#ifdef NEW_THREAD_NUM
 						tp.parallel_for( 0 , _M[_b].rows() , [&]( const ThreadPool::ThreadNum &thread , size_t j )
-#else // !NEW_THREAD_NUM
-						tp.parallel_for( 0 , _M[_b].rows() , [&]( unsigned int thread , size_t j )
-#endif //NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : bNorm , inRNorm )
 #ifdef NEW_CODE
@@ -706,13 +669,8 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 #endif // NEW_CODE_SPARSE_MATRIX
 							for( e=start ; e!=end ; e++ ) temp += X[ e->N ] * e->Value;
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 							bNorms[thread()] += Dot( B[j] , B[j] );
 							inRNorms[thread()] += Dot( temp - B[j] , temp - B[j] );
-#else // !NEW_THREAD_NUM
-							bNorms[thread] += Dot( B[j] , B[j] );
-							inRNorms[thread] += Dot( temp - B[j] , temp - B[j] );
-#endif //NEW_THREAD_NUM
 #else // !NEW_THREADS
 							bNorm += Dot( B[j] , B[j] );
 							inRNorm += Dot( temp - B[j] , temp - B[j] );
@@ -762,11 +720,7 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 					ConstPointer( T ) X = XBlocks( depth , b , solution );
 #ifdef NEW_THREADS
 					std::vector< double > outRNorms( tp.threadNum() , 0 );
-#ifdef NEW_THREAD_NUM
 					tp.parallel_for( 0 , _M[_b].rows() , [&]( const ThreadPool::ThreadNum &thread , size_t j )
-#else // !NEW_THREAD_NUM
-					tp.parallel_for( 0 , _M[_b].rows() , [&]( unsigned int thread , size_t j )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : outRNorm )
 #ifdef NEW_CODE
@@ -788,11 +742,7 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 #endif // NEW_CODE_SPARSE_MATRIX
 						for( e=start ; e!=end ; e++ ) temp += X[ e->N ] * e->Value;
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 						outRNorms[thread()] += Dot( temp-B[j] , temp-B[j] );
-#else // !NEW_THREAD_NUM
-						outRNorms[thread] += Dot( temp-B[j] , temp-B[j] );
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 						outRNorm += Dot( temp-B[j] , temp-B[j] );
 #endif // NEW_THREADS
@@ -854,11 +804,7 @@ int FEMTree< Dim , Real >::_solveSystemCG( UIntPack< FEMSigs ... > , const typen
 #endif // NEW_THREADS
 #ifdef NEW_CODE
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 	tp.parallel_for( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( const ThreadPool::ThreadNum & , size_t i ){ _constraints[ i - _sNodesBegin(depth) ] = constraints[i] - _constraints[ i - _sNodesBegin(depth) ]; } );
-#else // !NEW_THREAD_NUM
-	tp.parallel_for( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _constraints[ i - _sNodesBegin(depth) ] = constraints[i] - _constraints[ i - _sNodesBegin(depth) ]; } );
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 	for( node_index_type i=_sNodesBegin(depth) ; i<_sNodesEnd(depth) ; i++ ) _constraints[ i - _sNodesBegin(depth) ] = constraints[i] - _constraints[ i - _sNodesBegin(depth) ];
@@ -891,11 +837,7 @@ int FEMTree< Dim , Real >::_solveSystemCG( UIntPack< FEMSigs ... > , const typen
 	{
 #ifdef NEW_THREADS
 		std::vector< double > bNorms( tp.threadNum() , 0 ) , inRNorms( tp.threadNum() , 0 );
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( 0 , M.rows() , [&]( const ThreadPool::ThreadNum &thread , size_t j )
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( 0 , M.rows() , [&]( unsigned int thread , size_t j )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : bNorm , inRNorm )
 #ifdef NEW_CODE
@@ -917,13 +859,8 @@ int FEMTree< Dim , Real >::_solveSystemCG( UIntPack< FEMSigs ... > , const typen
 #endif // NEW_CODE_SPARSE_MATRIX
 			for( e=start ; e!=end ; e++ ) temp += X[ e->N ] * e->Value;
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			bNorms[thread()] += Dot( B[j] , B[j] );
 			inRNorms[thread()] += Dot( temp-B[j] , temp-B[j] );
-#else // !NEW_THREAD_NUM
-			bNorms[thread] += Dot( B[j] , B[j] );
-			inRNorms[thread] += Dot( temp-B[j] , temp-B[j] );
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 			bNorm += Dot( B[j] , B[j] );
 			inRNorm += Dot( temp-B[j] , temp-B[j] );
@@ -999,11 +936,7 @@ int FEMTree< Dim , Real >::_solveSystemCG( UIntPack< FEMSigs ... > , const typen
 	{
 #ifdef NEW_THREADS
 		std::vector< double > outRNorms( tp.threadNum() , 0 );
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( 0 , M.rows() , [&]( const ThreadPool::ThreadNum &thread , size_t j )
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( 0 , M.rows() , [&]( unsigned int thread , size_t j )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : outRNorm )
 #ifdef NEW_CODE
@@ -1025,11 +958,7 @@ int FEMTree< Dim , Real >::_solveSystemCG( UIntPack< FEMSigs ... > , const typen
 #endif // NEW_CODE_SPARSE_MATRIX
 			for( e=start ; e!=end ; e++ ) temp += X[ e->N ] * e->Value;
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			outRNorms[ thread() ] += Dot( temp-B[j] , temp-B[j] );
-#else // !NEW_THREAD_NUM
-			outRNorms[ thread ] += Dot( temp-B[j] , temp-B[j] );
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 			outRNorm += Dot( temp-B[j] , temp-B[j] );
 #endif // NEW_THREADS
@@ -1121,11 +1050,7 @@ void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > , typename 
 		ConstPointer( T ) _X = X.back();
 #ifdef NEW_THREADS
 		std::vector< double > bNorms( tp.threadNum() , 0 ) , inRNorms( tp.threadNum() , 0 );
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( 0 , _M.rows() , [&]( const ThreadPool::ThreadNum &thread , size_t j )
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( 0 , _M.rows() , [&]( unsigned int thread , size_t j )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : bNorm , inRNorm )
 #ifdef NEW_CODE
@@ -1147,13 +1072,8 @@ void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > , typename 
 #endif // NEW_CODE_SPARSE_MATRIX
 			for( e=start ; e!=end ; e++ ) temp += _X[ e->N ] * e->Value;
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			bNorms[thread()] += Dot( _B[j] , _B[j] );
 			inRNorms[thread()] += Dot( temp-_B[j] , temp-_B[j] );
-#else // !NEW_THREAD_NUM
-			bNorms[thread] += Dot( _B[j] , _B[j] );
-			inRNorms[thread] += Dot( temp-_B[j] , temp-_B[j] );
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 			bNorm += Dot( _B[j] , _B[j] );
 			inRNorm += Dot( temp-_B[j] , temp-_B[j] );
@@ -1289,11 +1209,7 @@ void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > , typename 
 		ConstPointer( T ) _X = X.back();
 #ifdef NEW_THREADS
 		std::vector< double > outRNorms( tp.threadNum() , 0 );
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( 0 , _M.rows() , [&]( const ThreadPool::ThreadNum &thread , size_t j )
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( 0 , _M.rows() , [&]( unsigned int thread , size_t j )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : outRNorm )
 #ifdef NEW_CODE
@@ -1315,11 +1231,7 @@ void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > , typename 
 #endif // NEW_CODE_SPARSE_MATRIX
 			for( e=start ; e!=end ; e++ ) temp += _X[ e->N ] * e->Value;
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			outRNorms[thread()] += Dot( temp-_B[j] , temp-_B[j] );
-#else // !NEW_THREAD_NUM
-			outRNorms[thread] += Dot( temp-_B[j] , temp-_B[j] );
-#endif //NEW_THREAD_NUM
 #else // !NEW_THREADS
 			outRNorm += Dot( temp-_B[j] , temp-_B[j] );
 #endif // NEW_THREADS
@@ -2039,11 +1951,7 @@ void FEMTree< Dim , Real >::_updateRestrictedIntegralConstraints( UIntPack< FEMS
 #endif // NEW_THREADS
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( highDepth )-1 );
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 	tp.parallel_for( _sNodesBegin(highDepth) , _sNodesEnd(highDepth) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#else // !NEW_THREAD_NUM
-	tp.parallel_for( _sNodesBegin(highDepth) , _sNodesEnd(highDepth) , [&]( unsigned int thread , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -2056,11 +1964,7 @@ void FEMTree< Dim , Real >::_updateRestrictedIntegralConstraints( UIntPack< FEMS
 		if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 		{
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread() ];
-#else // !NEW_THREAD_NUM
-			ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 			ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
@@ -2132,11 +2036,7 @@ void FEMTree< Dim , Real >::_setPointValuesFromProlongedSolution( LocalDepth hig
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( lowDepth ) );
 
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 	tp.parallel_for( _sNodesBegin(highDepth) , _sNodesEnd(highDepth) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#else // !NEW_THREAD_NUM
-	tp.parallel_for( _sNodesBegin(highDepth) , _sNodesEnd(highDepth) , [&]( unsigned int thread , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -2149,11 +2049,7 @@ void FEMTree< Dim , Real >::_setPointValuesFromProlongedSolution( LocalDepth hig
 		if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 		{
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			ConstPointSupportKey< FEMDegrees >& neighborKey = neighborKeys[ thread() ];
-#else // !NEW_THREAD_NUM
-			ConstPointSupportKey< FEMDegrees >& neighborKey = neighborKeys[ thread ];
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 			ConstPointSupportKey< FEMDegrees >& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
@@ -2210,11 +2106,7 @@ void FEMTree< Dim , Real >::_updateRestrictedInterpolationConstraints( const Poi
 #endif // NEW_THREADS
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( lowDepth ) );
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 	tp.parallel_for( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#else // !NEW_THREAD_NUM
-	tp.parallel_for( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( unsigned int thread , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -2227,11 +2119,7 @@ void FEMTree< Dim , Real >::_updateRestrictedInterpolationConstraints( const Poi
 		if( _isValidSpaceNode( _sNodes.treeNodes[i] ) ) if( _isValidSpaceNode( _sNodes.treeNodes[i] ) )
 		{
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			ConstPointSupportKey< FEMDegrees >& neighborKey = neighborKeys[ thread() ];
-#else // !NEW_THREAD_NUM
-			ConstPointSupportKey< FEMDegrees >& neighborKey = neighborKeys[ thread ];
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 			ConstPointSupportKey< FEMDegrees >& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
@@ -2294,11 +2182,7 @@ DenseNodeData< C , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::coarseCoeffi
 	memset( coarseCoefficients() , 0 , sizeof(Real)*_sNodesEnd(_maxDepth-1) );
 #ifdef NEW_CODE
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 	tp.parallel_for( _sNodesBegin(0) , _sNodesEnd(_maxDepth-1) , [&]( const ThreadPool::ThreadNum & , size_t i ){ coarseCoefficients[i] = coefficients[i]; } );
-#else // !NEW_THREAD_NUM
-	tp.parallel_for( _sNodesBegin(0) , _sNodesEnd(_maxDepth-1) , [&]( unsigned int , size_t i ){ coarseCoefficients[i] = coefficients[i]; } );
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 	for( node_index_type i=_sNodesBegin(0) ; i<_sNodesEnd(_maxDepth-1) ; i++ ) coarseCoefficients[i] = coefficients[i];
@@ -2327,11 +2211,7 @@ DenseNodeData< C , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::coarseCoeffi
 	DenseNodeData< C , UIntPack< FEMSigs ... > > coarseCoefficients( _sNodesEnd(_maxDepth-1) );
 	memset( coarseCoefficients() , 0 , sizeof(C)*_sNodesEnd(_maxDepth-1) );
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 	tp.parallel_for( _sNodesBegin(0) , _sNodesEnd(_maxDepth-1) , [&]( const ThreadPool::ThreadNum & , size_t i )
-#else // !NEW_THREAD_NUM
-	tp.parallel_for( _sNodesBegin(0) , _sNodesEnd(_maxDepth-1) , [&]( unsigned int , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -2453,11 +2333,7 @@ int FEMTree< Dim , Real >::_getSliceMatrixAndProlongationConstraints( UIntPack< 
 #endif // NEW_THREADS
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( depth ) );
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 	tp.parallel_for( 0 , range , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#else // !NEW_THREAD_NUM
-	tp.parallel_for( 0 , range , [&]( unsigned int thread , size_t i )
-#endif //NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -2470,11 +2346,7 @@ int FEMTree< Dim , Real >::_getSliceMatrixAndProlongationConstraints( UIntPack< 
 		if( _isValidFEM1Node( _sNodes.treeNodes[i+nBegin] ) )
 		{
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread() ];
-#else // !NEW_THREAD_NUM
-			ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 			ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
@@ -2545,11 +2417,7 @@ SparseMatrix< Real , int > FEMTree< Dim , Real >::systemMatrix( UIntPack< FEMSig
 #endif // NEW_THREADS
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( depth ) );
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 	tp.parallel_for( _sNodesBegin(depth) , _sNodesEnd( depth ) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#else // !NEW_THREAD_NUM
-	tp.parallel_for( _sNodesBegin(depth) , _sNodesEnd( depth ) , [&]( unsigned int thread , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -2567,11 +2435,7 @@ SparseMatrix< Real , int > FEMTree< Dim , Real >::systemMatrix( UIntPack< FEMSig
 			int ii = i - _sNodesBegin(depth);
 #endif // NEW_CODE
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread() ];
-#else // !NEW_THREAD_NUM
-			ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 			ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
@@ -2630,11 +2494,7 @@ SparseMatrix< Real , int > FEMTree< Dim , Real >::prolongedSystemMatrix( UIntPac
 #endif // NEW_THREADS
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( highDepth ) );
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 	tp.parallel_for( _sNodesBegin(highDepth) , _sNodesEnd(highDepth) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#else // !NEW_THREAD_NUM
-	tp.parallel_for( _sNodesBegin(highDepth) , _sNodesEnd(highDepth) , [&]( unsigned int thread , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -2654,11 +2514,7 @@ SparseMatrix< Real , int > FEMTree< Dim , Real >::prolongedSystemMatrix( UIntPac
 			int cIdx = (int)( _sNodes.treeNodes[i]-_sNodes.treeNodes[i]->parent->children );
 
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread() ];
-#else // !NEW_THREAD_NUM
-			ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 			ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
@@ -2725,11 +2581,7 @@ SparseMatrix< Real , int > FEMTree< Dim , Real >::downSampleMatrix( UIntPack< FE
 	);
 
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 	tp.parallel_for( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#else // !NEW_THREAD_NUM
-	tp.parallel_for( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( unsigned int thread , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -2749,11 +2601,7 @@ SparseMatrix< Real , int > FEMTree< Dim , Real >::downSampleMatrix( UIntPack< FE
 			FEMTreeNode* pNode = _sNodes.treeNodes[i];
 
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			UpSampleKey& neighborKey = neighborKeys[ thread() ];
-#else // !NEW_THREAD_NUM
-			UpSampleKey& neighborKey = neighborKeys[ thread ];
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 			UpSampleKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
@@ -2868,11 +2716,7 @@ SparseMatrix< Real , int > FEMTree< Dim , Real >::fullSystemMatrix( UIntPack< FE
 		SparseMatrix< Real , matrix_index_type > _M = systemMatrix< Real >( UIntPack< FEMSigs ... >() , F , d , interpolationInfo ... );
 #endif // NEW_THREADS
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( 0 , _M.rows() , [&]( const ThreadPool::ThreadNum & , size_t i )
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( 0 , _M.rows() , [&]( unsigned int , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 		for( node_index_type i=0 ; i<_M.rows() ; i++ )
@@ -2911,11 +2755,7 @@ SparseMatrix< Real , int > FEMTree< Dim , Real >::fullSystemMatrix( UIntPack< FE
 		M.resize( size );
 #ifdef NEW_THREADS
 		SparseMatrix< Real , matrix_index_type > _M = prolongedSystemMatrix< Real >( UIntPack< FEMSigs ... >() , tp , F , d+1 , interpolationInfo ... );
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( 0 , _M.rows() , [&]( const ThreadPool::ThreadNum & , size_t i )
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( 0 , _M.rows() , [&]( unsigned int , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 		SparseMatrix< Real , matrix_index_type > _M = prolongedSystemMatrix< Real >( UIntPack< FEMSigs ... >() , F , d+1 , interpolationInfo ... );
 #pragma omp parallel for
@@ -2951,11 +2791,7 @@ SparseMatrix< Real , int > FEMTree< Dim , Real >::fullSystemMatrix( UIntPack< FE
 		M.resize( size );
 #ifdef NEW_THREADS
 		SparseMatrix< Real , matrix_index_type > _M = downSampleMatrix( UIntPack< FEMSigs ... >() , tp , d+1 ).transpose( _sNodesSize( d+1 ) );
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( 0 , _M.rows() , [&]( const ThreadPool::ThreadNum & , size_t i )
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( 0 , _M.rows() , [&]( unsigned int , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 		SparseMatrix< Real , matrix_index_type > _M = downSampleMatrix( UIntPack< FEMSigs ... >() , d+1 ).transpose( _sNodesSize( d+1 ) );
 #pragma omp parallel for
@@ -3012,11 +2848,7 @@ SparseMatrix< Real , int > FEMTree< Dim , Real >::fullSystemMatrix( UIntPack< FE
 			SparseMatrix< Real , int > _M = Matrix( d1 , d2 );
 #endif // NEW_CODE
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			tp.parallel_for( 0 , _M.rows() , [&]( const ThreadPool::ThreadNum & , size_t i )
-#else // !NEW_THREAD_NUM
-			tp.parallel_for( 0 , _M.rows() , [&]( unsigned int , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -3047,11 +2879,7 @@ SparseMatrix< Real , int > FEMTree< Dim , Real >::fullSystemMatrix( UIntPack< FE
 #endif // NEW_THREADS
 		_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( 0 , M.rows() , [&]( const ThreadPool::ThreadNum & , size_t i )
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( 0 , M.rows() , [&]( unsigned int , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -3112,11 +2940,7 @@ void FEMTree< Dim , Real >::_downSample( UIntPack< FEMSigs ... > , typename Base
 	rp.setStencil( upSampleStencil );
 
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 	tp.parallel_for( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#else // !NEW_THREAD_NUM
-	tp.parallel_for( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( unsigned int thread , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -3130,11 +2954,7 @@ void FEMTree< Dim , Real >::_downSample( UIntPack< FEMSigs ... > , typename Base
 		{
 			FEMTreeNode* pNode = _sNodes.treeNodes[i];
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			UpSampleKey& neighborKey = neighborKeys[ thread() ];
-#else // !NEW_THREAD_NUM
-			UpSampleKey& neighborKey = neighborKeys[ thread ];
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 			UpSampleKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
@@ -3202,11 +3022,7 @@ DenseNodeData< Real , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::supportWe
 		F.init( d );
 		F.template setStencil< false >( stencil );
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -3219,11 +3035,7 @@ DenseNodeData< Real , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::supportWe
 			if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 			{
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 				ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread() ];
-#else // !NEW_THREAD_NUM
-				ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 				ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
@@ -3307,11 +3119,7 @@ DenseNodeData< Real , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::prolongat
 	for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( _maxDepth-1 ) );
 
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 	tp.parallel_for( _sNodesBegin(_maxDepth) , _sNodesEnd(_maxDepth) , [&]( const ThreadPool::ThreadNum & , size_t i ){ weights[i] = (Real)0.; } );
-#else // !NEW_THREAD_NUM
-	tp.parallel_for( _sNodesBegin(_maxDepth) , _sNodesEnd(_maxDepth) , [&]( unsigned int , size_t i ){ weights[i] = (Real)0.; } );
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -3328,11 +3136,7 @@ DenseNodeData< Real , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::prolongat
 		rp.setStencil( upSampleStencil );
 
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( _sNodesBegin(lowDepth) , _sNodesEnd(lowDepth) , [&]( unsigned int thread , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -3346,11 +3150,7 @@ DenseNodeData< Real , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::prolongat
 			{
 				FEMTreeNode* pNode = _sNodes.treeNodes[i];
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 				UpSampleKey& neighborKey = neighborKeys[ thread() ];
-#else // !NEW_THREAD_NUM
-				UpSampleKey& neighborKey = neighborKeys[ thread ];
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 				UpSampleKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
@@ -3426,11 +3226,7 @@ DenseNodeData< Real , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::prolongat
 			rp.setStencils( downSampleStencils );
 
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			tp.parallel_for( _sNodesBegin(lowDepth+1) , _sNodesEnd(lowDepth+1) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#else // !NEW_THREAD_NUM
-			tp.parallel_for( _sNodesBegin(lowDepth+1) , _sNodesEnd(lowDepth+1) , [&]( unsigned int thread , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -3446,11 +3242,7 @@ DenseNodeData< Real , UIntPack< FEMSigs ... > > FEMTree< Dim , Real >::prolongat
 					int c = (int)( cNode-cNode->parent->children );
 
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 					DownSampleKey& neighborKey = neighborKeys[ thread() ];
-#else // !NEW_THREAD_NUM
-					DownSampleKey& neighborKey = neighborKeys[ thread ];
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 					DownSampleKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
@@ -3550,11 +3342,7 @@ void FEMTree< Dim , Real >::_upSample( UIntPack< FEMSigs ... > , typename BaseFE
 	);
 	// For Dirichlet constraints, can't get to all children from parents because boundary nodes are invalid
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 	tp.parallel_for( _sNodesBegin(highDepth) , _sNodesEnd(highDepth) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#else // !NEW_THREAD_NUM
-	tp.parallel_for( _sNodesBegin(highDepth) , _sNodesEnd(highDepth) , [&]( unsigned int thread , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -3570,11 +3358,7 @@ void FEMTree< Dim , Real >::_upSample( UIntPack< FEMSigs ... > , typename BaseFE
 			int c = (int)( cNode-cNode->parent->children );
 
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			DownSampleKey& neighborKey = neighborKeys[ thread() ];
-#else // !NEW_THREAD_NUM
-			DownSampleKey& neighborKey = neighborKeys[ thread ];
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 			DownSampleKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
@@ -3784,23 +3568,14 @@ void FEMTree< Dim , Real >::_RegularGridUpSample( UIntPack< FEMSigs ... > , cons
 #endif // NEW_THREADS
 		Zero , highDim ,
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 		[&]( const ThreadPool::ThreadNum &t , int d , size_t i ){ updateData[t()].set( d , (int)i ); } ,
 		[&]( const ThreadPool::ThreadNum &t )
-#else // !NEW_THREAD_NUM
-		[&]( unsigned int t , int d , size_t i ){ updateData[t].set( d , (int)i ); } ,
-		[&]( unsigned int t )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 		[&]( int t , int d , int i ){ updateData[t].set( d , i ); } ,
 		[&]( int t )
 #endif // NEW_THREADS
 		{
-#ifdef NEW_THREAD_NUM
 			const UpdateData& data = updateData[t()];
-#else // !NEW_THREAD_NUM
-			const UpdateData& data = updateData[t];
-#endif // NEW_THREAD_NUM
 			const long long highIdx = data.highIndex[Dim] , lowIndex = data.lowIndex[Dim];
 			const int c = data.c;
 			const bool isInterior = data.isInterior[Dim];
@@ -3877,6 +3652,13 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 	_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
 	PointEvaluator< UIntPack< FEMSigs ... > , UIntPack< FEMSignature< FEMSigs >::Degree ... > > bsData( sizeof...(PointDs)==0 ? 0 : maxSolveDepth );
 
+#ifdef USE_SUB_NODES
+	SortedTreeNodes< Dim > *&_subNodes = const_cast< SortedTreeNodes< Dim > *& >( this->_subNodes );
+	if( _subNodes ) delete _subNodes;
+	_subNodes = _sNodes.subNodes( [&]( const FEMTreeNode *node ){ return _isValidFEM1Node( node ); } );
+#endif // USE_SUB_NODES
+
+
 	maxSolveDepth = std::min< LocalDepth >( maxSolveDepth , _maxDepth );
 
 	bool clearSolution = solution.size()!=_sNodesEnd( _maxDepth );
@@ -3929,11 +3711,7 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 #ifdef NEW_THREADS
 			if( depth>baseDepth ) _upSample( UIntPack< FEMSigs ... >() , tp , F.restrictionProlongation() , depth , _prolongedSolution );
 			// Add in the solution @(depth) to the prolonged solution
-#ifdef NEW_THREAD_NUM
 			tp.parallel_for( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( const ThreadPool::ThreadNum & , size_t i ){ _prolongedSolution[i] += solution[i]; } );
-#else // !NEW_THREAD_NUM
-			tp.parallel_for( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _prolongedSolution[i] += solution[i]; } );
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 			if( depth>baseDepth ) _upSample( UIntPack< FEMSigs ... >() , F.restrictionProlongation() , depth , _prolongedSolution );
 			// Add in the solution @(depth) to the prolonged solution
@@ -3980,11 +3758,7 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 		// Update the constraints @(depth) using the restriced residual @(depth)
 		if( depth<_maxDepth && _restrictedConstraints )
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			tp.parallel_for( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( const ThreadPool::ThreadNum & , size_t i ){ _residualConstraints[i] -= _restrictedConstraints[i]; } );
-#else // !NEW_THREAD_NUM
-			tp.parallel_for( _sNodesBegin(depth) , _sNodesEnd(depth) , [&]( unsigned int , size_t i ){ _residualConstraints[i] -= _restrictedConstraints[i]; } );
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -4186,6 +3960,11 @@ void FEMTree< Dim , Real >::solveSystem( UIntPack< FEMSigs ... > , typename Base
 	FreePointer( _restrictedConstraints );
 	FreePointer( _prolongedSolution );
 	FreePointer( _bNorm2 );
+#ifdef USE_SUB_NODES
+	delete _subNodes;
+	_subNodes = NULL;
+#endif // USE_SUB_NODES
+
 }
 
 template< unsigned int Dim , class Real >
@@ -4258,11 +4037,7 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 #endif // NEW_THREADS
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( d ) );
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( _sNodesBegin(d) , _sNodesEnd(d)  , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( _sNodesBegin(d) , _sNodesEnd(d)  , [&]( unsigned int thread , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -4274,11 +4049,7 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 		{
 			if( d<maxDepth ) constraints[i] += _constraints[i];
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread() ];
-#else // !NEW_THREAD_NUM
-			ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 			ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
@@ -4410,11 +4181,7 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 		for( LocalDepth d=maxDepth-1 ; d>=0 ; d-- )
 		{
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			tp.parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( const ThreadPool::ThreadNum & , size_t i )
-#else // !NEW_THREAD_NUM
-			tp.parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -4458,11 +4225,7 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 			for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( d-1 ) );
 
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			tp.parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( const ThreadPool::ThreadNum & thread , size_t i )
-#else // !NEW_THREAD_NUM
-			tp.parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -4475,11 +4238,7 @@ void FEMTree< Dim , Real >::_addFEMConstraints( UIntPack< FEMSigs ... > , UIntPa
 				if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 				{
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 					ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread() ];
-#else // !NEW_THREAD_NUM
-					ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 					ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
@@ -4569,11 +4328,7 @@ void FEMTree< Dim , Real >::addInterpolationConstraints( DenseNodeData< T , UInt
 			{
 				return eState.template dValues< Real , CumulativeDerivatives< Dim , PointD > >( off );
 			};
-#ifdef NEW_THREAD_NUM
 			tp.parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( const ThreadPool::ThreadNum & thread , size_t i )
-#else // !NEW_THREAD_NUM
-			tp.parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -4595,11 +4350,7 @@ void FEMTree< Dim , Real >::addInterpolationConstraints( DenseNodeData< T , UInt
 						FEMTreeNode* node = _sNodes.treeNodes[i];
 
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 						PointSupportKey& neighborKey = neighborKeys[ thread() ];
-#else // !NEW_THREAD_NUM
-						PointSupportKey& neighborKey = neighborKeys[ thread ];
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 						PointSupportKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
@@ -4677,11 +4428,7 @@ double FEMTree< Dim , Real >::_interpolationDot( UIntPack< FEMSigs1 ... > , UInt
 		iInfo->range( _spaceRoot , begin , end );
 #ifdef NEW_THREADS
 		std::vector< double > dots( tp.threadNum() , 0 );
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( begin , end , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( begin , end , [&]( unsigned int thread , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : dot )
 		for( int i=(int)begin ; i<(int)end ; i++ )
@@ -4690,23 +4437,14 @@ double FEMTree< Dim , Real >::_interpolationDot( UIntPack< FEMSigs1 ... > , UInt
 			Point< Real , Dim > p = (*iInfo)[i].position;
 			Real w = (*iInfo)[i].weight;
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			CumulativeDerivativeValues< T , Dim , PointD > v1 = (*iInfo)( i , mt1.values( p , thread() ) );
 			CumulativeDerivativeValues< T , Dim , PointD > v2 = mt2.values( p , thread() );
-#else // !NEW_THREAD_NUM
-			CumulativeDerivativeValues< T , Dim , PointD > v1 = (*iInfo)( i , mt1.values( p , thread ) );
-			CumulativeDerivativeValues< T , Dim , PointD > v2 = mt2.values( p , thread );
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 			CumulativeDerivativeValues< T , Dim , PointD > v1 = (*iInfo)( i , mt1.values( p , omp_get_thread_num() ) );
 			CumulativeDerivativeValues< T , Dim , PointD > v2 = mt2.values( p , omp_get_thread_num() );
 #endif // NEW_THREADS
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			for( int dd=0 ; dd<CumulativeDerivatives< Dim , PointD >::Size ; dd++ ) dots[thread()] += Dot( v1[dd] , v2[dd] ) * w;
-#else // !NEW_THREAD_NUM
-			for( int dd=0 ; dd<CumulativeDerivatives< Dim , PointD >::Size ; dd++ ) dots[thread] += Dot( v1[dd] , v2[dd] ) * w;
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 			for( int dd=0 ; dd<CumulativeDerivatives< Dim , PointD >::Size ; dd++ ) dot += Dot( v1[dd] , v2[dd] ) * w;
 #endif // NEW_THREADS
@@ -4748,11 +4486,7 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 
 #ifdef NEW_THREADS
 			std::vector< double > dots( tp.threadNum() , 0 );
-#ifdef NEW_THREAD_NUM
 			tp.parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#else // !NEW_THREAD_NUM
-			tp.parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : dot )
 #ifdef NEW_CODE
@@ -4763,22 +4497,14 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 #endif // NEW_THREADS
 			{
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 				double &dot = dots[thread()];
-#else // !NEW_THREAD_NUM
-				double &dot = dots[thread];
-#endif // NEW_THREAD_NUM
 #endif // NEW_THREADS
 				const FEMTreeNode* node = _sNodes.treeNodes[i];
 				const T* _data1;
 				if( _isValidFEM1Node( node ) && ( _data1=coefficients1(node) ) )
 				{
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 					ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread() ];
-#else // !NEW_THREAD_NUM
-					ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 					ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
@@ -4850,11 +4576,7 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 
 #ifdef NEW_THREADS
 			std::vector< double > dots( tp.threadNum() , 0 );
-#ifdef NEW_THREAD_NUM
 			tp.parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#else // !NEW_THREAD_NUM
-			tp.parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : dot )
 #ifdef NEW_CODE
@@ -4865,22 +4587,14 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 #endif // NEW_THREADS
 			{
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 				double &dot = dots[thread()];
-#else // !NEW_THREAD_NUM
-				double &dot = dots[thread];
-#endif // NEW_THREAD_NUM
 #endif // NEW_THREADS
 				const FEMTreeNode* node = _sNodes.treeNodes[i];
 				const T* _data2;
 				if( _isValidFEM2Node( node ) && ( _data2=coefficients2( node ) ) )
 				{
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 					ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread() ];
-#else // !NEW_THREAD_NUM
-					ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 					ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
@@ -4951,11 +4665,7 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 			// Update the cumulative constraints @(depth-1) from @(depth)
 #ifdef NEW_THREADS
 			std::vector< double > dots( tp.threadNum() , 0 );
-#ifdef NEW_THREAD_NUM
 			tp.parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#else // !NEW_THREAD_NUM
-			tp.parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -4966,22 +4676,14 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 #endif // NEW_THREADS
 			{
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 				double &dot = dots[thread()];
-#else // !NEW_THREAD_NUM
-				double &dot = dots[thread];
-#endif // NEW_THREAD_NUM
 #endif // NEW_THREADS
 				const FEMTreeNode* node = _sNodes.treeNodes[i];
 				const T* _data1;
 				if( _isValidFEM1Node( node ) && ( _data1=coefficients1( node ) ) )
 				{
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 					ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread() ];
-#else // !NEW_THREAD_NUM
-					ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 					ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
@@ -5036,11 +4738,7 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 			// Update the dot-product using the cumulative constraints @(depth-1)
 #ifdef NEW_THREADS
 			for( unsigned int t=0 ; t<tp.threadNum() ; t++ ) dots[t] = 0;
-#ifdef NEW_THREAD_NUM
 			tp.parallel_for( _sNodesBegin(d-1) , _sNodesEnd(d-1) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#else // !NEW_THREAD_NUM
-			tp.parallel_for( _sNodesBegin(d-1) , _sNodesEnd(d-1) , [&]( unsigned int thread , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : dot )
 #ifdef NEW_CODE
@@ -5051,11 +4749,7 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 #endif // NEW_THREADS
 			{
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 				double &dot = dots[thread()];
-#else // !NEW_THREAD_NUM
-				double &dot = dots[thread];
-#endif // NEW_THREAD_NUM
 #endif // NEW_THREADS
 				const FEMTreeNode* node = _sNodes.treeNodes[i];
 				const T* _data2;

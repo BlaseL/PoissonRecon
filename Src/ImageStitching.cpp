@@ -27,6 +27,14 @@ DAMAGE.
 */
 #define NEW_CODE
 
+#ifdef NEW_CODE
+#define BIG_DATA								// Supports processing requiring more than 32-bit integers for indexing
+												// Note: enabling BIG_DATA can generate .ply files using "longlong" for face indices instead of "int".
+												// These are not standardly supported by .ply reading/writing applications.
+#define NEW_THREADS								// Enabling this flag replaces the OpenMP implementation of parallelism with C++11's
+#define FORCE_PARALLEL							// Forces parallel methods to pass in a thread pool
+#endif // NEW_CODE
+
 #undef ARRAY_DEBUG
 #undef FAST_COMPILE
 #undef USE_DOUBLE
@@ -56,7 +64,10 @@ cmdLineParameter< int >
 	Degree( "degree" , DEFAULT_FEM_DEGREE ) ,
 #endif // FAST_COMPILE
 #ifdef NEW_THREADS
-	Threads( "threads" , ThreadPool::DefaultThreadNum ) ,
+	ParallelType( "parallelType" , (int)ThreadPool::OPEN_MP ) ,
+	ScheduleType( "scheduleType" , (int)ThreadPool::DefaultSchedule ) ,
+	ThreadChunkSize( "tChunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
+	Threads( "threads" , (int)std::thread::hardware_concurrency() ) ,
 #else // !NEW_THREADS
 	Threads( "threads" , omp_get_num_procs() ) ,
 #endif // NEW_THREADS
@@ -83,6 +94,11 @@ cmdLineReadable* params[] =
 #if !defined( FAST_COMPILE )
 	&Degree , 
 #endif // !FAST_COMPILE
+#ifdef NEW_THREADS
+	&ParallelType ,
+	&ScheduleType ,
+	&ThreadChunkSize ,
+#endif // NEW_THREADS
 	NULL
 };
 
@@ -96,7 +112,18 @@ void ShowUsage( char* ex )
 #endif // !FAST_COMPILE
 	printf( "\t[--%s <GS iterations>=%d]\n" , GSIterations.name , GSIterations.value );
 	printf( "\t[--%s <full depth>=%d]\n" , FullDepth.name , FullDepth.value );
-	printf( "\t[--%s <parallelization threads>=%d]\n" , Threads.name , Threads.value );
+#ifdef NEW_THREADS
+	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
+	printf( "\t[--%s <parallel type>=%d]\n" , ParallelType.name , ParallelType.value );
+	for( size_t i=0 ; i<ThreadPool::ParallelNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ParallelNames[i].c_str() );
+	printf( "\t[--%s <schedue type>=%d]\n" , ScheduleType.name , ScheduleType.value );
+	for( size_t i=0 ; i<ThreadPool::ScheduleNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ScheduleNames[i].c_str() );
+	printf( "\t[--%s <thread chunk size>=%d]\n" , ThreadChunkSize.name , ThreadChunkSize.value );
+#else // !NEW_THREADS
+#ifdef _OPENMP
+	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
+#endif // _OPENMP
+#endif // NEW_THREADS
 	printf( "\t[--%s <successive under-relaxation scale>=%f]\n", WeightScale.name , WeightScale.value );
 	printf( "\t[--%s <successive under-relaxation exponent>=%f]\n", WeightExponent.name , WeightExponent.value );
 	printf( "\t[--%s <maximum memory (in GB)>=%d]\n" , MaxMemoryGB.name , MaxMemoryGB.value );
@@ -207,7 +234,7 @@ struct BufferedImageDerivativeStream : public FEMTreeInitializer< DIMENSION , Re
 	void prefetch( void )
 	{
 #ifdef NEW_THREADS
-		static ThreadPool tp;
+		static ThreadPool tp( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
 #endif // NEW_THREADS
 		if( _r+2<(int)_resolution[1] )
 		{
@@ -227,11 +254,7 @@ struct BufferedImageDerivativeStream : public FEMTreeInitializer< DIMENSION , Re
 				for( int i=0 ; i<(int)_resolution[0] ; i++ ) labelRow[i][0] = labelRow[i][1] = labelRow[i][2] = __labelRow[i];
 			}
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
-			tp.parallel_for( 0 , _resolution[0] , [&]( const ThreadPool::ThreadNum & , size_ i ){ maskRow[i] = labelRow[i].mask(); } );
-#else // !NEW_THREAD_NUM
-			tp.parallel_for( 0 , _resolution[0] , [&]( unsigned int , size_ i ){ maskRow[i] = labelRow[i].mask(); } );
-#endif // NEW_THREAD_NUM
+			tp.parallel_for( 0 , _resolution[0] , [&]( const ThreadPool::ThreadNum & , size_t i ){ maskRow[i] = labelRow[i].mask(); } );
 #else // !NEW_THREADS
 #pragma omp parallel for
 			for( int i=0 ; i<(int)_resolution[0] ; i++ ) maskRow[i] = labelRow[i].mask();
@@ -288,7 +311,7 @@ template< typename Real , unsigned int Degree >
 void _Execute( void )
 {
 #ifdef NEW_THREADS
-	ThreadPool tp;
+	ThreadPool tp( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
 #endif // NEW_THREADS
 	int w , h;
 	{
@@ -318,15 +341,11 @@ void _Execute( void )
 		for( int j=0 ; j<h ; j++ )
 		{
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			tp.parallel_for( 0 , 2 , [&]( const ThreadPool::ThreadNum & , size_t i )
-#else // !NEW_THREAD_NUM
-			tp.parallel_for( 0 , 2 , [&]( unsigned int , size_t i )
-#endif // NEW_THREAD_NUM
 			{
 				if( i==0 ) dStream.prefetch();
 				else maxDepth = FEMTreeInitializer< Dim , Real >::template Initialize< (Degree&1)==0 , Point< Real , Colors > >( tree.spaceRoot() , dStream , derivatives , tree.nodeAllocator , tree.initializer() );
-			} , 1
+			} , ThreadPool::STATIC , 1
 			);
 #else // !NEW_THREADS
 #pragma omp parallel sections
@@ -464,7 +483,7 @@ void _Execute( void )
 		auto FetchInput = [&]( unsigned int block )
 		{
 #ifdef NEW_THREADS
-			static ThreadPool tp;
+			static 	ThreadPool tp( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
 #endif // NEW_THREADS
 			int rStart = block*ROW_BLOCK_SIZE;
 			int rEnd = rStart + ROW_BLOCK_SIZE < h ? rStart + ROW_BLOCK_SIZE : h;
@@ -476,11 +495,7 @@ void _Execute( void )
 					in->nextRow( inRow );
 					RGBPixel *_inRow = inRows[block&1] + rr*w;
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 					tp.parallel_for( 0 , w , [&]( const ThreadPool::ThreadNum & , size_t i ){ _inRow[i][0] = _inRow[i][1] = _inRow[i][2] = inRow[i]; } );
-#else // !NEW_THREAD_NUM
-					tp.parallel_for( 0 , w , [&]( unsigned int , size_t i ){ _inRow[i][0] = _inRow[i][1] = _inRow[i][2] = inRow[i]; } );
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 					for( int i=0 ; i<w ; i++ ) _inRow[i][0] = _inRow[i][1] = _inRow[i][2] = inRow[i];
@@ -505,11 +520,7 @@ void _Execute( void )
 		for( int rStart=0 , block=0 ; rStart<h ; rStart+=ROW_BLOCK_SIZE , block++ )
 		{
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			tp.parallel_for( 0 , 3 , [&]( const ThreadPool::ThreadNum & , size_t i )
-#else // !NEW_THREAD_NUM
-			tp.parallel_for( 0 , 3 , [&]( unsigned int thread , size_t i )
-#endif // NEW_THREAD_NUM
 			{
 				switch( i )
 				{
@@ -517,7 +528,7 @@ void _Execute( void )
 				case 1: if( block>0 ) SetOutput( block-1 ) ; break;
 				case 2:
 				{
-					static ThreadPool tp;
+					static ThreadPool tp( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
 					RGBPixel *_inRows = inRows[block&1] , *_outRows = outRows[block&1];
 					int rEnd = rStart + ROW_BLOCK_SIZE < h ? rStart + ROW_BLOCK_SIZE : h;
 
@@ -525,7 +536,7 @@ void _Execute( void )
 					begin[0] = 0 , begin[1] = rStart , end[0] = w , end[1] = rEnd;
 					Pointer( Point< Real , Colors > ) outBlock = tree.template regularGridUpSample< true >( tp , solution , begin , end );
 					int size = (rEnd-rStart)*w;
-					tp.parallel_for( 0 , size , [&]( unsigned int , size_t ii )
+					tp.parallel_for( 0 , size , [&]( const ThreadPool::ThreadNum & , size_t ii )
 					{
 						Point< Real , Colors > c = Point< Real , Colors >( _inRows[ii][0] , _inRows[ii][1] , _inRows[ii][2] ) / 255;
 						c += outBlock[ii] - average;
@@ -536,7 +547,7 @@ void _Execute( void )
 					break;
 				}
 				}
-			} , 1
+			} , ThreadPool::STATIC , 1
 			);
 #else // !NEW_THREADS
 #pragma omp parallel sections
@@ -612,7 +623,8 @@ int main( int argc , char* argv[] )
 	cmdLineParse( argc-1 , &argv[1] , params );
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
 #ifdef NEW_THREADS
-	ThreadPool::DefaultThreadNum = Threads.value > 1 ? Threads.value : 0;
+	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;
+	ThreadPool::DefaultSchedule = (ThreadPool::ScheduleType)ScheduleType.value;
 #else // !NEW_THREADS
 	omp_set_num_threads( Threads.value > 1 ? Threads.value : 1 );
 #endif // NEW_THREADS

@@ -326,11 +326,7 @@ void _Execute( int argc , char* argv[] )
 		double area = 0;
 #ifdef NEW_THREADS
 		std::vector< double > area( tp.threadNum() , 0 );
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( 0 , triangles.size() , [&]( const ThreadPool::ThreadNum  &thread , size_t i )
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( 0 , triangles.size() , [&]( unsigned int thread , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : area )
 		for( int i=0 ; i<triangles.size() ; i++ )
@@ -340,11 +336,7 @@ void _Execute( int argc , char* argv[] )
 			for( int k=0 ; k<Dim ; k++ ) for( int j=0 ; j<Dim ; j++ ) s[k][j] = vertices[ triangles[i][k] ][j];
 			Real a2 = s.squareMeasure();
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			if( a2>0 ) areas[thread()] += sqrt(a2) / 2;
-#else // !NEW_THREAD_NUM
-			if( a2>0 ) areas[thread] += sqrt(a2) / 2;
-#endif //NEW_THREAD_NUM
 #else // !NEW_THREADS
 			if( a2>0 ) area += sqrt(a2) / 2;
 #endif // NEW_THREADS
@@ -456,11 +448,7 @@ void _Execute( int argc , char* argv[] )
 		DenseNodeData< Real , IsotropicUIntPack< Dim , FEMTrivialSignature > > leafCenterValues = tree.initDenseNodeData( IsotropicUIntPack< Dim , FEMTrivialSignature >() );
 
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( tree.nodesBegin(0) , tree.nodesEnd(Depth.value) , [&]( const ThreadPool::ThreadNum & thread , size_t i )
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( tree.nodesBegin(0) , tree.nodesEnd(Depth.value) , [&]( unsigned int thread , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -475,11 +463,7 @@ void _Execute( int argc , char* argv[] )
 				Point< Real , Dim > center ; Real width;
 				tree.centerAndWidth( i , center , width );
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 				leafCenterValues[i] = evaluator.values( center , thread() )[0];
-#else // !NEW_THREAD_NUM
-				leafCenterValues[i] = evaluator.values( center , thread )[0];
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 				leafCenterValues[i] = evaluator.values( center , omp_get_thread_num() )[0];
 #endif // NEW_THREADS
@@ -552,11 +536,7 @@ void _Execute( int argc , char* argv[] )
 		}
 
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( tree.nodesBegin(0) , tree.nodesEnd(Depth.value) , [&]( const ThreadPool::ThreadNum &thread , size_t i  )
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( tree.nodesBegin(0) , tree.nodesEnd(Depth.value) , [&]( unsigned int thread , size_t i  )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -574,11 +554,7 @@ void _Execute( int argc , char* argv[] )
 				RegularTreeNode< Dim , FEMTreeNodeData >* leaf = ( RegularTreeNode< Dim , FEMTreeNodeData >* )tree.node(i);
 #endif // NEW_CODE
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 				Point< Real , Dim > g = CenterGradient( leaf , thread() );
-#else // !NEW_THREAD_NUM
-				Point< Real , Dim > g = CenterGradient( leaf , thread );
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 				Point< Real , Dim > g = CenterGradient( leaf , omp_get_thread_num() );
 #endif // NEW_THREADS
@@ -667,11 +643,7 @@ void _Execute( int argc , char* argv[] )
 #ifdef NEW_THREADS
 				typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< IsotropicUIntPack< Dim , FEMSig > , 0 > evaluator( tp , tree , coefficients );
 				std::vector< double > errorSums( tp.threadNum() , 0 ) , valueSums( tp.threadNum() , 0 ) , weightSums( tp.threadNum() , 0 );
-#ifdef NEW_THREAD_NUM
 				tp.parallel_for( 0 , geometrySamples.size() , [&]( const ThreadPool::ThreadNum &thread , size_t j )
-#else // !NEW_THREAD_NUM
-				tp.parallel_for( 0 , geometrySamples.size() , [&]( unsigned int thread , size_t j )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 				typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< IsotropicUIntPack< Dim , FEMSig > , 0 > evaluator( tree , coefficients );
 #pragma omp parallel for reduction( + : errorSum , valueSum , weightSum )
@@ -681,17 +653,10 @@ void _Execute( int argc , char* argv[] )
 					ProjectiveData< Point< Real , Dim > , Real >& sample = geometrySamples[j].sample;
 					Real w = sample.weight;
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 					Real value = evaluator.values( sample.data / sample.weight , thread() , geometrySamples[j].node )[0];
 					errorSums[thread()] += value * value * w;
 					valueSums[thread()] += value * w;
 					weightSums[thread()] += w;
-#else // !NEW_THREAD_NUM
-					Real value = evaluator.values( sample.data / sample.weight , thread , geometrySamples[j].node )[0];
-					errorSums[thread] += value * value * w;
-					valueSums[thread] += value * w;
-					weightSums[thread] += w;
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 					Real value = evaluator.values( sample.data / sample.weight , omp_get_thread_num() , geometrySamples[j].node )[0];
 					errorSum += value * value * w;
@@ -709,11 +674,7 @@ void _Execute( int argc , char* argv[] )
 			GetAverageValueAndError( &tree , edtSolution , average , error );
 			if( Verbose.set ) printf( "Interpolation average / error: %g / %g\n" , average , error );
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			tp.parallel_for( tree.nodesBegin(0) , i<tree.nodesEnd(0) , [&]( const ThreadPool::ThreadNum & , size_t i ){ edtSolution[i] -= (Real)average; } );
-#else // !NEW_THREAD_NUM
-			tp.parallel_for( tree.nodesBegin(0) , i<tree.nodesEnd(0) , [&]( unsigned int , size_t i ){ edtSolution[i] -= (Real)average; } );
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE

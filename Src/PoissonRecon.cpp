@@ -33,12 +33,9 @@ DAMAGE.
 												// Note: enabling BIG_DATA can generate .ply files using "longlong" for face indices instead of "int".
 												// These are not standardly supported by .ply reading/writing applications.
 #undef NEW_THREADS								// Enabling this flag replaces the OpenMP implementation of parallelism with C++11's
-#define FORCE_PARALLEL							// Forces parallel methods to pass in a thread pool
-#define MERGE_PARALLEL
-#undef USE_HH_THREAD_POOL
-#undef USE_ASYNC_THREADING
-#undef FORCE_OMP
+#undef FORCE_PARALLEL							// Forces parallel methods to pass in a thread pool
 #undef TEST_ALLOCATOR_LOCK
+#undef USE_SUB_NODES							// It appears that most nodes valid, so this probably won't help load balancing
 #endif // NEW_CODE
 
 #undef SHOW_WARNINGS							// Display compilation warnings
@@ -111,15 +108,10 @@ cmdLineParameter< int >
 #endif // !FAST_COMPILE
 	MaxMemoryGB( "maxMemory" , 0 ) ,
 #ifdef NEW_THREADS
-#ifdef MERGE_PARALLEL
 	ParallelType( "parallelType" , (int)ThreadPool::OPEN_MP ) ,
 	ScheduleType( "scheduleType" , (int)ThreadPool::DefaultSchedule ) ,
 	ThreadChunkSize( "tChunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
 	Threads( "threads" , (int)std::thread::hardware_concurrency() );
-#else // !MERGE_PARALLEL
-	ThreadBlockSize( "tBlockSize" , (int)ThreadPool::DefaultBlockSize ) ,
-	Threads( "threads" , (int)ThreadPool::DefaultThreadNum );
-#endif // MERGE_PARALLEL
 #else // !NEW_THREADS
 	Threads( "threads" , omp_get_num_procs() );
 #endif // NEW_THREADS
@@ -162,13 +154,9 @@ cmdLineReadable* params[] =
 	&MaxMemoryGB ,
 	&InCore ,
 #ifdef NEW_THREADS
-#ifdef MERGE_PARALLEL
 	&ParallelType ,
 	&ScheduleType ,
 	&ThreadChunkSize ,
-#else // !MERGE_PARALLEL
-	&ThreadBlockSize ,
-#endif // MERGE_PARALLEL
 #endif // NEW_THREADS
 	NULL
 };
@@ -200,15 +188,11 @@ void ShowUsage(char* ex)
 	printf( "\t[--%s]\n" , Normals.name );
 #ifdef NEW_THREADS
 	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
-#ifdef MERGE_PARALLEL
 	printf( "\t[--%s <parallel type>=%d]\n" , ParallelType.name , ParallelType.value );
 	for( size_t i=0 ; i<ThreadPool::ParallelNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ParallelNames[i].c_str() );
 	printf( "\t[--%s <schedue type>=%d]\n" , ScheduleType.name , ScheduleType.value );
 	for( size_t i=0 ; i<ThreadPool::ScheduleNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ScheduleNames[i].c_str() );
 	printf( "\t[--%s <thread chunk size>=%d]\n" , ThreadChunkSize.name , ThreadChunkSize.value );
-#else // !MERGE_PARALLEL
-	printf( "\t[--%s <thread block size>=%d]\n" , ThreadBlockSize.name , ThreadBlockSize.value );
-#endif // MERGE_PARALLEL
 #else // !NEW_THREADS
 #ifdef _OPENMP
 	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
@@ -457,11 +441,7 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 		Real avg = 0;
 #ifdef NEW_THREADS
 		std::vector< Real > avgs( tp.threadNum() , 0 );
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum &thread , size_t i ){ avgs[thread()] += values[i]; } );
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( 0 , resolution , [&]( unsigned int thread , size_t i ){ avgs[thread] += values[i]; } );
-#endif // NEW_THREAD_NUM
 		for( unsigned int t=0 ; t<tp.threadNum() ; t++ ) avg += avgs[t];
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : avg )
@@ -472,11 +452,7 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 		Real std = 0;
 #ifdef NEW_THREADS
 		std::vector< Real > stds( tp.threadNum() , 0 );
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum &thread , size_t i ){ stds[thread()] += ( values[i] - avg ) * ( values[i] - avg ); } );
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( 0 , resolution , [&]( unsigned int thread , size_t i ){ stds[thread] += ( values[i] - avg ) * ( values[i] - avg ); } );
-#endif // NEW_THREAD_NUM
 		for( unsigned int t=0 ; t<tp.threadNum() ; t++ ) std += stds[t];
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : std )
@@ -488,11 +464,7 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 
 		unsigned char *pixels = new unsigned char[ resolution*3 ];
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum & , size_t i )
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( 0 , resolution , [&]( unsigned int , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 		for( int i=0 ; i<resolution ; i++ )
@@ -555,11 +527,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 	messageWriter( comments , "*************************************************************\n" );
 
 #ifdef NEW_THREADS
-#ifdef MERGE_PARALLEL
 	ThreadPool tp( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
-#else // !MERGE_PARALLEL
-	ThreadPool tp;
-#endif // MERGE_PARALLEL
 #endif // NEW_THREADS
 
 	XForm< Real , Dim+1 > xForm , iXForm;
@@ -711,11 +679,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 #ifdef NEW_THREADS
 			if( ConfidenceBias.value>0 ) *normalInfo = tree.setNormalField( NormalSigs() , tp , *samples , *sampleData , density , pointWeightSum , [&]( Real conf ){ return (Real)( log( conf ) * ConfidenceBias.value / log( 1<<(Dim-1) ) ); } );
 			else                         *normalInfo = tree.setNormalField( NormalSigs() , tp , *samples , *sampleData , density , pointWeightSum );
-#ifdef NEW_THREAD_NUM
 			tp.parallel_for( 0 , normalInfo->size() , [&]( const ThreadPool::ThreadNum & , size_t i ){ (*normalInfo)[i] *= (Real)-1.; } );
-#else // !NEW_THREAD_NUM
-			tp.parallel_for( 0 , normalInfo->size() , [&]( unsigned int , size_t i ){ (*normalInfo)[i] *= (Real)-1.; } );
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 			if( ConfidenceBias.value>0 ) *normalInfo = tree.setNormalField( NormalSigs() , *samples , *sampleData , density , pointWeightSum , [&]( Real conf ){ return (Real)( log( conf ) * ConfidenceBias.value / log( 1<<(Dim-1) ) ); } );
 			else                         *normalInfo = tree.setNormalField( NormalSigs() , *samples , *sampleData , density , pointWeightSum );
@@ -812,11 +776,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 #ifdef NEW_THREADS
 		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 0 > evaluator( tp , &tree , solution );
 		std::vector< double > valueSums( tp.threadNum() , 0 ) , weightSums( tp.threadNum() , 0 );
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( 0 , samples->size() , [&]( const ThreadPool::ThreadNum &thread , size_t j )
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( 0 , samples->size() , [&]( unsigned int thread , size_t j )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 0 > evaluator( &tree , solution );
 #pragma omp parallel for reduction( + : valueSum , weightSum )
@@ -826,11 +786,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 			ProjectiveData< Point< Real , Dim > , Real >& sample = (*samples)[j].sample;
 			Real w = sample.weight;
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 			if( w>0 ) weightSums[thread()] += w , valueSums[thread()] += evaluator.values( sample.data / sample.weight , thread() , (*samples)[j].node )[0] * w;
-#else // !NEW_THREAD_NUM
-			if( w>0 ) weightSums[thread] += w , valueSums[thread] += evaluator.values( sample.data / sample.weight , thread , (*samples)[j].node )[0] * w;
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 			if( w>0 ) weightSum += w , valueSum += evaluator.values( sample.data / sample.weight , omp_get_thread_num() , (*samples)[j].node )[0] * w;
 #endif // NEW_THREADS
@@ -867,11 +823,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 		size_t resolution = 1;
 		for( int d=0 ; d<Dim ; d++ ) resolution *= res;
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum & , size_t i ){ values[i] -= isoValue; } );
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( 0 , resolution , [&]( unsigned int , size_t i ){ values[i] -= isoValue; } );
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 		for( int i=0 ; i<resolution ; i++ ) values[i] -= isoValue;
@@ -1002,13 +954,8 @@ int main( int argc , char* argv[] )
 	cmdLineParse( argc-1 , &argv[1] , params );
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
 #ifdef NEW_THREADS
-#ifdef MERGE_PARALLEL
 	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;
 	ThreadPool::DefaultSchedule = (ThreadPool::ScheduleType)ScheduleType.value;
-#else // !MERGE_PARALLEL
-	ThreadPool::DefaultThreadNum = Threads.value > 1 ? Threads.value : 0;
-	ThreadPool::DefaultBlockSize = ThreadBlockSize.value;
-#endif // MERGE_PARALLEL
 #else // !NEW_THREADS
 	omp_set_num_threads( Threads.value > 1 ? Threads.value : 1 );
 #endif // NEW_THREADS

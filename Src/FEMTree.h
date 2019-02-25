@@ -40,6 +40,10 @@ DAMAGE.
 //        2. When testing centers/corners, don't use generic evaluation
 
 // -- [TODO] Remove the versions without ThreadPool to check that everything gets passed as it should
+// -- [TODO] Make thread pool static
+// -- [TODO] Support nested parallelism with thread pools
+// -- [TODO] Make thread pool function taking unsinged int instead of ThreadNum
+// -- [TODO] Make parallel for  only iterate over valid nodes
 
 #ifndef FEM_TREE_INCLUDED
 #define FEM_TREE_INCLUDED
@@ -154,6 +158,11 @@ public:
 	~SortedTreeNodes( void );
 	void set( TreeNode& root , std::vector< node_index_type >* map );
 	size_t set( TreeNode& root );
+
+#ifdef USE_SUB_NODES
+	// Extracts the subset of tree nodes that evaluate to true on validFunction
+	template< typename ValidFunction > SortedTreeNodes *subNodes( const ValidFunction &validFunction ) const;
+#endif //USE_SUB_NODES
 #else // !NEW_CODE
 	int begin( int depth ) const { return _sliceStart[depth][0]; }
 	int   end( int depth ) const { return _sliceStart[depth][(size_t)1<<depth]; }
@@ -2308,6 +2317,9 @@ protected:
 	FEMTreeNode* _tree;
 	FEMTreeNode* _spaceRoot;
 	SortedTreeNodes< Dim > _sNodes;
+#ifdef USE_SUB_NODES
+	SortedTreeNodes< Dim > *_subNodes;
+#endif // USE_SUB_NODES
 	LocalDepth _maxDepth;
 	int _depthOffset;
 	mutable unsigned int _femSigs1[ Dim ];
@@ -2342,6 +2354,16 @@ protected:
 	node_index_type _sNodesEndSlice( LocalDepth d ) const{ return ( 1<<_localToGlobal(d) ) - _localInset(d) - 1; }
 	size_t _sNodesSize( LocalDepth d )             const { return _sNodes.size( _localToGlobal( d ) ); }
 	size_t _sNodesSize( LocalDepth d , int slice ) const { return _sNodes.size( _localToGlobal( d ) , slice + _localInset( d ) ); }
+#ifdef USE_SUB_NODES
+	node_index_type _sNodesBegin     ( const SortedTreeNodes< Dim > &sNodes , LocalDepth d )             const { return sNodes.begin( _localToGlobal( d ) ); }
+	node_index_type _sNodesBegin     ( const SortedTreeNodes< Dim > &sNodes , LocalDepth d , int slice ) const { return sNodes.begin( _localToGlobal( d ) , slice + _localInset( d ) ); }
+	node_index_type _sNodesBeginSlice( const SortedTreeNodes< Dim > &sNodes , LocalDepth d )             const { return _localInset(d); }
+	node_index_type _sNodesEnd       ( const SortedTreeNodes< Dim > &sNodes , LocalDepth d )             const { return sNodes.end  ( _localToGlobal( d ) ); }
+	node_index_type _sNodesEnd       ( const SortedTreeNodes< Dim > &sNodes , LocalDepth d , int slice ) const { return sNodes.end  ( _localToGlobal( d ) , slice + _localInset( d ) ); }
+	node_index_type _sNodesEndSlice  ( const SortedTreeNodes< Dim > &sNodes , LocalDepth d )             const{ return ( 1<<_localToGlobal(d) ) - _localInset(d) - 1; }
+	size_t _sNodesSize               ( const SortedTreeNodes< Dim > &sNodes , LocalDepth d )             const { return sNodes.size( _localToGlobal( d ) ); }
+	size_t _sNodesSize               ( const SortedTreeNodes< Dim > &sNodes , LocalDepth d , int slice ) const { return sNodes.size( _localToGlobal( d ) , slice + _localInset( d ) ); }
+#endif // USE_SUB_NODES
 #else // !NEW_CODE
 	int _sNodesBegin( LocalDepth d ) const { return _sNodes.begin( _localToGlobal( d ) ); }
 	int _sNodesEnd  ( LocalDepth d ) const { return _sNodes.end  ( _localToGlobal( d ) ); }

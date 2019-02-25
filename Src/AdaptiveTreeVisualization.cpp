@@ -27,6 +27,15 @@ DAMAGE.
 */
 #define NEW_CODE
 
+#ifdef NEW_CODE
+#define BIG_DATA								// Supports processing requiring more than 32-bit integers for indexing
+												// Note: enabling BIG_DATA can generate .ply files using "longlong" for face indices instead of "int".
+												// These are not standardly supported by .ply reading/writing applications.
+#define NEW_THREADS								// Enabling this flag replaces the OpenMP implementation of parallelism with C++11's
+#define FORCE_PARALLEL							// Forces parallel methods to pass in a thread pool
+#endif // NEW_CODE
+
+
 #undef ARRAY_DEBUG
 
 #include <stdio.h>
@@ -57,7 +66,10 @@ cmdLineReadable
 
 cmdLineParameter< int >
 #ifdef NEW_THREADS
-	Threads( "threads" , ThreadPool::DefaultThreadNum );
+	ParallelType( "parallelType" , (int)ThreadPool::OPEN_MP ) ,
+	ScheduleType( "scheduleType" , (int)ThreadPool::DefaultSchedule ) ,
+	ThreadChunkSize( "tChunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
+	Threads( "threads" , (int)std::thread::hardware_concurrency() );
 #else // !NEW_THREADS
 	Threads( "threads" , omp_get_num_procs() );
 #endif // NEW_THREADS
@@ -72,6 +84,11 @@ cmdLineReadable* params[] =
 	&OutGrid , &PrimalGrid ,
 	&Threads ,
 	&Verbose , 
+#ifdef NEW_THREADS
+	&ParallelType ,
+	&ScheduleType ,
+	&ThreadChunkSize ,
+#endif // NEW_THREADS
 	NULL
 };
 
@@ -82,9 +99,18 @@ void ShowUsage( char* ex )
 	printf( "\t --%s <input tree>\n" , In.name );
 	printf( "\t[--%s <ouput triangle mesh>]\n" , OutMesh.name );
 	printf( "\t[--%s <ouput grid>]\n" , OutGrid.name );
+#ifdef NEW_THREADS
+	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
+	printf( "\t[--%s <parallel type>=%d]\n" , ParallelType.name , ParallelType.value );
+	for( size_t i=0 ; i<ThreadPool::ParallelNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ParallelNames[i].c_str() );
+	printf( "\t[--%s <schedue type>=%d]\n" , ScheduleType.name , ScheduleType.value );
+	for( size_t i=0 ; i<ThreadPool::ScheduleNames.size() ; i++ ) printf( "\t\t%d] %s\n" , (int)i , ThreadPool::ScheduleNames[i].c_str() );
+	printf( "\t[--%s <thread chunk size>=%d]\n" , ThreadChunkSize.name , ThreadChunkSize.value );
+#else // !NEW_THREADS
 #ifdef _OPENMP
 	printf( "\t[--%s <num threads>=%d]\n" , Threads.name , Threads.value );
 #endif // _OPENMP
+#endif // NEW_THREADS
 	printf( "\t[--%s <iso-value for extraction>=%f]\n" , IsoValue.name , IsoValue.value );
 	printf( "\t[--%s]\n" , NonManifold.name );
 	printf( "\t[--%s]\n" , PolygonMesh.name );
@@ -112,11 +138,7 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 		Real avg = 0;
 #ifdef NEW_THREADS
 		std::vector< Real > avgs( tp.threadNum() , 0 );
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum &thread , size_t i ){ avgs[thread()] += values[i]; } );
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( 0 , resolution , [&]( unsigned int thread , size_t i ){ avgs[thread] += values[i]; } );
-#endif // NEW_THREAD_NUM
 		for( unsigned int t=0 ; t<tp.threadNum() ; t++ ) avg += avgs[t];
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : avg )
@@ -127,11 +149,7 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 		Real std = 0;
 #ifdef NEW_THREADS
 		std::vector< Real > stds( tp.threadNum() , 0 );
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum &thread , size_t i ){ stds[thread()] += ( values[i] - avg ) * ( values[i] - avg ); } );
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( 0 , resolution , [&]( unsigned int thread , size_t i ){ stds[thread] += ( values[i] - avg ) * ( values[i] - avg ); } );
-#endif // NEW_THREAD_NUM
 		for( unsigned int t=0 ; t<tp.threadNum() ; t++ ) std += stds[t];
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : std )
@@ -143,11 +161,7 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 
 		unsigned char *pixels = new unsigned char[ resolution*3 ];
 #ifdef NEW_THREADS
-#ifdef NEW_THREAD_NUM
 		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum & , size_t i )
-#else // !NEW_THREAD_NUM
-		tp.parallel_for( 0 , resolution , [&]( unsigned int , size_t i )
-#endif // NEW_THREAD_NUM
 #else // !NEW_THREADS
 #pragma omp parallel for
 		for( int i=0 ; i<resolution ; i++ )
@@ -190,7 +204,7 @@ template< unsigned int Dim , class Real , unsigned int FEMSig >
 void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 {
 #ifdef NEW_THREADS
-	ThreadPool tp;
+	ThreadPool tp( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
 #endif // NEW_THREADS
 	static const unsigned int Degree = FEMSignature< FEMSig >::Degree;
 	DenseNodeData< Real , IsotropicUIntPack< Dim , FEMSig > > coefficients;
@@ -227,13 +241,23 @@ void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 		CoredFileMeshData< Vertex > mesh;
 #endif // NEW_CODE
 		std::function< void ( Vertex& , Point< Real , Dim > , Real , Real ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real , Real ){ v.point = p; };
+#ifdef NEW_THREADS
 #if defined( __GNUC__ ) && __GNUC__ < 5
-		#warning "you've got me gcc version<5"
-			static const unsigned int DataSig = FEMDegreeAndBType< 0 , BOUNDARY_FREE >::Signature;
+#warning "you've got me gcc version<5"
+		static const unsigned int DataSig = FEMDegreeAndBType< 0 , BOUNDARY_FREE >::Signature;
+		IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , tp , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , ( SparseNodeData< ProjectiveData< Real , Real > , IsotropicUIntPack< Dim , DataSig > > * )NULL , coefficients , IsoValue.value , mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
+#else // !__GNUC__ || __GNUC__ >=5
+		IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , tp , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , NULL , coefficients , IsoValue.value , mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
+#endif // __GNUC__ || __GNUC__ < 4
+#else // !NEW_THREADS
+#if defined( __GNUC__ ) && __GNUC__ < 5
+#warning "you've got me gcc version<5"
+		static const unsigned int DataSig = FEMDegreeAndBType< 0 , BOUNDARY_FREE >::Signature;
 		IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , ( SparseNodeData< ProjectiveData< Real , Real > , IsotropicUIntPack< Dim , DataSig > > * )NULL , coefficients , IsoValue.value , mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
 #else // !__GNUC__ || __GNUC__ >=5
 		IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , NULL , coefficients , IsoValue.value , mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
 #endif // __GNUC__ || __GNUC__ < 4
+#endif // NEW_THREADS
 
 		if( Verbose.set ) printf( "Got iso-surface: %.2f(s)\n" , Time()-t );
 #ifdef NEW_CODE
@@ -313,10 +337,11 @@ int main( int argc , char* argv[] )
 #endif // ARRAY_DEBUG
 	cmdLineParse( argc-1 , &argv[1] , params );
 #ifdef NEW_THREADS
-	ThreadPool::DefaultThreadNum = Threads.value > 1 ? Threads.value : 0;
+	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;
+	ThreadPool::DefaultSchedule = (ThreadPool::ScheduleType)ScheduleType.value;
 #else // !NEW_THREADS
 	omp_set_num_threads( Threads.value > 1 ? Threads.value : 1 );
-#endif //NEW_THREADS
+#endif // NEW_THREADS
 	if( Verbose.set )
 	{
 		printf( "**************************************************\n" );

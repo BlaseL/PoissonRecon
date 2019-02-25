@@ -210,7 +210,11 @@ int Execute( void )
 						printf( "\t\tVertices / Polygons: %llu / %llu\n" , (unsigned long long)subVertices.size() , (unsigned long long)subPolygons.size() );
 						printf( "\t\t" ) ; PrintBoundingBox( _min , _max ) ; printf( "\n" );
 
+#if 1
+						WARN( "Not writing mesh: " stream.str() );
+#else
 						WriteMesh( stream.str().c_str() , ASCII.set ? PLY_ASCII : ft , subVertices , subPolygons , comments );
+#endif
 
 						vCount += subVertices.size() , pCount += subPolygons.size();
 					}
@@ -227,7 +231,11 @@ int Execute( void )
 						printf( "\t\tPoints: %llu\n" , (unsigned long long)subVertices.size() );
 						printf( "\t\t" ) ; PrintBoundingBox( _min , _max ) ; printf( "\n" );
 
+#if 1
+						WARN( "Not writing points: " stream.str() );
+#else
 						WritePoints( stream.str().c_str() , ASCII.set ? PLY_ASCII : ft , subVertices , comments );
+#endif
 
 						vCount += subVertices.size();
 					}
@@ -238,8 +246,12 @@ int Execute( void )
 		}
 		else
 		{
+#if 1
+			WARN( "Not writing: " , Out.value );
+#else
 			if( polygons.size() ) WriteMesh( Out.value , ASCII.set ? PLY_ASCII : ft , vertices , polygons , comments );
 			else WritePoints( Out.value , ASCII.set ? PLY_ASCII : ft , vertices , comments );
+#endif
 		}
 	}
 

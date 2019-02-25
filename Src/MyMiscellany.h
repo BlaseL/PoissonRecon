@@ -327,554 +327,105 @@ namespace MKExceptions
 #include <chrono>
 #include <future>
 
-#if 0
-// The assumption is that Kernel is the type of a function taking two arguments, the first is the index of the thread and the second is index of the iteration
-struct MKThread
-{
-	static unsigned int Threads;
-
-#if 1
-	template< typename Kernel >
-	static void parallel_thread_for( size_t start , size_t end , Kernel kernel )
-	{
-		size_t range = end - start;
-
-		auto _functor = [&]( unsigned int t )
-		{
-			size_t _start = start + ( range * t ) / Threads;
-			size_t _end = start + ( range *(t+1) ) / Threads;
-			for( size_t i=_start ; i<_end ; i++ ) kernel( t , i );
-		};
-
-		std::vector< std::thread > threads( Threads );
-		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
-		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t].join();
-	}
-
-	template< typename Kernel , typename ThreadArg >
-	static void parallel_thread_for( size_t start , size_t end , std::vector< ThreadArg > &threadArgs , Kernel kernel )
-	{
-		size_t range = end - start;
-
-		auto _functor = [&]( unsigned int t )
-		{
-			size_t _start = start + ( range * t ) / Threads;
-			size_t _end = start + ( range *(t+1) ) / Threads;
-			ThreadArg &threadArg = threadArgs[t];
-			for( size_t i=_start ; i<_end ; i++ ) kernel( t , i , threadArg );
-		};
-
-		std::vector< std::thread > threads( Threads );
-		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
-		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t].join();
-	}
-
-	template< typename Kernel , typename ThreadArg >
-	static void parallel_thread_for( size_t start , size_t end , ThreadArg *threadArgs , Kernel kernel )
-	{
-		size_t range = end - start;
-
-		auto _functor = [&]( unsigned int t )
-		{
-			size_t _start = start + ( range * t ) / Threads;
-			size_t _end = start + ( range *(t+1) ) / Threads;
-			ThreadArg &threadArg = threadArgs[t];
-			for( size_t i=_start ; i<_end ; i++ ) kernel( t , i , threadArg );
-		};
-
-		std::vector< std::thread > threads( Threads );
-		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
-		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t].join();
-	}
-
-	template< typename Kernel >
-	static void parallel_thread_block_for( size_t start , size_t end , size_t blockSize , Kernel kernel )
-	{
-		size_t range = end - start;
-		size_t blocks = ( range + blockSize - 1 ) / blockSize;
-
-		auto _functor = [&]( unsigned int t )
-		{
-			for( size_t b=t ; b<blocks ; b+=Threads )
-			{
-				size_t blockStart = start + ( range * b ) / blocks;
-				size_t blockEnd = start + ( range * (b+1) ) / blocks;
-				for( size_t i=blockStart ; i<blockEnd ; i++ ) kernel( t , i );
-			}
-		};
-
-		if( blocks==1 ) for( size_t i=start ; i<end ; i++ ) kernel( 0 , i );
-		else if( blocks>1 )
-		{
-			unsigned int threadCount = (unsigned int)std::min< size_t >( Threads , blocks );
-			std::vector< std::thread > threads( threadCount );
-			for( unsigned int t=0 ; t<threadCount ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
-			for( unsigned int t=0 ; t<threadCount ; t++ ) threads[t].join();
-		}
-	}
-
-	template< typename Kernel , typename ThreadArg >
-	static void parallel_thread_block_for( size_t start , size_t end , size_t blockSize , std::vector< ThreadArg > &threadArgs , Kernel kernel )
-	{
-		size_t range = end - start;
-		size_t blocks = ( range + blockSize - 1 ) / blockSize;
-
-		auto _functor = [&]( unsigned int t )
-		{
-			for( size_t b=t ; b<blocks ; b+=Threads )
-			{
-				size_t blockStart = start + ( range * b ) / blocks;
-				size_t blockEnd = start + ( range * (b+1) ) / blocks;
-				ThreadArg &threadArg = threadArgs[t];
-				for( size_t i=blockStart ; i<blockEnd ; i++ ) kernel( t , i , threadArg );
-			}
-		};
-
-		if( blocks==1 )
-		{
-			ThreadArg &threadArg = threadArgs[0];
-			for( size_t i=start ; i<end ; i++ ) kernel( 0 , i , threadArg );
-		}
-		else if( blocks>1 )
-		{
-			unsigned int threadCount = (unsigned int)std::min< size_t >( Threads , blocks );
-			std::vector< std::thread > threads( threadCount );
-			for( unsigned int t=0 ; t<threadCount ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
-			for( unsigned int t=0 ; t<threadCount ; t++ ) threads[t].join();
-		}
-	}
-
-	template< typename Kernel , typename ThreadArg >
-	static void parallel_thread_block_for( size_t start , size_t end , size_t blockSize , ThreadArg *threadArgs , Kernel kernel )
-	{
-		size_t range = end - start;
-		size_t blocks = ( range + blockSize - 1 ) / blockSize;
-
-		auto _functor = [&]( unsigned int t )
-		{
-			for( size_t b=t ; b<blocks ; b+=Threads )
-			{
-				size_t blockStart = start + ( range * b ) / blocks;
-				size_t blockEnd = start + ( range * (b+1) ) / blocks;
-				ThreadArg &threadArg = threadArgs[t];
-				for( size_t i=blockStart ; i<blockEnd ; i++ ) kernel( t , i , threadArg );
-			}
-		};
-
-		if( blocks==1 )
-		{
-			ThreadArg &threadArg = threadArgs[0];
-			for( size_t i=start ; i<end ; i++ ) kernel( 0 , i , threadArg );
-		}
-		else if( blocks>1 )
-		{
-			unsigned int threadCount = (unsigned int)std::min< size_t >( Threads , blocks );
-			std::vector< std::thread > threads( threadCount );
-			for( unsigned int t=0 ; t<threadCount ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
-			for( unsigned int t=0 ; t<threadCount ; t++ ) threads[t].join();
-		}
-	}
-
-	template< typename Kernel >
-	static void parallel_task_block_for( size_t start , size_t end , size_t blockSize , Kernel &kernel )
-	{
-		std::atomic< size_t > idx = start;
-		auto _functor = [&]( unsigned int t )
-		{
-			while( idx<end )
-			{
-				size_t _start = idx.fetch_add( blockSize );
-				size_t _end = std::min< size_t >( _start + blockSize , end );
-				for( size_t i=_start ; i<_end ; i++ ) kernel( t , i );
-			}
-		};
-
-		if( end-start<=blockSize ) for( size_t i=start ; i<end ; i++ ) kernel( 0 , i ); 
-		else
-		{
-			unsigned int threadCount = (unsigned int)std::min< size_t >( Threads , (end-start+blockSize-1)/blockSize );
-			std::vector< std::thread > threads( threadCount );
-			for( unsigned int t=0 ; t<threadCount ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
-			for( unsigned int t=0 ; t<threadCount ; t++ ) threads[t].join();
-		}
-	}
-
-	template< typename Kernel , typename ThreadArg >
-	static void parallel_task_block_for( size_t start , size_t end , size_t blockSize , std::vector< ThreadArg > &threadArgs , Kernel &kernel )
-	{
-		std::atomic< size_t > idx = start;
-		auto _functor = [&]( unsigned int t )
-		{
-			while( idx<end )
-			{
-				size_t _start = idx.fetch_add( blockSize );
-				size_t _end = std::min< size_t >( _start + blockSize , end );
-				ThreadArg &threadArg = threadArgs[t];
-				for( size_t i=_start ; i<_end ; i++ ) kernel( t , i , threadArg );
-			}
-		};
-
-		if( end-start<=blockSize )
-		{
-			ThreadArg &threadArg = threadArgs[0];
-			for( size_t i=start ; i<end ; i++ ) kernel( 0 , i , threadArg ); 
-		}
-		else
-		{
-			unsigned int threadCount = (unsigned int)std::min< size_t >( Threads , (end-start+blockSize-1)/blockSize );
-			std::vector< std::thread > threads( threadCount );
-			for( unsigned int t=0 ; t<threadCount ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
-			for( unsigned int t=0 ; t<threadCount ; t++ ) threads[t].join();
-		}
-	}
-
-	template< typename Kernel , typename ThreadArg >
-	static void parallel_task_block_for( size_t start , size_t end , size_t blockSize , ThreadArg *threadArgs , Kernel &kernel )
-	{
-		std::atomic< size_t > idx = start;
-		auto _functor = [&]( unsigned int t )
-		{
-			while( idx<end )
-			{
-				size_t _start = idx.fetch_add( blockSize );
-				size_t _end = std::min< size_t >( _start + blockSize , end );
-				ThreadArg &threadArg = threadArgs[t];
-				for( size_t i=_start ; i<_end ; i++ ) kernel( t , i , threadArg );
-			}
-		};
-
-		if( end-start<=blockSize )
-		{
-			ThreadArg &threadArg = threadArgs[0];
-			for( size_t i=start ; i<end ; i++ ) kernel( 0 , i , threadArg ); 
-		}
-		else
-		{
-			unsigned int threadCount = (unsigned int)std::min< size_t >( Threads , (end-start+blockSize-1)/blockSize );
-			std::vector< std::thread > threads( threadCount );
-			for( unsigned int t=0 ; t<threadCount ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
-			for( unsigned int t=0 ; t<threadCount ; t++ ) threads[t].join();
-		}
-	}
-
-	template< typename Kernel >
-	static void parallel_for( size_t start , size_t end , Kernel kernel )
-	{
-//		return parallel_thread_for( start , end , kernel );
-		return parallel_thread_block_for( start , end , 200 , kernel );
-//		return parallel_task_block_for( start , end , 200 , kernel );
-	}
-
-	template< typename Kernel , typename ThreadArg >
-	static void parallel_for( size_t start , size_t end , std::vector< ThreadArg > &threadArgs , Kernel kernel )
-	{
-//		return parallel_thread_for( start , end , threadArgs , kernel );
-		return parallel_thread_block_for( start , end , 200 , threadArgs , kernel );
-//		return parallel_task_block_for( start , end , 200 , threadArgs , kernel );
-	}
-
-	template< typename Kernel , typename ThreadArg >
-	static void parallel_for( size_t start , size_t end , ThreadArg *threadArgs , Kernel kernel )
-	{
-//		return parallel_thread_for( start , end , threadArgs , kernel );
-		return parallel_thread_block_for( start , end , 200 , threadArgs , kernel);
-//		return parallel_task_block_for( start , end , 200 , threadArgs , kernel );
-	}
-#else
-	template< typename Kernel , typename ... Args >
-	static void parallel_thread_for( size_t start , size_t end , Kernel kernel , Args ... args )
-	{
-		size_t range = end - start;
-
-		auto _functor = [&]( unsigned int t )
-		{
-			size_t _start = start + ( range * t ) / Threads;
-			size_t _end = start + ( range *(t+1) ) / Threads;
-			for( size_t i=_start ; i<_end ; i++ ) kernel( t , i , args ... );
-		};
-
-		std::vector< std::thread > threads( Threads );
-		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
-		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t].join();
-	}
-
-	template< typename Kernel , typename ... Args >
-	static void parallel_thread_block_for( size_t start , size_t end , size_t blockSize , Kernel kernel , Args ... args )
-	{
-		size_t range = end - start;
-		size_t blocks = ( range + blockSize - 1 ) / blockSize;
-		auto _functor = [&]( unsigned int t )
-		{
-			for( size_t b=t ; b<blocks ; b+=Threads )
-			{
-				size_t blockStart = start + ( range * b ) / blocks;
-				size_t blockEnd = start + ( range * (b+1) ) / blocks;
-				for( size_t i=blockStart ; i<blockEnd ; i++ ) kernel( t , i , args ... );
-			}
-		};
-
-		std::vector< std::thread > threads( Threads );
-		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
-		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t].join();
-	}
-
-	template< typename Kernel , typename ... Args >
-	static void parallel_task_block_for( size_t start , size_t end , size_t blockSize , Kernel &kernel , Args ... args )
-	{
-		std::atomic< size_t > idx = start;
-		auto _functor = [&]( unsigned int t )
-		{
-			while( idx<end )
-			{
-				size_t _start = idx.fetch_add( blockSize );
-				size_t _end = std::min< size_t >( _start + blockSize , end );
-				for( size_t i=_start ; i<_end ; i++ ) kernel( t , i , args ... );
-			}
-		};
-
-		std::vector< std::thread > threads( Threads );
-		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t] = std::thread( [&]( unsigned int _t ){ _functor(_t); } , t );
-		for( unsigned int t=0 ; t<Threads ; t++ ) threads[t].join();
-	}
-
-	template< typename Kernel , typename ... Args >
-	static void parallel_for( size_t start , size_t end , Kernel kernel , Args ... args )
-	{
-		//		return parallel_thread_for( start , end , kernel , args ... );
-		return parallel_thread_block_for( start , end , 100 , kernel , args ... );
-		//		return parallel_task_block_for( start , end , 200 , kernel , args ... );
-	}
-#endif
-
-};
-unsigned int MKThread::Threads = std::thread::hardware_concurrency();
-#endif
-
-#define NEW_THREAD_NUM
-
-#ifdef USE_HH_THREAD_POOL
 #include <memory>
-inline int get_max_threads( void ) { return std::max< int >( (int)std::thread::hardware_concurrency() , 1 ); }
-
-class ThreadPoolIndexedTask
+namespace hh
 {
-public:
-	using Task = std::function< void (int) >;
-	ThreadPoolIndexedTask( void )
-	{
-		const int num_threads = get_max_threads();
-		_threads.reserve( num_threads );
-		for( int i=0 ; i<num_threads ; i++ ) _threads.emplace_back( &ThreadPoolIndexedTask::worker_main , this );
-	}
-	~ThreadPoolIndexedTask( void )
-	{
-		{
-			std::unique_lock< std::mutex > lock( _mutex );
-			if( !_running ) ERROR_OUT( "not running" );
-			if( _num_remaining_tasks ) ERROR_OUT( "tasks remaining" );
-			if( _task_index!=_num_tasks ) ERROR_OUT( "task index and num tasks don't match" );
-			_running = false;
-			_task_index = 0;
-			_num_tasks = 1;
-			_condition_variable_worker.notify_all();
-		}
-		for( int i=0 ; i<_threads.size() ; i++ ) _threads[i].join();
-	}
-	int num_threads( void ) const { return (int)_threads.size(); }
-	bool already_active( void ) const { return _num_remaining_tasks!=0; }  // detect nested execution
-	void execute( int num_tasks , const Task& task_function )
-	{
-		if( already_active() )
-		{
-			WARN( "Nested execution of ThreadPoolIndexedTask is run serially" );
-			for( int i=0 ; i<num_tasks ; i++ ) task_function( i );
-		}
-		else
-		{
-			std::unique_lock< std::mutex > lock( _mutex );
-			_task_function = task_function;
-			_num_tasks = num_tasks;
-			_num_remaining_tasks = num_tasks;
-			_task_index = 0;
-			_condition_variable_worker.notify_all();
-			_condition_variable_master.wait( lock , [this]{ return !_num_remaining_tasks; } );
-		}
-	}
-	static ThreadPoolIndexedTask& default_threadpool( void )
-	{
-		static std::unique_ptr< ThreadPoolIndexedTask > thread_pool;
-		// This is safe because thread_pool is nullptr only in the main thread before any other thread is launched.
-		if( !thread_pool ) thread_pool = std::unique_ptr< ThreadPoolIndexedTask >( new ThreadPoolIndexedTask() );
-		return *thread_pool;
-	}
+	inline int get_max_threads( void ) { return std::max< int >( (int)std::thread::hardware_concurrency() , 1 ); }
 
-private:
-	std::mutex _mutex;
-	bool _running = true;
-	std::vector< std::thread > _threads;
-	Task _task_function;
-	int _num_tasks = 0;
-	int _num_remaining_tasks = 0;
-	int _task_index = 0;
-	std::condition_variable _condition_variable_worker;
-	std::condition_variable _condition_variable_master;
-
-	void worker_main( void )
+	class ThreadPoolIndexedTask
 	{
-		std::unique_lock< std::mutex > lock( _mutex );
-		// Consider: https://stackoverflow.com/questions/233127/how-can-i-propagate-exceptions-between-threads
-		// However, rethrowing the exception in the main thread loses the stack state, so not useful for debugging.
-		for (;;)
+	public:
+		using Task = std::function< void (int) >;
+		ThreadPoolIndexedTask( void )
 		{
-			_condition_variable_worker.wait( lock , [this]{ return _task_index < _num_tasks; } );
-			if( !_running ) break;
-			while( _task_index<_num_tasks )
+			const int num_threads = get_max_threads();
+			_threads.reserve( num_threads );
+			for( int i=0 ; i<num_threads ; i++ ) _threads.emplace_back( &ThreadPoolIndexedTask::worker_main , this );
+		}
+		~ThreadPoolIndexedTask( void )
+		{
 			{
-				int i = _task_index++;
-				lock.unlock();
-				_task_function(i);
-				lock.lock();
-				if( _num_remaining_tasks<=0 ) ERROR_OUT( "num remaining tasks not greater than zero" );
-				if (!--_num_remaining_tasks) _condition_variable_master.notify_all();
+				std::unique_lock< std::mutex > lock( _mutex );
+				if( !_running ) ERROR_OUT( "not running" );
+				if( _num_remaining_tasks ) ERROR_OUT( "tasks remaining" );
+				if( _task_index!=_num_tasks ) ERROR_OUT( "task index and num tasks don't match" );
+				_running = false;
+				_task_index = 0;
+				_num_tasks = 1;
+				_condition_variable_worker.notify_all();
 			}
+			for( int i=0 ; i<_threads.size() ; i++ ) _threads[i].join();
 		}
-	}
-};
-
-
-// Evaluates function(element) for each element in range by parallelizing across chunks of elements using
-// a cached thread pool.  The range must support begin/end functions returning random-access iterators.
-// Parallelism is disabled if the estimated cost (estimated_cycles_per_element * size(range)) is less than some
-// internal threshold, or if this parallel_for_each() is already executing (nested) within another parallel_for_each().
-// Exceptions within function() cause program termination as they are not caught.
-// One drawback over OpenMP is that if an exception or abort occurs within function(), the stack trace will not
-// include the functions that called parallel_for_each() because these lie in the stack frames of a different thread.
-struct ThreadPool
-{
-	struct ThreadNum
-	{
-#ifdef FORCE_OMP
-		unsigned int operator()( void ) const { return (unsigned int)omp_get_thread_num(); }
-#else // !FORCE_OMP
-		ThreadNum( unsigned int threadNum ) : _threadNum( threadNum ){}
-		unsigned int operator()( void ) const { return _threadNum; }
-	protected:
-		unsigned int _threadNum;
-#endif // FORCE_OMP
-	};
-
-	static size_t DefaultThreadNum;
-	static size_t DefaultMaxBlocksPerThread;
-	static const uint64_t k_omp_thresh = 100*1000; // number of instruction cycles above which a loop should be parallelized
-	static constexpr uint64_t k_parallelism_always = k_omp_thresh;
-
-	unsigned int threadNum( void ) const { return get_max_threads(); }
-
-	template< typename Function >
-	void parallel_for( size_t begin , size_t end , const Function &function , uint64_t estimated_cycles_per_element=k_parallelism_always )
-	{
-#ifdef FORCE_OMP
-		ThreadNum threadNum;
-#pragma omp parallel for
-		for( long long i=(long long)begin ; i<(long long)end ; i++ ) function( threadNum , i );
-#else // !FORCE_OMP
-		const size_t num_elements = size_t( end - begin );
-		uint64_t total_num_cycles = num_elements * estimated_cycles_per_element;
-		const int max_num_threads = get_max_threads();
-		const int num_threads = (int)std::min< size_t >( max_num_threads , num_elements );
-		const bool desire_parallelism = num_threads > 1 && total_num_cycles >= k_omp_thresh;
-		ThreadPoolIndexedTask* const thread_pool = desire_parallelism ? &ThreadPoolIndexedTask::default_threadpool() : nullptr;
-		if( !thread_pool || thread_pool->already_active() )
+		int num_threads( void ) const { return (int)_threads.size(); }
+		bool already_active( void ) const { return _num_remaining_tasks!=0; }  // detect nested execution
+		void execute( int num_tasks , const Task& task_function )
 		{
-			// Traverse the range elements sequentially.
-			ThreadNum threadNum(0);
-			for( size_t index=begin ; index<end ; ++index) function( threadNum , index );
-		}
-		else
-		{
-			// Traverse the range elements in parallel.
-			const size_t chunk_size = ( num_elements + num_threads - 1 ) / num_threads;
-			thread_pool->execute( num_threads , [ begin , num_elements , chunk_size , &function ]( int thread_index )
+			if( already_active() )
 			{
-				size_t index_start = thread_index * chunk_size;
-				size_t index_stop = begin + std::min< size_t >( ( thread_index + 1 ) * chunk_size , num_elements );
-				for( size_t index = begin + index_start ; index< index_stop ; ++index ) function( thread_index , index );
+				WARN( "Nested execution of ThreadPoolIndexedTask is run serially" );
+				for( int i=0 ; i<num_tasks ; i++ ) task_function( i );
 			}
-			);
-		}
-#endif // FORCE_OMP
-	}
-};
-size_t ThreadPool::DefaultThreadNum;
-size_t ThreadPool::DefaultMaxBlocksPerThread;
-
-#else // !USE_HH_THREAD_POOL
-
-#ifdef USE_ASYNC_THREADING
-struct ThreadPool
-{
-	struct ThreadNum
-	{
-#ifdef FORCE_OMP
-		unsigned int operator()( void ) const { return (unsigned int)omp_get_thread_num(); }
-#else // !FORCE_OMP
-		ThreadNum( unsigned int threadNum ) : _threadNum( threadNum ){}
-		unsigned int operator()( void ) const { return _threadNum; }
-	protected:
-		unsigned int _threadNum;
-#endif // FORCE_OMP
-	};
-
-	static unsigned int DefaultThreadNum;
-	static size_t DefaultBlockSize;
-
-	unsigned int threadNum( void ) const { return DefaultThreadNum; }
-	template< typename Function >
-	void parallel_for( size_t begin , size_t end , const Function &iterationFunction , size_t maxBlocksPerThread=DefaultMaxBlocksPerThread , size_t minBlockSize=DefaultMinBlockSize )
-	{
-		if( !DefaultThreadNum ) for( size_t i=begin ; i<end ; i++ ) iterationFunction( 0 , i );
-		else if( begin>=end ) ;
-		else
-		{
-			const size_t blocks = DefaultThreadNum * maxBlocksPerThread;
-			const size_t blockSize = std::max< size_t >( minBlockSize , ( end - begin ) / blocks );
-			if( end-begin<blockSize ) for( size_t i=begin ; i<end ; i++ ) iterationFunction( 0 , i );
 			else
 			{
-				static std::vector< std::future< void > > futures;
-				futures.resize( DefaultThreadNum );
-				std::atomic< size_t > index;
-				index.store(begin);
-				for( unsigned int t=0 ; t<DefaultThreadNum ; t++ ) futures[t] = std::async( std::launch::async , _ThreadFunction< Function > , std::ref(index) , t , end , blockSize , iterationFunction );
-				for( unsigned int t=0 ; t<DefaultThreadNum ; t++ ) futures[t].get();
+				std::unique_lock< std::mutex > lock( _mutex );
+				_task_function = task_function;
+				_num_tasks = num_tasks;
+				_num_remaining_tasks = num_tasks;
+				_task_index = 0;
+				_condition_variable_worker.notify_all();
+				_condition_variable_master.wait( lock , [this]{ return !_num_remaining_tasks; } );
 			}
 		}
-	}
-protected:
-	template< typename Function >
-	static void _ThreadFunction( std::atomic< size_t > &index , unsigned int t , size_t end , size_t blockSize , const Function &iterationFunction )
-	{
-		ThreadNum threadNum(t);
-		while( index<end )
+		static ThreadPoolIndexedTask& default_threadpool( void )
 		{
-			size_t _begin = index.fetch_add( blockSize );
-			size_t _end = std::min< size_t >( _begin + blockSize , end );
-			for( size_t i=_begin ; i<_end ; i++ ) iterationFunction( threadNum , i );
+			static std::unique_ptr< ThreadPoolIndexedTask > thread_pool;
+			// This is safe because thread_pool is nullptr only in the main thread before any other thread is launched.
+			if( !thread_pool ) thread_pool = std::unique_ptr< ThreadPoolIndexedTask >( new ThreadPoolIndexedTask() );
+			return *thread_pool;
 		}
-	}
-};
-unsigned int ThreadPool::DefaultThreadNum = std::thread::hardware_concurrency();
-size_t ThreadPool::DefaultMaxBlocksPerThread=100;
-size_t ThreadPool::DefaultMinBlockSize=100;
-#else // !USE_ASYNC_THREADING
-// [WARNING] The ThreadPool is not thread safe. Specifically, every thread should have its own ThreadPool.
-#ifdef MERGE_PARALLEL
+
+	private:
+		std::mutex _mutex;
+		bool _running = true;
+		std::vector< std::thread > _threads;
+		Task _task_function;
+		int _num_tasks = 0;
+		int _num_remaining_tasks = 0;
+		int _task_index = 0;
+		std::condition_variable _condition_variable_worker;
+		std::condition_variable _condition_variable_master;
+
+		void worker_main( void )
+		{
+			std::unique_lock< std::mutex > lock( _mutex );
+			// Consider: https://stackoverflow.com/questions/233127/how-can-i-propagate-exceptions-between-threads
+			// However, rethrowing the exception in the main thread loses the stack state, so not useful for debugging.
+			for (;;)
+			{
+				_condition_variable_worker.wait( lock , [this]{ return _task_index < _num_tasks; } );
+				if( !_running ) break;
+				while( _task_index<_num_tasks )
+				{
+					int i = _task_index++;
+					lock.unlock();
+					_task_function(i);
+					lock.lock();
+					if( _num_remaining_tasks<=0 ) ERROR_OUT( "num remaining tasks not greater than zero" );
+					if (!--_num_remaining_tasks) _condition_variable_master.notify_all();
+				}
+			}
+		}
+	};
+}
+
 struct ThreadPool
 {
 	enum ParallelType
 	{
-		THREAD_POOL ,
 		OPEN_MP ,
+		THREAD_POOL ,
+		THREAD_POOL_HH ,
+		ASYNC ,
 		NONE
 	};
 	static const std::vector< std::string > ParallelNames;
@@ -893,8 +444,12 @@ struct ThreadPool
 		{
 			switch( _parallelType )
 			{
-			case OPEN_MP: return (unsigned int)omp_get_thread_num();
-			case THREAD_POOL: return _threadNum;
+			case OPEN_MP:
+				return (unsigned int)omp_get_thread_num();
+			case THREAD_POOL:
+			case THREAD_POOL_HH:
+			case ASYNC:
+				return _threadNum;
 			default: return 0;
 			}
 		}
@@ -906,7 +461,8 @@ struct ThreadPool
 	static size_t DefaultChunkSize;
 	static ScheduleType DefaultSchedule;
 
-	void parallel_for( size_t begin , size_t end , std::function< void ( const ThreadNum & , size_t ) > iterationFunction , ScheduleType schedule=DefaultSchedule , size_t chunkSize=DefaultChunkSize )
+	template< typename IterationFunction >
+	void parallel_for( size_t begin , size_t end , const IterationFunction &iterationFunction , ScheduleType schedule=DefaultSchedule , size_t chunkSize=DefaultChunkSize )
 	{
 		if( begin>=end ) return;
 		size_t range = end-begin;
@@ -932,7 +488,44 @@ struct ThreadPool
 				for( long long i=(long long)begin ; i<(long long)end ; i++ ) iterationFunction( threadNum , i );
 			}
 		}
-		else
+		else if( _parallelType==THREAD_POOL_HH )
+		{
+			const size_t num_elements = size_t( end - begin );
+			uint64_t total_num_cycles = num_elements * k_parallelism_always;
+			const int max_num_threads = threadNum();
+			const int num_threads = (int)std::min< size_t >( max_num_threads , num_elements );
+			const bool desire_parallelism = num_threads > 1 && total_num_cycles >= k_omp_thresh;
+			hh::ThreadPoolIndexedTask* const thread_pool = desire_parallelism ? &hh::ThreadPoolIndexedTask::default_threadpool() : nullptr;
+			if( !thread_pool || thread_pool->already_active() )
+			{
+				// Traverse the range elements sequentially.
+				ThreadNum threadNum;
+				for( size_t index=begin ; index<end ; ++index) iterationFunction( threadNum , index );
+			}
+			else
+			{
+				// Traverse the range elements in parallel.
+				const size_t chunk_size = ( num_elements + num_threads - 1 ) / num_threads;
+				thread_pool->execute( num_threads , [ begin , num_elements , chunk_size , &iterationFunction ]( int thread_index )
+				{
+					ThreadNum threadNum( ThreadPool::THREAD_POOL_HH , thread_index );
+					size_t index_start = thread_index * chunk_size;
+					size_t index_stop = begin + std::min< size_t >( ( thread_index + 1 ) * chunk_size , num_elements );
+					for( size_t index = begin + index_start ; index< index_stop ; ++index ) iterationFunction( threadNum , index );
+				}
+				);
+			}
+		}
+		else if( _parallelType==ASYNC )
+		{
+			static std::vector< std::future< void > > futures;
+			futures.resize( threadNum() );
+			_index = begin;
+			for( unsigned int t=0 ; t<threadNum() ; t++ ) futures[t] = std::async( std::launch::async , _AsyncThreadFunction< std::function< void ( const ThreadNum & , size_t ) > > , _schedule , std::ref(_index) , t , threadNum() , begin , end , chunkSize , iterationFunction );
+
+			for( unsigned int t=0 ; t<threadNum() ; t++ ) futures[t].get();
+		}
+		else if( _parallelType==THREAD_POOL )
 		{
 			auto WorkersWorking = [&]( void ){ unsigned int c=0 ; for( unsigned int t=0 ; t<_threads.size() ; t++ ) if( _workToBeDone[t] ) c++ ; return c; };
 			auto WorkComplete = [&]( void ){ return WorkersWorking()==0; };
@@ -969,7 +562,7 @@ struct ThreadPool
 		_threads.resize( threadNum );
 		_workToBeDone.resize( threadNum , 0 );
 		_close = 0;
-		for( unsigned int t=0 ; t<threadNum ; t++ ) _threads[t] = std::thread( _ThreadFunction , t , this );
+		if( _parallelType==THREAD_POOL ) for( unsigned int t=0 ; t<threadNum ; t++ ) _threads[t] = std::thread( _ThreadFunction , t , this );
 	}
 
 	unsigned int threadNum( void ) const { return (unsigned int)_threads.size(); }
@@ -1000,6 +593,7 @@ struct ThreadPool
 protected:
 	ThreadPool( const ThreadPool & ){}
 	ThreadPool &operator = ( const ThreadPool & ){}
+
 	static void _ThreadFunction( unsigned int thread , ThreadPool *tPool )
 	{
 		unsigned int threads = (unsigned int)tPool->_threads.size();
@@ -1047,6 +641,34 @@ protected:
 		}
 	}
 
+	template< typename Function >
+	static void _AsyncThreadFunction( ScheduleType schedule , std::atomic< size_t > &index , unsigned int thread , unsigned int threads , size_t begin , size_t end , size_t chunkSize , const Function &iterationFunction )
+	{
+		ThreadNum threadNum( ThreadPool::ASYNC , thread );
+		if( schedule==ThreadPool::DYNAMIC )
+		{
+			while( index<end )
+			{
+				size_t _begin = index.fetch_add( chunkSize );
+				size_t _end = std::min< size_t >( _begin + chunkSize , end );
+				for( size_t i=_begin ; i<_end ; i++ ) iterationFunction( threadNum , i );
+			}
+		}
+		else if( schedule==ThreadPool::STATIC )
+		{
+			begin += chunkSize * thread;
+			for( size_t c=begin ; c<end ; c+=(threads*chunkSize) )
+			{
+				size_t _begin = c;
+				size_t _end = std::min< size_t >( c + chunkSize , end );
+				for( size_t i=_begin ; i<_end ; i++ ) iterationFunction( threadNum , i );
+			}
+		}
+	}
+
+	static const uint64_t k_omp_thresh = 100*1000; // number of instruction cycles above which a loop should be parallelized
+	static constexpr uint64_t k_parallelism_always = k_omp_thresh;
+
 	char _close;
 	std::vector< bool > _workToBeDone;
 	std::mutex _mutex;
@@ -1059,187 +681,9 @@ protected:
 	ScheduleType _schedule;
 };
 size_t ThreadPool::DefaultChunkSize = 100;
-ThreadPool::ScheduleType ThreadPool::DefaultSchedule = ThreadPool::STATIC;
-const std::vector< std::string >ThreadPool::ParallelNames = { "thread pool" , "open mp" , "none" };
+ThreadPool::ScheduleType ThreadPool::DefaultSchedule = ThreadPool::DYNAMIC;
+const std::vector< std::string >ThreadPool::ParallelNames = { "open mp" , "thread pool" , "thread pool (hh)" , "async" , "none" };
 const std::vector< std::string >ThreadPool::ScheduleNames = { "static" , "dynamic" };
-#define PARALLEL_FOR( threadPool , begin , end , functor ) if( (begin)<(end) ) threadPool.parallel_for( (begin) , (end) , functor )
-
-#else // !MERGE_PARALLEL
-struct ThreadPool
-{
-	struct ThreadNum
-	{
-#ifdef FORCE_OMP
-		unsigned int operator()( void ) const { return (unsigned int)omp_get_thread_num(); }
-#else // !FORCE_OMP
-		ThreadNum( unsigned int threadNum ) : _threadNum( threadNum ){}
-		unsigned int operator()( void ) const { return _threadNum; }
-	protected:
-		unsigned int _threadNum;
-#endif // FORCE_OMP
-	};
-
-	static unsigned int DefaultThreadNum;
-	static size_t DefaultBlockSize;
-
-#ifdef NEW_THREAD_NUM
-	void parallel_for( size_t begin , size_t end , std::function< void ( const ThreadNum & , size_t ) > iterationFunction , size_t blockSize=DefaultBlockSize )
-#else // !NEW_THREAD_NUM
-	void parallel_for( size_t begin , size_t end , std::function< void ( unsigned int , size_t ) > iterationFunction , size_t blockSize=DefaultBlockSize )
-#endif //NEW_THREAD_NUM
-	{
-		_blockSize = blockSize;
-#ifdef FORCE_OMP
-		ThreadNum threadNum;
-#pragma omp parallel for num_threads( (int)_threads.size() ) schedule( dynamic , _blockSize )
-		for( long long i=(long long)begin ; i<(long long)end ; i++ ) iterationFunction( threadNum , i );
-#else // !FORCE_OMP
-		if( !_threads.size() ) for( size_t i=begin ; i<end ; i++ ) iterationFunction( 0 , i );
-		else
-		{
-			auto WorkersWorking = [&]( void ){ unsigned int c=0 ; for( unsigned int t=0 ; t<_threads.size() ; t++ ) if( _workToBeDone[t] ) c++ ; return c; };
-			auto WorkComplete = [&]( void ){ return WorkersWorking()==0; };
-			if( begin>=end ) return;
-			if( end-begin<_blockSize && _blockSize!=-1 ) for( size_t i=begin ; i<end ; i++ ) iterationFunction( 0 , i );
-			else
-			{
-				_begin = begin;
-				_index = begin;
-				_end = end;
-				_iterationFunction = iterationFunction;
-				for( unsigned int t=0 ; t<_threads.size() ; t++ ) _workToBeDone[t] = 1;
-				_waitingForWorkOrClose.notify_all();
-
-				{
-					std::unique_lock< std::mutex > lock( _mutex );
-//					while( !WorkComplete()!=0 ){ _doneWithWork.wait( lock , WorkComplete ); }
-					_doneWithWork.wait( lock , WorkComplete );
-				}
-			}
-		}
-#endif // FORCE_OMP
-	}
-	void setThreadNum( unsigned int threadNum )
-	{
-#ifdef FORCE_OMP
-		_threads.resize( threadNum );
-#else // !FORCE_OMP
-		_close = 1;
-		if( _threads.size() )
-		{
-			_waitingForWorkOrClose.notify_all();
-			for( unsigned int t=0 ; t<_threads.size() ; t++ ) _threads[t].join();
-		}
-		_threads.resize( threadNum );
-		_workToBeDone.resize( threadNum , 0 );
-		_close = 0;
-		for( unsigned int t=0 ; t<threadNum ; t++ ) _threads[t] = std::thread( _ThreadFunction , t , this );
-#endif // FORCE_OMP
-	}
-
-	unsigned int threadNum( void ) const { return (unsigned int)_threads.size(); }
-
-	ThreadPool( unsigned int threadNum=DefaultThreadNum )
-	{
-		_threads.resize( threadNum );
-		_workToBeDone.resize( threadNum , 0 );
-		_close = 0;
-#ifdef FORCE_OMP
-#else // !FORCE_OMP
-		for( unsigned int t=0 ; t<threadNum ; t++ ) _threads[t] = std::thread( _ThreadFunction , t , this );
-#endif // FORCE_OMP
-	}
-
-	~ThreadPool( void )
-	{
-#ifdef FORCE_OMP
-#else // !FORCE_OMP
-		_close = 1;
-		if( _threads.size() )
-		{
-			_waitingForWorkOrClose.notify_all();
-			for( unsigned int t=0 ; t<_threads.size() ; t++ ) _threads[t].join();
-		}
-#endif // FORCE_OMP
-	}
-protected:
-	ThreadPool( const ThreadPool & ){}
-	ThreadPool &operator = ( const ThreadPool & ){}
-#ifdef FORCE_OMP
-#else // !FORCE_OMP
-	static void _ThreadFunction( unsigned int thread , ThreadPool *tPool )
-	{
-		unsigned int threads = (unsigned int)tPool->_threads.size();
-#ifdef NEW_THREAD_NUM
-		ThreadNum threadNum( thread );
-#endif // NEW_THREAD_NUM
-
-		// Wait for the first job to come in
-		{
-			std::unique_lock< std::mutex > lock( tPool->_mutex );
-			tPool->_waitingForWorkOrClose.wait( lock , [&]{ return tPool->_workToBeDone[thread] || tPool->_close; } );
-		}
-		while( true )
-		{
-			// do the job (or terminate)
-			if( tPool->_close ) break;
-			if( tPool->_blockSize==-1 )
-			{
-				size_t range = ( tPool->_end - tPool->_begin );
-				size_t begin = tPool->_begin + ( range * (thread+0) )/threads;
-				size_t end   = tPool->_begin + ( range * (thread+1) )/threads;
-#ifdef NEW_THREAD_NUM
-				for( size_t i=begin ; i<end ; i++ ) tPool->_iterationFunction( threadNum , i );
-#else // !NEW_THREAD_NUM
-				for( size_t i=begin ; i<end ; i++ ) tPool->_iterationFunction( thread , i );
-#endif // NEW_THREAD_NUM
-			}
-			else
-			{
-				while( tPool->_index<tPool->_end )
-				{
-					size_t begin = tPool->_index.fetch_add( tPool->_blockSize );
-					size_t end = std::min< size_t >( begin + tPool->_blockSize , tPool->_end );
-#ifdef NEW_THREAD_NUM
-					for( size_t i=begin ; i<end ; i++ ) tPool->_iterationFunction( threadNum , i );
-#else // !NEW_THREAD_NUM
-					for( size_t i=begin ; i<end ; i++ ) tPool->_iterationFunction( thread , i );
-#endif // NEW_THREAD_NUM
-				}
-			}
-
-			// Notify and wait for the next job
-			// [NOTE] We are locking the mutex so that the server cannot initiate new jobs until the client has started waiting
-			{
-				std::unique_lock< std::mutex > lock( tPool->_mutex );
-				tPool->_workToBeDone[thread] = false;
-				tPool->_doneWithWork.notify_all();
-				tPool->_waitingForWorkOrClose.wait( lock , [&]{ return tPool->_workToBeDone[thread] || tPool->_close; } );
-			}
-		}
-	}
-#endif // FORCE_OMP
-
-	char _close;
-	std::vector< bool > _workToBeDone;
-	std::mutex _mutex;
-	std::condition_variable _waitingForWorkOrClose , _doneWithWork;
-	std::vector< std::thread > _threads;
-#ifdef NEW_THREAD_NUM
-	std::function< void ( const ThreadNum & , size_t ) > _iterationFunction;
-#else // !NEW_THREAD_NUM
-	std::function< void ( unsigned int , size_t ) > _iterationFunction;
-#endif // NEW_THREAD_NUM
-	size_t _begin , _end , _blockSize;
-	std::atomic< size_t > _index;
-};
-unsigned int ThreadPool::DefaultThreadNum = std::thread::hardware_concurrency();
-size_t ThreadPool::DefaultBlockSize = 100;
-size_t ThreadPool::DefaultMinParallelSize = 100;
-#define PARALLEL_FOR( threadPool , begin , end , functor ) if( (begin)<(end) ) threadPool.parallel_for( (begin) , (end) , functor )
-#endif // MERGE_PARALLEL
-#endif // USE_ASYNC_THREADING
-#endif // USE_HH_THREAD_POOL
 
 #endif // NEW_THREADS
 
