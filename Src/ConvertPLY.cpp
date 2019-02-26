@@ -146,7 +146,7 @@ void GetSubVertices( const std::vector< Vertex > &vertices , std::vector< std::v
 
 	subVertices.resize( vMap.size() );
 
-	for( long long i=0 ; i<polygons.size() ; i++ ) for( size_t j=0 ; j<polygons[i].size() ; j++ )
+	for( size_t i=0 ; i<polygons.size() ; i++ ) for( size_t j=0 ; j<polygons[i].size() ; j++ )
 	{
 		long long oldIdx = polygons[i][j];
 		long long newIdx = vMap[ oldIdx ];
@@ -258,6 +258,7 @@ int Execute( void )
 					for( int j=0 ; j<polygons[i].size() ; j++ ) center += vertices[ polygons[i][j] ].point;
 					center /= polygons[i].size();
 					SetRange( center , range );
+					if( range.begin[0]>=range.end[0] || range.begin[1]>=range.end[1] || range.begin[2]>=range.end[2] ) WARN( "empty range for: " , center[0] , " , " , center[1] , " , " , center[2] );
 					for( int x=range.begin[0] ; x<range.end[0] ; x++ ) for( int y=range.begin[1] ; y<range.end[1] ; y++ ) for( int z=range.begin[2] ; z<range.end[2] ; z++ )
 						_polygons[ Index1D(x,y,z) ].push_back( polygons[i] );
 				}
@@ -294,6 +295,7 @@ int Execute( void )
 				for( size_t i=0 ; i<vertices.size() ; i++ )
 				{
 					SetRange( vertices[i].point , range );
+					if( range.begin[0]>=range.end[0] || range.begin[1]>=range.end[1] || range.begin[2]>=range.end[2] ) WARN( "empty range for: " , vertices[i].point[0] , " , " , vertices[i].point[1] , " , " , vertices[i].point[2] );
 					for( int x=range.begin[0] ; x<range.end[0] ; x++ ) for( int y=range.begin[1] ; y<range.end[1] ; y++ ) for( int z=range.begin[2] ; z<range.end[2] ; z++ )
 						_vertices[ Index1D(x,y,z) ].push_back( vertices[i] );
 				}
