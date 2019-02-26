@@ -4321,7 +4321,11 @@ void FEMTree< Dim , Real >::addInterpolationConstraints( DenseNodeData< T , UInt
 
 		for( int d=0 ; d<=maxDepth ; d++ )
 		{
+#ifdef NEW_THREADS
+			std::vector< PointSupportKey > neighborKeys( tp.threadNum() );
+#else // !NEW_THREADS
 			std::vector< PointSupportKey > neighborKeys( omp_get_max_threads() );
+#endif // NEW_THREADS
 			for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( maxDepth ) );
 #ifdef NEW_THREADS
 #ifdef SHOW_WARNINGS

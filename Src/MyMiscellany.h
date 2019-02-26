@@ -36,6 +36,8 @@ DAMAGE.
 #ifdef _OPENMP
 #include <omp.h>
 #else // !_OPENMP
+#ifdef NEW_THREADS
+#else // !NEW_THREADS
 inline int omp_get_num_procs  ( void ){ return 1; }
 inline int omp_get_max_threads( void ){ return 1; }
 inline int omp_get_thread_num ( void ){ return 0; }
@@ -46,6 +48,7 @@ inline void omp_init_lock( omp_lock_t* ){}
 inline void omp_set_lock( omp_lock_t* ){}
 inline void omp_unset_lock( omp_lock_t* ){}
 inline void omp_destroy_lock( omp_lock_t* ){}
+#endif // NEW_THREADS
 #endif // _OPENMP
 
 ////////////////
@@ -422,7 +425,9 @@ struct ThreadPool
 {
 	enum ParallelType
 	{
+#ifdef _OPENMP
 		OPEN_MP ,
+#endif // _OPENMP
 		THREAD_POOL ,
 		THREAD_POOL_HH ,
 		ASYNC ,
@@ -444,8 +449,10 @@ struct ThreadPool
 		{
 			switch( _parallelType )
 			{
+#ifdef _OPENMP
 			case OPEN_MP:
 				return (unsigned int)omp_get_thread_num();
+#endif // _OPENMP
 			case THREAD_POOL:
 			case THREAD_POOL_HH:
 			case ASYNC:
@@ -461,8 +468,12 @@ struct ThreadPool
 	static size_t DefaultChunkSize;
 	static ScheduleType DefaultSchedule;
 
+#if 1 // Doesn't to affect running time but makes compilation significantly faster
+	void parallel_for( size_t begin , size_t end , const std::function< void ( const ThreadPool::ThreadNum & , size_t ) > &iterationFunction , ScheduleType schedule=DefaultSchedule , size_t chunkSize=DefaultChunkSize )
+#else
 	template< typename IterationFunction >
 	void parallel_for( size_t begin , size_t end , const IterationFunction &iterationFunction , ScheduleType schedule=DefaultSchedule , size_t chunkSize=DefaultChunkSize )
+#endif
 	{
 		if( begin>=end ) return;
 		size_t range = end-begin;
@@ -474,6 +485,7 @@ struct ThreadPool
 			ThreadNum threadNum;
 			for( size_t i=begin ; i<end ; i++ ) iterationFunction( threadNum , i );
 		}
+#ifdef _OPENMP
 		else if( _parallelType==OPEN_MP )
 		{
 			ThreadNum threadNum( OPEN_MP );
@@ -488,6 +500,7 @@ struct ThreadPool
 				for( long long i=(long long)begin ; i<(long long)end ; i++ ) iterationFunction( threadNum , i );
 			}
 		}
+#endif // _OPENMP
 		else if( _parallelType==THREAD_POOL_HH )
 		{
 			const size_t num_elements = end - begin;
@@ -505,7 +518,6 @@ struct ThreadPool
 			else
 			{
 				// Traverse the range elements in parallel.
-#if 1
 				if( schedule==ThreadPool::DYNAMIC )
 				{
 					_index = begin;
@@ -539,17 +551,6 @@ struct ThreadPool
 					}
 					);
 				}
-#else
-				const size_t chunk_size = ( num_elements + num_threads - 1 ) / num_threads;
-				thread_pool->execute( num_threads , [ begin , num_elements , chunk_size , &iterationFunction ]( int thread_index )
-				{
-					ThreadNum threadNum( ThreadPool::THREAD_POOL_HH , thread_index );
-					size_t index_start = thread_index * chunk_size;
-					size_t index_stop = begin + std::min< size_t >( ( thread_index + 1 ) * chunk_size , num_elements );
-					for( size_t index = begin + index_start ; index< index_stop ; ++index ) iterationFunction( threadNum , index );
-				}
-				);
-#endif
 			}
 		}
 		else if( _parallelType==ASYNC )
@@ -563,9 +564,7 @@ struct ThreadPool
 		}
 		else if( _parallelType==THREAD_POOL )
 		{
-			auto WorkersWorking = [&]( void ){ unsigned int c=0 ; for( unsigned int t=0 ; t<_threads.size() ; t++ ) if( _workToBeDone[t] ) c++ ; return c; };
-			auto WorkComplete = [&]( void ){ return WorkersWorking()==0; };
-			if( !WorkComplete() )
+			if( _workToBeDone )
 			{
 				WARN( "nested for loop, reverting to serial" );
 				ThreadNum threadNum;
@@ -577,12 +576,12 @@ struct ThreadPool
 				_index = begin;
 				_end = end;
 				_iterationFunction = iterationFunction;
-				for( unsigned int t=0 ; t<_threads.size() ; t++ ) _workToBeDone[t] = 1;
+				_workToBeDone = (unsigned int)_threads.size();
 				_waitingForWorkOrClose.notify_all();
 
 				{
 					std::unique_lock< std::mutex > lock( _mutex );
-					_doneWithWork.wait( lock , WorkComplete );
+					_doneWithWork.wait( lock , [this]( void ){ return _workToBeDone==0; } );
 				}
 			}
 		}
@@ -596,7 +595,7 @@ struct ThreadPool
 			for( unsigned int t=0 ; t<_threads.size() ; t++ ) _threads[t].join();
 		}
 		_threads.resize( threadNum );
-		_workToBeDone.resize( threadNum , 0 );
+		_workToBeDone = 0;
 		_close = 0;
 		if( _parallelType==THREAD_POOL ) for( unsigned int t=0 ; t<threadNum ; t++ ) _threads[t] = std::thread( _ThreadFunction , t , this );
 	}
@@ -608,7 +607,7 @@ struct ThreadPool
 		_threads.resize( threadNum );
 		if( _parallelType==THREAD_POOL )
 		{
-			_workToBeDone.resize( threadNum , 0 );
+			_workToBeDone = 0;
 			_close = 0;
 			for( unsigned int t=0 ; t<threadNum ; t++ ) _threads[t] = std::thread( _ThreadFunction , t , this );
 		}
@@ -635,10 +634,49 @@ protected:
 		unsigned int threads = (unsigned int)tPool->_threads.size();
 		ThreadNum threadNum( tPool->_parallelType , thread );
 
+#if 1
+		// Wait for the first job to come in
+		std::unique_lock< std::mutex > lock( tPool->_mutex );
+		tPool->_waitingForWorkOrClose.wait( lock );
+		while( !tPool->_close )
+		{
+			lock.unlock();
+			// do the job
+			{
+				if( tPool->_schedule==DYNAMIC )
+				{
+					while( tPool->_index<tPool->_end )
+					{
+						size_t begin = tPool->_index.fetch_add( tPool->_chunkSize );
+						size_t end = std::min< size_t >( begin + tPool->_chunkSize , tPool->_end );
+						for( size_t i=begin ; i<end ; i++ ) tPool->_iterationFunction( threadNum , i );
+					}
+				}
+				else if( tPool->_schedule==STATIC )
+				{
+					size_t chunkSize = tPool->_chunkSize;
+					size_t begin = tPool->_begin + chunkSize * thread;
+					size_t end = tPool->_end;
+					for( size_t c=begin ; c<end ; c+=(threads*chunkSize) )
+					{
+						size_t _begin = c;
+						size_t _end = std::min< size_t >( c + chunkSize , end );
+						for( size_t i=_begin ; i<_end ; i++ ) tPool->_iterationFunction( threadNum , i );
+					}
+				}
+			}
+
+			// Notify and wait for the next job
+			lock.lock();
+			tPool->_workToBeDone--;
+			if( !tPool->_workToBeDone ) tPool->_doneWithWork.notify_all();
+			tPool->_waitingForWorkOrClose.wait( lock );
+		}
+#else
 		// Wait for the first job to come in
 		{
 			std::unique_lock< std::mutex > lock( tPool->_mutex );
-			tPool->_waitingForWorkOrClose.wait( lock , [&]{ return tPool->_workToBeDone[thread] || tPool->_close; } );
+			tPool->_waitingForWorkOrClose.wait( lock );
 		}
 		while( !tPool->_close )
 		{
@@ -670,11 +708,12 @@ protected:
 			// Notify and wait for the next job
 			{
 				std::unique_lock< std::mutex > lock( tPool->_mutex );
-				tPool->_workToBeDone[thread] = false;
+				tPool->_workToBeDone--;
 				tPool->_doneWithWork.notify_all();
-				tPool->_waitingForWorkOrClose.wait( lock , [&]{ return tPool->_workToBeDone[thread] || tPool->_close; } );
+				tPool->_waitingForWorkOrClose.wait( lock );
 			}
 		}
+#endif
 	}
 
 	template< typename Function >
@@ -706,7 +745,7 @@ protected:
 	static constexpr uint64_t k_parallelism_always = k_omp_thresh;
 
 	char _close;
-	std::vector< bool > _workToBeDone;
+	unsigned int _workToBeDone;
 	std::mutex _mutex;
 	std::condition_variable _waitingForWorkOrClose , _doneWithWork;
 	std::vector< std::thread > _threads;
@@ -716,9 +755,18 @@ protected:
 	ParallelType _parallelType;
 	ScheduleType _schedule;
 };
-size_t ThreadPool::DefaultChunkSize = 100;
+size_t ThreadPool::DefaultChunkSize = 128;
 ThreadPool::ScheduleType ThreadPool::DefaultSchedule = ThreadPool::DYNAMIC;
-const std::vector< std::string >ThreadPool::ParallelNames = { "open mp" , "thread pool" , "thread pool (hh)" , "async" , "none" };
+const std::vector< std::string >ThreadPool::ParallelNames =
+{
+#ifdef _OPENMP
+	"open mp" ,
+#endif // _OPENMP
+	"thread pool" ,
+	"thread pool (hh)" ,
+	"async" ,
+	"none"
+};
 const std::vector< std::string >ThreadPool::ScheduleNames = { "static" , "dynamic" };
 
 #endif // NEW_THREADS
@@ -729,6 +777,33 @@ const std::vector< std::string >ThreadPool::ScheduleNames = { "static" , "dynami
 #include <windows.h>
 #endif // _WIN32 || _WIN64
 #endif // NEW_THREADS
+
+template< typename Value >
+bool SetAtomic32( Value &value , Value newValue , Value oldValue )
+{
+#if defined( _WIN32 ) || defined( _WIN64 )
+	long &_oldValue = *(long *)&oldValue;
+	long &_newValue = *(long *)&newValue;
+	return InterlockedCompareExchange( (long*)&value , _newValue , _oldValue )==_oldValue;
+#else // !_WIN32 && !_WIN64
+	uint32_t &_oldValue = *(uint32_t *)&oldValue;
+	uint32_t &_newValue = *(uint32_t *)&newValue;
+	return __sync_val_compare_and_swap( (uint32_t *)&value , _oldValue , _newValue )==_oldValue;
+#endif // _WIN32 || _WIN64
+}
+template< typename Value >
+bool SetAtomic64( Value &value , Value newValue , Value oldValue )
+{
+#if defined( _WIN32 ) || defined( _WIN64 )
+	__int64 &_oldValue = *(__int64 *)&oldValue;
+	__int64 &_newValue = *(__int64 *)&newValue;
+	return InterlockedCompareExchange64( (__int64*)&value , _newValue , _oldValue )==_oldValue;
+#else // !_WIN32 && !_WIN64
+	uint64_t &_oldValue = *(uint64_t *)&oldValue;
+	uint64_t &_newValue = *(uint64_t *)&newValue;
+	return __sync_val_compare_and_swap( (uint64_t *)&value , _oldValue , _newValue )==_oldValue;
+#endif // _WIN32 || _WIN64
+}
 
 template< typename Number >
 void AddAtomic32( Number &a , const Number &b )
@@ -774,6 +849,22 @@ void AddAtomic64( Number &a , const Number &b )
 #pragma omp atomic
 	a += b;
 #endif // NEW_THREADS
+}
+
+template< typename Value >
+bool SetAtomic( Value& value , const Value &newValue , const Value &oldValue )
+{
+	switch( sizeof(Value) )
+	{
+	case 4: return SetAtomic32( value , newValue , oldValue );
+	case 8: return SetAtomic64( value , newValue , oldValue );
+	default:
+		WARN_ONCE( "should not use this function: " , sizeof(Value) );
+		static std::mutex setAtomicMutex;
+		std::lock_guard< std::mutex > lock( setAtomicMutex );
+		if( value==oldValue ){ value = newValue ; return true; }
+		else return false;
+	}
 }
 
 template< typename Data >

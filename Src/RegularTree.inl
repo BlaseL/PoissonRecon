@@ -29,6 +29,9 @@ DAMAGE.
 #include <stdlib.h>
 #include <math.h>
 #include <algorithm>
+#ifdef NEW_CODE
+#include "MyMiscellany.h"
+#endif // NEW_CODE
 
 /////////////////////
 // RegularTreeNode //
@@ -41,6 +44,18 @@ RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::RegularTreeNode( std::fu
 	memset( _offset , 0 , sizeof(_offset ) );
 	if( Initializer ) Initializer( *this );
 }
+#ifdef MULTI_THREADED_TREE
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::cleanChildren( bool deleteChildren )
+{
+	if( children )
+	{
+		for( int c=0 ; c<(1<<Dim) ; c++ ) children[c].cleanChildren( deleteChildren );
+		if( deleteChildren ) delete[] children;
+	}
+	parent = children = NULL;
+}
+#else // !MULTI_THREADED_TREE
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::cleanChildren( Allocator< RegularTreeNode >* nodeAllocator )
 {
@@ -51,6 +66,7 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::cleanChildren( Allo
 	}
 	parent = children = NULL;
 }
+#endif // MULTI_THREADED_TREE
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::~RegularTreeNode(void)
 {
@@ -125,6 +141,39 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::setFullDepth( int m
 	}
 }
 
+#ifdef MULTI_THREADED_TREE
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren_s( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
+{
+	RegularTreeNode *_children;
+
+	// Allocate the children
+	if( nodeAllocator ) _children = nodeAllocator->newElements( 1<<Dim );
+	else                _children = new RegularTreeNode[ 1<<Dim ];
+	if( !_children ) ERROR_OUT( "Failed to initialize children" );
+
+	// If we are the first to set the child, initialize
+	if( SetAtomic( children , _children , (RegularTreeNode *)NULL ) )
+	{
+		for( int idx=0 ; idx<(1<<Dim) ; idx++ )
+		{
+			children[idx].parent = this;
+			children[idx].children = NULL;
+			if( Initializer ) Initializer( children[idx] );
+			children[idx]._depth = _depth+1;
+			for( int d=0 ; d<Dim ; d++ ) children[idx]._offset[d] = (_offset[d]<<1) | ( (idx>>d) & 1 );
+		}
+		return true;
+	}
+	// Otherwise clean up
+	else
+	{
+		if( nodeAllocator ) ;
+		else delete[] _children;
+		return false;
+	}
+}
+#endif // MULTI_THREADED_TREE
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
 {
@@ -509,39 +558,21 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey
 			{
 				if( !pNeighbors[pi]->children )
 #ifdef NEW_THREADS
+#ifdef MULTI_THREADED_TREE
+				{
+					pNeighbors[pi]->initChildren_s( nodeAllocator , Initializer );
+				}
+#else // !MULTI_THREADED_TREE
 				{
 					static std::mutex m;
 					std::lock_guard< std::mutex > lock(m);
-#ifdef NEW_CODE
-#else // !NEW_CODE
-#ifdef TEST_ALLOCATOR_LOCK
-					if( nodeAllocator ) nodeAllocator->enableThreadIDTest = false;
-#endif // TEST_ALLOCATOR_LOCK
-#endif // NEW_CODE
 					if( !pNeighbors[pi]->children ) pNeighbors[pi]->initChildren( nodeAllocator , Initializer );
-#ifdef NEW_CODE
-#else // !NEW_CODE
-#ifdef TEST_ALLOCATOR_LOCK
-					if( nodeAllocator ) nodeAllocator->enableThreadIDTest = true;
-#endif // TEST_ALLOCATOR_LOCK
-#endif //  NEW_CODE
 				}
+#endif // MULTI_THREADED_TREE
 #else // !NEW_THREADS
 #pragma omp critical ( RegularTreeNode__NeighborKey__Run )
 				{
-#ifdef NEW_CODE
-#else // !NEW_CODE
-#ifdef TEST_ALLOCATOR_LOCK
-					if( nodeAllocator ) nodeAllocator->enableThreadIDTest = false;
-#endif // TEST_ALLOCATOR_LOCK
-#endif // NEW_CODE
 					if( !pNeighbors[pi]->children ) pNeighbors[pi]->initChildren( nodeAllocator , Initializer );
-#ifdef NEW_CODE
-#else // !NEW_CODE
-#ifdef TEST_ALLOCATOR_LOCK
-					if( nodeAllocator ) nodeAllocator->enableThreadIDTest = true;
-#endif // TEST_ALLOCATOR_LOCK
-#endif // NEW_CODE
 				}
 #endif // NEW_THREADS
 				cNeighbors[ci] = pNeighbors[pi]->children + ( cornerIndex | ( ( _i&1)<<(Dim-1) ) );

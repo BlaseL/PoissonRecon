@@ -29,10 +29,10 @@ DAMAGE.
 #ifndef REGULAR_TREE_NODE_INCLUDED
 #define REGULAR_TREE_NODE_INCLUDED
 
+#include <functional>
 #include "Allocator.h"
 #include "BinaryNode.h"
 #include "Window.h"
-#include <functional>
 
 #ifdef NEW_CODE
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
@@ -55,10 +55,14 @@ public:
 
 	RegularTreeNode( std::function< void ( RegularTreeNode& ) > Initializer=std::function< void ( RegularTreeNode& ) >() );
 	static RegularTreeNode* NewBrood( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer=std::function< void ( RegularTreeNode& ) >() );
-	static void ResetDepthAndOffset( RegularTreeNode* root , int d , int off[Dim] );
 	int initChildren( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer=std::function< void ( RegularTreeNode& ) >() );
-
+#ifdef MULTI_THREADED_TREE
+	bool initChildren_s( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer=std::function< void ( RegularTreeNode& ) >() );
+	void cleanChildren( bool deleteChildren );
+#else // !MULTI_THREADED_TREE
 	void cleanChildren( Allocator< RegularTreeNode >* nodeAllocator );
+#endif // MULTI_THREADED_TREE
+	static void ResetDepthAndOffset( RegularTreeNode* root , int d , int off[Dim] );
 	~RegularTreeNode( void );
 
 	// The merge functor takes two objects of type NodeData and returns an object of type NodeData

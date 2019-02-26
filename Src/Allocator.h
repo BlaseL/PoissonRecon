@@ -39,6 +39,7 @@ struct AllocatorState
 #else // !NEW_CODE
 struct AllocatorState{ int index , remains; };
 #endif // NEW_CODE
+
 /** This templated class assists in memory allocation and is well suited for instances
   * when it is known that the sequence of memory allocations is performed in a stack-based
   * manner, so that memory allocated last is released first. It also preallocates memory
@@ -47,10 +48,11 @@ struct AllocatorState{ int index , remains; };
   * The allocator is templated off of the class of objects that we would like it to allocate,
   * ensuring that appropriate constructors and destructors are called as necessary.
   */
-template< class T >
 #ifdef NEW_CODE
+template< class T >
 class Allocator
 #else // !NEW_CODE
+template< class T >
 class SingleThreadedAllocator
 #endif // NEW_CODE
 {
@@ -280,40 +282,23 @@ public:
 template< class T >
 class Allocator
 {
-#ifdef TEST_ALLOCATOR_LOCK
-public:
-	bool enableThreadIDTest;
-	std::thread::id rootThreadID;
-protected:
-#endif // TEST_ALLOCATOR_LOCK
 	SingleThreadedAllocator< T >* _allocators;
 #ifdef NEW_CODE
-	size_t _maxThreads;
+	unsigned int _maxThreads;
 #else // !NEW_CODE
 	int _maxThreads;
 #endif // NEW_CODE
 public:
 	Allocator( void )
 	{
-#ifdef TEST_ALLOCATOR_LOCK
-		enableThreadIDTest = true;
-		rootThreadID = std::this_thread::get_id();
-#endif // TEST_ALLOCATOR_LOCK
 		_maxThreads = omp_get_max_threads();
 		_allocators = new SingleThreadedAllocator< T >[_maxThreads];
 	}
 	~Allocator( void ){ delete[] _allocators; }
 
 #ifdef NEW_CODE
-	void set( size_t blockSize ){ for( size_t t=0 ; t<_maxThreads ; t++ ) _allocators[t].set( blockSize ); }
-	T* newElements( size_t elements=1 )
-	{
-#ifdef TEST_ALLOCATOR_LOCK
-		std::thread::id id = std::this_thread::get_id();
-		if( id!=rootThreadID && enableThreadIDTest ) ERROR_OUT( "thread IDs don't match:  "  , rootThreadID , " <-> " , id );
-#endif // TEST_ALLOCATOR_LOCK
-		return _allocators[ omp_get_thread_num() ].newElements( elements );
-	}
+	void set( size_t blockSize ){ for( unsigned int t=0 ; t<_maxThreads ; t++ ) _allocators[t].set( blockSize ); }
+	T* newElements( size_t elements=1 ){ return _allocators[ omp_get_thread_num() ].newElements( elements ); }
 #else // !NEW_CODE
 	void set( int blockSize ){ for( int t=0 ; t<_maxThreads ; t++ ) _allocators[t].set( blockSize ); }
 	T* newElements( int elements=1 ){ return _allocators[ omp_get_thread_num() ].newElements( elements ); }

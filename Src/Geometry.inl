@@ -202,7 +202,11 @@ int Triangulation< Real , Dim >::flipMinimize( int eIndex )
 /////////////////////////
 #ifdef NEW_CODE
 template< class Vertex , typename Index >
+#ifdef NEW_THREADS
+CoredVectorMeshData< Vertex , Index >::CoredVectorMeshData( void ) { oocPointIndex = polygonIndex = threadIndex = 0 ; polygons.resize( std::thread::hardware_concurrency() ); }
+#else // !NEW_THREADS
 CoredVectorMeshData< Vertex , Index >::CoredVectorMeshData( void ) { oocPointIndex = polygonIndex = threadIndex = 0 ; polygons.resize( omp_get_max_threads() ); }
+#endif // NEW_THREADS
 template< class Vertex , typename Index >
 void CoredVectorMeshData< Vertex , Index >::resetIterator ( void ) { oocPointIndex = polygonIndex = threadIndex = 0; }
 template< class Vertex , typename Index >
@@ -415,11 +419,19 @@ CoredFileMeshData< Vertex , Index >::CoredFileMeshData( const char* fileHeader )
 {
 	threadIndex = 0;
 	oocPoints = 0;
+#ifdef NEW_THREADS
+	polygons.resize( std::thread::hardware_concurrency() );
+#else // !NEW_THREADS
 	polygons.resize( omp_get_max_threads() );
+#endif // NEW_THREADS
 	for( unsigned int i=0 ; i<polygons.size() ; i++ ) polygons[i] = 0;
 
 	oocPointFile = new BufferedReadWriteFile( NULL , fileHeader );
+#ifdef NEW_THREADS
+	polygonFiles.resize( std::thread::hardware_concurrency() );
+#else // !NEW_THREADS
 	polygonFiles.resize( omp_get_max_threads() );
+#endif // NEW_THREADS
 	for( unsigned int i=0 ; i<polygonFiles.size() ; i++ ) polygonFiles[i] = new BufferedReadWriteFile( NULL , fileHeader );
 }
 template< class Vertex , typename Index >

@@ -28,29 +28,17 @@ DAMAGE.
 #define NEW_CODE
 
 #ifdef NEW_CODE
-#define BIG_DATA								// Supports processing requiring more than 32-bit integers for indexing
-												// Note: enabling BIG_DATA can generate .ply files using "longlong" for face indices instead of "int".
-												// These are not standardly supported by .ply reading/writing applications.
-#undef NEW_THREADS								// Enabling this flag replaces the OpenMP implementation of parallelism with C++11's
-#undef FORCE_PARALLEL							// Forces parallel methods to pass in a thread pool
-#define TEST_ALLOCATOR_LOCK
-#undef USE_SUB_NODES							// It appears that most nodes valid, so this probably won't help load balancing
+#include "PreProcessor.h"
 #endif // NEW_CODE
 
-#undef SHOW_WARNINGS							// Display compilation warnings
 #undef USE_DOUBLE								// If enabled, double-precesion is used
-#define FAST_COMPILE								// If enabled, only a single version of the reconstruction code is compiled
-#undef ARRAY_DEBUG								// If enabled, array access is tested for validity
+
 #define DATA_DEGREE 0							// The order of the B-Spline used to splat in data for color interpolation
-												// This can be changed to zero if more interpolatory performance is desired.
 #define WEIGHT_DEGREE 2							// The order of the B-Spline used to splat in the weights for density estimation
 #define NORMAL_DEGREE 2							// The order of the B-Spline used to splat in the normals for constructing the Laplacian constraints
 #define DEFAULT_FEM_DEGREE 1					// The default finite-element degree
 #define DEFAULT_FEM_BOUNDARY BOUNDARY_NEUMANN	// The default finite-element boundary type
 #define DIMENSION 3								// The dimension of the system
-#ifdef BIG_DATA
-#define USE_DEEP_TREE_NODES
-#endif // BIG_DATA
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -107,7 +95,11 @@ cmdLineParameter< int >
 #endif // !FAST_COMPILE
 	MaxMemoryGB( "maxMemory" , 0 ) ,
 #ifdef NEW_THREADS
+#ifdef _OPENMP
 	ParallelType( "parallel" , (int)ThreadPool::OPEN_MP ) ,
+#else // !_OPENMP
+	ParallelType( "parallel" , (int)ThreadPool::THREAD_POOL ) ,
+#endif // _OPENMP
 	ScheduleType( "schedule" , (int)ThreadPool::DefaultSchedule ) ,
 	ThreadChunkSize( "tChunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
 	Threads( "threads" , (int)std::thread::hardware_concurrency() );
@@ -632,8 +624,13 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 				std::get< 0 >( d.data ).data /= l;
 				return (Real)1.;
 			};
+#ifdef MULTI_THREADED_TREE
+			if( Confidence.value>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< TotalPointSampleData >( tree.spaceRoot() , _pointStream , Depth.value , *samples , *sampleData , true , tree.nodeAllocators[0] , tree.initializer() , ProcessDataWithConfidence );
+			else                     pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< TotalPointSampleData >( tree.spaceRoot() , _pointStream , Depth.value , *samples , *sampleData , true , tree.nodeAllocators[0] , tree.initializer() , ProcessData );
+#else // !MULTI_THREADED_TREE
 			if( Confidence.value>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< TotalPointSampleData >( tree.spaceRoot() , _pointStream , Depth.value , *samples , *sampleData , true , tree.nodeAllocator , tree.initializer() , ProcessDataWithConfidence );
 			else                     pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< TotalPointSampleData >( tree.spaceRoot() , _pointStream , Depth.value , *samples , *sampleData , true , tree.nodeAllocator , tree.initializer() , ProcessData );
+#endif // MULTI_THREADED_TREE
 		}
 		iXForm = xForm.inverse();
 		delete pointStream;

@@ -55,6 +55,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Header Files", "Header File
 		Src\PointStreamData.h = Src\PointStreamData.h
 		Src\Polynomial.h = Src\Polynomial.h
 		Src\PPolynomial.h = Src\PPolynomial.h
+		Src\PreProcessor.h = Src\PreProcessor.h
 		Src\RegularTree.h = Src\RegularTree.h
 		Src\SparseMatrix.h = Src\SparseMatrix.h
 		Src\SparseMatrixInterface.h = Src\SparseMatrixInterface.h

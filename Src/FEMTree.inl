@@ -62,13 +62,30 @@ template< unsigned int Dim , class Real > FEMTree< Dim , Real >::FEMTree( int bl
 	if( blockSize>0 )
 #endif // NEW_CODE
 	{
+#ifdef MULTI_THREADED_TREE
+		nodeAllocators.resize( std::thread::hardware_concurrency() );
+		for( size_t i=0 ; i<nodeAllocators.size() ; i++ )
+		{
+			nodeAllocators[i] = new Allocator< FEMTreeNode >();
+			nodeAllocators[i]->set( blockSize );
+		}
+#else // !MULTI_THREADED_TREE
 		nodeAllocator = new Allocator< FEMTreeNode >();
 		nodeAllocator->set( blockSize );
+#endif // MULTI_THREADED_TREE
 	}
+#ifdef MULTI_THREADED_TREE
+#else // !MULTI_THREADED_TREE
 	else nodeAllocator = NULL;
+#endif // MULTI_THREADED_TREE
 	_nodeCount = 0;
+#ifdef MULTI_THREADED_TREE
+	_tree = FEMTreeNode::NewBrood( nodeAllocators.size() ? nodeAllocators[0] : NULL , _NodeInitializer( *this ) );
+	_tree->initChildren( nodeAllocators.size() ? nodeAllocators[0] : NULL , _NodeInitializer( *this ) ) , _spaceRoot = _tree->children;
+#else // !MULTI_THREADED_TREE
 	_tree = FEMTreeNode::NewBrood( nodeAllocator , _NodeInitializer( *this ) );
 	_tree->initChildren( nodeAllocator , _NodeInitializer( *this ) ) , _spaceRoot = _tree->children;
+#endif // MULTI_THREADED_TREE
 	int offset[Dim];
 	for( int d=0 ; d<Dim ; d++ ) offset[d] = 0;
 #ifdef NEW_CODE
@@ -161,7 +178,11 @@ const RegularTreeNode< Dim , FEMTreeNodeData >* FEMTree< Dim , Real >::leaf( Poi
 }
 template< unsigned int Dim , class Real >
 #ifdef NEW_CODE
+#ifdef MULTI_THREADED_TREE
+RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* FEMTree< Dim , Real >::_leaf( Allocator< FEMTreeNode > *nodeAllocator , Point< Real , Dim > p , LocalDepth maxDepth )
+#else // !MULTI_THREADED_TREE
 RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* FEMTree< Dim , Real >::leaf( Point< Real , Dim > p , LocalDepth maxDepth )
+#endif // MULTI_THREADED_TREE
 #else // !NEW_CODE
 RegularTreeNode< Dim , FEMTreeNodeData >* FEMTree< Dim , Real >::leaf( Point< Real , Dim > p , LocalDepth maxDepth )
 #endif // NEW_CODE
@@ -185,6 +206,30 @@ RegularTreeNode< Dim , FEMTreeNodeData >* FEMTree< Dim , Real >::leaf( Point< Re
 	}
 	return node;
 }
+#ifdef MULTI_THREADED_TREE
+template< unsigned int Dim , class Real >
+RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* FEMTree< Dim , Real >::_leaf_s( Allocator< FEMTreeNode > *nodeAllocator , Point< Real , Dim > p , LocalDepth maxDepth )
+{
+	if( !_InBounds( p ) ) return NULL;
+	Point< Real , Dim > center;
+	for( int d=0 ; d<Dim ; d++ ) center[d] = (Real)0.5;
+	Real width = Real(1.0);
+	FEMTreeNode* node = _spaceRoot;
+	LocalDepth d = _localDepth( node );
+	while( ( d<0 && node->children ) || ( d>=0 && d<maxDepth ) )
+	{
+		if( !node->children ) node->initChildren_s( nodeAllocator , _NodeInitializer( *this ) );
+		int cIndex = FEMTreeNode::ChildIndex( center , p );
+		node = node->children + cIndex;
+		d++;
+		width /= 2;
+		for( int d=0 ; d<Dim ; d++ )
+			if( (cIndex>>d) & 1 ) center[d] += width/2;
+			else                  center[d] -= width/2;
+	}
+	return node;
+}
+#endif // MULTI_THREADED_TREE
 
 template< unsigned int Dim , class Real > bool FEMTree< Dim , Real >::_InBounds( Point< Real , Dim > p ){ for( int d=0 ; d<Dim ; d++ ) if( p[d]<0 || p[d]>1 ) return false ; return true; }
 template< unsigned int Dim , class Real >
@@ -209,7 +254,11 @@ bool FEMTree< Dim , Real >::isValidSpaceNode( const FEMTreeNode* node ) const
 
 template< unsigned int Dim , class Real >
 template< unsigned int ... Degrees >
+#ifdef MULTI_THREADED_TREE
+void FEMTree< Dim , Real >::_setFullDepth( UIntPack< Degrees ... > , Allocator< FEMTreeNode > *nodeAllocator , FEMTreeNode* node , LocalDepth depth )
+#else // !MULTI_THREADED_TREE
 void FEMTree< Dim , Real >::_setFullDepth( UIntPack< Degrees ... > , FEMTreeNode* node , LocalDepth depth )
+#endif // MULTI_THREADED_TREE
 {
 	LocalDepth d ; LocalOffset off;
 	_localDepthAndOffset( node , d , off );
@@ -217,15 +266,27 @@ void FEMTree< Dim , Real >::_setFullDepth( UIntPack< Degrees ... > , FEMTreeNode
 	if( refine )
 	{
 		if( !node->children ) node->initChildren( nodeAllocator , _NodeInitializer( *this ) );
+#ifdef MULTI_THREADED_TREE
+		for( int c=0 ; c<(1<<Dim) ; c++ ) _setFullDepth( UIntPack< Degrees ... >() , nodeAllocator , node->children+c , depth );
+#else // !MULTI_THREADED_TREE
 		for( int c=0 ; c<(1<<Dim) ; c++ ) _setFullDepth( UIntPack< Degrees ... >() , node->children+c , depth );
+#endif // MULTI_THREADED_TREE
 	}
 }
 template< unsigned int Dim , class Real >
 template< unsigned int ... Degrees >
+#ifdef MULTI_THREADED_TREE
+void FEMTree< Dim , Real >::_setFullDepth( UIntPack< Degrees ... > , Allocator< FEMTreeNode > *nodeAllocator , LocalDepth depth )
+#else // !MULTI_THREADED_TREE
 void FEMTree< Dim , Real >::_setFullDepth( UIntPack< Degrees ... > , LocalDepth depth )
+#endif // MULTI_THREADED_TREE
 {
 	if( !_tree->children ) _tree->initChildren( nodeAllocator , _NodeInitializer( *this ) );
+#ifdef MULTI_THREADED_TREE
+	for( int c=0 ; c<(1<<Dim) ; c++ ) _setFullDepth( UIntPack< Degrees ... >() , nodeAllocator , _tree->children+c , depth );
+#else // !MULTI_THREADED_TREE
 	for( int c=0 ; c<(1<<Dim) ; c++ ) _setFullDepth( UIntPack< Degrees ... >() , _tree->children+c , depth );
+#endif // MULTI_THREADED_TREE
 }
 template< unsigned int Dim , class Real >
 template< unsigned int ... Degrees >
@@ -317,6 +378,9 @@ typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree >* FEMT
 typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree >* FEMTree< Dim , Real >::setDensityEstimator( const std::vector< PointSample >& samples , LocalDepth splatDepth , Real samplesPerNode , int coDimension )
 #endif // NEW_THREADS
 {
+#ifdef MULTI_THREADED_TREE
+	Allocator< FEMTreeNode > *nodeAllocator = nodeAllocators.size() ? nodeAllocators[0] : NULL;
+#endif // MULTI_THREADED_TREE
 	LocalDepth maxDepth = _spaceRoot->maxDepth();
 	splatDepth = std::max< LocalDepth >( 0 , std::min< LocalDepth >( splatDepth , maxDepth ) );
 	DensityEstimator< DensityDegree >* _density = new DensityEstimator< DensityDegree >( splatDepth , coDimension );
@@ -356,7 +420,11 @@ typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree >* FEMT
 				{
 					Point< Real , Dim > p = s.data / s.weight;
 					Real w = s.weight / samplesPerNode;
+#ifdef MULTI_THREADED_TREE
+					_addWeightContribution( nodeAllocator , density , node , p , densityKey , w );
+#else // !MULTI_THREADED_TREE
 					_addWeightContribution( density , node , p , densityKey , w );
+#endif // MULTI_THREADED_TREE
 				}
 				sample += s;
 			}
@@ -371,7 +439,11 @@ typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree >* FEMT
 			{
 				Point< Real , Dim > p = sample.data / sample.weight;
 				Real w = sample.weight / samplesPerNode;
+#ifdef MULTI_THREADED_TREE
+				_addWeightContribution( nodeAllocator , density , node , p , densityKey , w );
+#else // !MULTI_THREADED_TREE
 				_addWeightContribution( density , node , p , densityKey , w );
+#endif // MULTI_THREADED_TREE
 			}
 		}
 		return sample;
@@ -458,22 +530,43 @@ SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim 
 				continue;
 #endif // NEW_THREADS
 			}
+#ifdef MULTI_THREADED_TREE
+			Allocator< FEMTreeNode > *nodeAllocator = nodeAllocators.size() ? nodeAllocators[ thread() ] : NULL;
+#endif // MULTI_THREADED_TREE
 #ifdef NEW_THREADS
+#ifdef MULTI_THREADED_TREE
+#if defined( __GNUC__ ) && __GNUC__ < 5
+#warning "you've got me gcc version<5"
+			if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , DensityDegree , Point< Real , Dim > >( nodeAllocator , *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight );
+#else // !__GNUC__ || __GNUC__ >=5
+			if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , DensityDegree , Point< Real , Dim > , NormalSigs ... >( nodeAllocator , *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight );
+#endif // __GNUC__ || __GNUC__ < 4
+#else // !MULTI_THREADED_TREE
 #if defined( __GNUC__ ) && __GNUC__ < 5
 #warning "you've got me gcc version<5"
 			if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , DensityDegree , Point< Real , Dim > >( *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight );
 #else // !__GNUC__ || __GNUC__ >=5
 			if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , DensityDegree , Point< Real , Dim > , NormalSigs ... >( *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight );
 #endif // __GNUC__ || __GNUC__ < 4
+#endif // MULTI_THREADED_TREE
 			else
 			{
 				Real width = (Real)( 1.0 / ( 1<<maxDepth ) );
+#ifdef MULTI_THREADED_TREE
+#if defined( __GNUC__ ) && __GNUC__ < 5
+#warning "you've got me gcc version<5"
+				_splatPointData< true , Point< Real , Dim > >( nodeAllocator , _leaf_s( nodeAllocator , p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+#else // !__GNUC__ || __GNUC__ >=5
+				_splatPointData< true , Point< Real , Dim > , NormalSigs ... >( nodeAllocator , _leaf_s( nodeAllocator , p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+#endif // __GNUC__ || __GNUC__ < 4
+#else // !MULTI_THREADED_TREE
 #if defined( __GNUC__ ) && __GNUC__ < 5
 #warning "you've got me gcc version<5"
 				_splatPointData< true , Point< Real , Dim > >( leaf( p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
 #else // !__GNUC__ || __GNUC__ >=5
 				_splatPointData< true , Point< Real , Dim > , NormalSigs ... >( leaf( p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
 #endif // __GNUC__ || __GNUC__ < 4
+#endif // MULTI_THREADED_TREE
 				AddAtomic( _pointWeightSum , sample.weight );
 			}
 #else // !NEW_THREADS
@@ -538,6 +631,9 @@ template< unsigned int Dim , class Real >
 template< unsigned int DataSig , bool CreateNodes , unsigned int DensityDegree , class Data >
 SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > > FEMTree< Dim , Real >::setDataField( const std::vector< PointSample >& samples , std::vector< Data >& sampleData , const DensityEstimator< DensityDegree >* density , bool nearest )
 {
+#ifdef MULTI_THREADED_TREE
+	Allocator< FEMTreeNode > *nodeAllocator = nodeAllocators.size() ? nodeAllocators[0] : NULL;
+#endif // MULTI_THREADED_TREE
 	LocalDepth maxDepth = _spaceRoot->maxDepth();
 	PointSupportKey< IsotropicUIntPack< Dim , DensityDegree > > densityKey;
 	PointSupportKey< IsotropicUIntPack< Dim , FEMSignature< DataSig >::Degree > > dataKey;
@@ -559,7 +655,11 @@ SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig
 			continue;
 		}
 		if( nearest ) _nearestMultiSplatPointData< DensityDegree >( density , (FEMTreeNode*)samples[i].node , p , ProjectiveData< Data , Real >( data , sample.weight ) , dataField , densityKey , 2 );
+#ifdef MULTI_THREADED_TREE
+		else          _multiSplatPointData< CreateNodes , DensityDegree >( nodeAllocator , density , (FEMTreeNode*)samples[i].node , p , ProjectiveData< Data , Real >( data , sample.weight ) , dataField , densityKey , dataKey , 2 );
+#else // !MULTI_THREADED_TREE
 		else          _multiSplatPointData< CreateNodes , DensityDegree >( density , (FEMTreeNode*)samples[i].node , p , ProjectiveData< Data , Real >( data , sample.weight ) , dataField , densityKey , dataKey , 2 );
+#endif // MULTI_THREADED_TREE
 	}
 	MemoryUsage();
 	return dataField;
@@ -572,6 +672,9 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( ThreadPool &tp , LocalDepth fu
 void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const HasDataFunctor F , DenseOrSparseNodeData* ... data )
 #endif // NEW_THREADS
 {
+#ifdef MULTI_THREADED_TREE
+	Allocator< FEMTreeNode > *nodeAllocator = nodeAllocators.size() ? nodeAllocators[0] : NULL;
+#endif // MULTI_THREADED_TREE
 	_depthOffset = 1;
 	while( _localInset( 0 ) + BSplineEvaluationData< FEMDegreeAndBType< MaxDegree >::Signature >::Begin( 0 )<0 || _localInset( 0 ) + BSplineEvaluationData< FEMDegreeAndBType< MaxDegree >::Signature >::End( 0 )>(1<<_depthOffset) )
 	{
@@ -607,7 +710,11 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const H
 	_maxDepth = _spaceRoot->maxDepth();
 	// Make the low-resolution part of the tree be complete
 	fullDepth = std::max< LocalDepth >( 0 , std::min< LocalDepth >( _maxDepth , fullDepth ) );
+#ifdef MULTI_THREADED_TREE
+	_setFullDepth( IsotropicUIntPack< Dim , MaxDegree >() , nodeAllocator , fullDepth );
+#else // !MULTI_THREADED_TREE
 	_setFullDepth( IsotropicUIntPack< Dim , MaxDegree >() , fullDepth );
+#endif // MULTI_THREADED_TREE
 	// Clear all the flags and make everything that is not low-res a ghost node
 	for( FEMTreeNode* node=_tree->nextNode() ; node ; node=_tree->nextNode( node ) ) node->nodeData.flags = 0 , SetGhostFlag< Dim >( node , _localDepth( node )>fullDepth );
 
@@ -651,7 +758,11 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const H
 			NeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
 			FEMTreeNode* node = nodes[i];
+#ifdef MULTI_THREADED_TREE
+			neighborKey.template getNeighbors< true >( node , nodeAllocators.size() ? nodeAllocators[ thread() ] : NULL , _NodeInitializer( *this ) );
+#else // !MULTI_THREADED_TREE
 			neighborKey.template getNeighbors< true >( node , nodeAllocator , _NodeInitializer( *this ) );
+#endif // MULTI_THREADED_TREE
 			Pointer( FEMTreeNode* ) nodes = neighborKey.neighbors[ _localToGlobal(d) ].neighbors().data;
 			unsigned int size = neighborKey.neighbors[ _localToGlobal(d) ].neighbors.Size;
 			for( unsigned int i=0 ; i<size ; i++ ) SetGhostFlag< Dim >( nodes[i] , false );
