@@ -63,7 +63,11 @@ template< unsigned int Dim , class Real > FEMTree< Dim , Real >::FEMTree( int bl
 #endif // NEW_CODE
 	{
 #ifdef MULTI_THREADED_TREE
+#ifdef NEW_THREADS
 		nodeAllocators.resize( std::thread::hardware_concurrency() );
+#else // !NEW_THREADS
+		nodeAllocators.resize( omp_get_max_threads() );
+#endif // NEW_THREADS
 		for( size_t i=0 ; i<nodeAllocators.size() ; i++ )
 		{
 			nodeAllocators[i] = new Allocator< FEMTreeNode >();
@@ -111,10 +115,27 @@ FEMTree< Dim , Real >::FEMTree( FILE* fp , int blockSize )
 	if( blockSize>0 )
 #endif // NEW_CODE
 	{
+#ifdef MULTI_THREADED_TREE
+#ifdef NEW_THREADS
+		nodeAllocators.resize( std::thread::hardware_concurrency() );
+#else // !NEW_THREADS
+		nodeAllocators.resize( omp_get_max_threads() );
+#endif // NEW_THREADS
+		for( size_t i=0 ; i<nodeAllocators.size() ; i++ )
+		{
+			nodeAllocators[i] = new Allocator< FEMTreeNode >();
+			nodeAllocators[i]->set( blockSize );
+		}
+#else // !MULTI_THREADED_TREE
 		nodeAllocator = new Allocator< FEMTreeNode >();
 		nodeAllocator->set( blockSize );
+#endif // MULTI_THREADED_TREE
 	}
+#ifdef MULTI_THREADED_TREE
+	Allocator< FEMTreeNode > *nodeAllocator = nodeAllocators.size() ? nodeAllocators[0] : NULL;
+#else // !MULTI_THREADED_TREE
 	else nodeAllocator = NULL;
+#endif // MULTI_THREADED_TREE
 	if( fp )
 	{
 		if( fread( &_depthOffset , sizeof( int ) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read depth offset" );
@@ -330,6 +351,9 @@ template< unsigned int Dim , class Real >
 template< unsigned int LeftRadius , unsigned int RightRadius , class ... DenseOrSparseNodeData > 
 void FEMTree< Dim , Real >::thicken( FEMTreeNode **nodes , size_t nodeCount, DenseOrSparseNodeData* ... data )
 {
+#ifdef MULTI_THREADED_TREE
+	Allocator< FEMTreeNode > *nodeAllocator = nodeAllocators.size() ? nodeAllocators[0] : NULL;
+#endif // MULTI_THREADED_TREE
 #ifdef NEW_CODE
 	std::vector< node_index_type > map( _nodeCount );
 	for( node_index_type i=0 ; i<_nodeCount ; i++ ) map[i] = i;
@@ -531,42 +555,68 @@ SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim 
 #endif // NEW_THREADS
 			}
 #ifdef MULTI_THREADED_TREE
-			Allocator< FEMTreeNode > *nodeAllocator = nodeAllocators.size() ? nodeAllocators[ thread() ] : NULL;
-#endif // MULTI_THREADED_TREE
 #ifdef NEW_THREADS
+			Allocator< FEMTreeNode > *nodeAllocator = nodeAllocators.size() ? nodeAllocators[ thread() ] : NULL;
+#else // !NEW_THREADS
+			Allocator< FEMTreeNode > *nodeAllocator = nodeAllocators.size() ? nodeAllocators[ omp_get_thread_num() ] : NULL;
+#endif // NEW_THREADS
+#endif // MULTI_THREADED_TREE
+
 #ifdef MULTI_THREADED_TREE
+#ifdef NEW_THREADS
 #if defined( __GNUC__ ) && __GNUC__ < 5
 #warning "you've got me gcc version<5"
 			if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , DensityDegree , Point< Real , Dim > >( nodeAllocator , *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight );
 #else // !__GNUC__ || __GNUC__ >=5
 			if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , DensityDegree , Point< Real , Dim > , NormalSigs ... >( nodeAllocator , *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight );
 #endif // __GNUC__ || __GNUC__ < 4
-#else // !MULTI_THREADED_TREE
-#if defined( __GNUC__ ) && __GNUC__ < 5
-#warning "you've got me gcc version<5"
-			if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , DensityDegree , Point< Real , Dim > >( *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight );
-#else // !__GNUC__ || __GNUC__ >=5
-			if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , DensityDegree , Point< Real , Dim > , NormalSigs ... >( *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight );
-#endif // __GNUC__ || __GNUC__ < 4
-#endif // MULTI_THREADED_TREE
 			else
 			{
 				Real width = (Real)( 1.0 / ( 1<<maxDepth ) );
-#ifdef MULTI_THREADED_TREE
 #if defined( __GNUC__ ) && __GNUC__ < 5
 #warning "you've got me gcc version<5"
 				_splatPointData< true , Point< Real , Dim > >( nodeAllocator , _leaf_s( nodeAllocator , p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
 #else // !__GNUC__ || __GNUC__ >=5
 				_splatPointData< true , Point< Real , Dim > , NormalSigs ... >( nodeAllocator , _leaf_s( nodeAllocator , p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
 #endif // __GNUC__ || __GNUC__ < 4
+				AddAtomic( _pointWeightSum , sample.weight );
+			}
+#else // !NEW_THREADS
+#if defined( __GNUC__ ) && __GNUC__ < 5
+#warning "you've got me gcc version<5"
+			if( density ) _pointWeightSum += _splatPointData< true , DensityDegree , Point< Real , Dim > >( nodeAllocator , *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight;
+#else // !__GNUC__ || __GNUC__ >=5
+			if( density ) _pointWeightSum += _splatPointData< true , DensityDegree , Point< Real , Dim > , NormalSigs ... >( nodeAllocator , *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight;
+#endif // __GNUC__ || __GNUC__ < 4
+			else
+			{
+				Real width = (Real)( 1.0 / ( 1<<maxDepth ) );
+#if defined( __GNUC__ ) && __GNUC__ < 5
+#warning "you've got me gcc version<5"
+				_splatPointData< true , Point< Real , Dim > >( nodeAllocator , _leaf( nodeAllocator , p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+#else // !__GNUC__ || __GNUC__ >=5
+				_splatPointData< true , Point< Real , Dim > , NormalSigs ... >( nodeAllocator , _leaf( nodeAllocator , p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+#endif // __GNUC__ || __GNUC__ < 4
+				_pointWeightSum += sample.weight;
+			}
+#endif // NEW_THREADS
 #else // !MULTI_THREADED_TREE
+#ifdef NEW_THREADS
+#if defined( __GNUC__ ) && __GNUC__ < 5
+#warning "you've got me gcc version<5"
+			if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , DensityDegree , Point< Real , Dim > >( *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight );
+#else // !__GNUC__ || __GNUC__ >=5
+			if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , DensityDegree , Point< Real , Dim > , NormalSigs ... >( *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight );
+#endif // __GNUC__ || __GNUC__ < 4
+			else
+			{
+				Real width = (Real)( 1.0 / ( 1<<maxDepth ) );
 #if defined( __GNUC__ ) && __GNUC__ < 5
 #warning "you've got me gcc version<5"
 				_splatPointData< true , Point< Real , Dim > >( leaf( p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
 #else // !__GNUC__ || __GNUC__ >=5
 				_splatPointData< true , Point< Real , Dim > , NormalSigs ... >( leaf( p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
 #endif // __GNUC__ || __GNUC__ < 4
-#endif // MULTI_THREADED_TREE
 				AddAtomic( _pointWeightSum , sample.weight );
 			}
 #else // !NEW_THREADS
@@ -588,6 +638,7 @@ SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim 
 				_pointWeightSum += sample.weight;
 			}
 #endif // NEW_THREADS
+#endif // MULTI_THREADED_TREE
 		}
 	}
 #ifdef NEW_THREADS
@@ -759,7 +810,11 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const H
 #endif // NEW_THREADS
 			FEMTreeNode* node = nodes[i];
 #ifdef MULTI_THREADED_TREE
+#ifdef NEW_THREADS
 			neighborKey.template getNeighbors< true >( node , nodeAllocators.size() ? nodeAllocators[ thread() ] : NULL , _NodeInitializer( *this ) );
+#else // !NEW_THREADS
+			neighborKey.template getNeighbors< true >( node , nodeAllocators.size() ? nodeAllocators[ omp_get_thread_num() ] : NULL , _NodeInitializer( *this ) );
+#endif // NEW_THREADS
 #else // !MULTI_THREADED_TREE
 			neighborKey.template getNeighbors< true >( node , nodeAllocator , _NodeInitializer( *this ) );
 #endif // MULTI_THREADED_TREE

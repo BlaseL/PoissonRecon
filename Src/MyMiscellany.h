@@ -772,6 +772,7 @@ const std::vector< std::string >ThreadPool::ScheduleNames = { "static" , "dynami
 #endif // NEW_THREADS
 
 #ifdef NEW_CODE
+#include <mutex>
 #ifdef NEW_THREADS
 #if defined( _WIN32 ) || defined( _WIN64 )
 #include <windows.h>
