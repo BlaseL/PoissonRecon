@@ -229,7 +229,11 @@ int Execute( void )
 			struct Range{ int begin[3] , end[3]; };
 			auto SetRange = [&]( Point< float , 3 > p , Range &range )
 			{
-				for( int d=0 ; d<3 ; d++ ) range.begin[d] = (int)floor( (p[d]-radius)/width ) , range.end[d] = (int)ceil( (p[d]+radius)/width );
+				for( int d=0 ; d<3 ; d++ )
+				{
+					range.begin[d] = (int)floor( (p[d]-radius)/width ) , range.end[d] = (int)ceil( (p[d]+radius)/width );
+					if( range.begin[d]==range.end[d] ) range.end[d]++;
+				}
 			};
 			auto Index1D = [&]( int x , int y , int z )
 			{
@@ -258,12 +262,12 @@ int Execute( void )
 					for( int j=0 ; j<polygons[i].size() ; j++ ) center += vertices[ polygons[i][j] ].point;
 					center /= polygons[i].size();
 					SetRange( center , range );
-					if( range.begin[0]>=range.end[0] || range.begin[1]>=range.end[1] || range.begin[2]>=range.end[2] ) WARN( "empty range for: " , center[0] , " , " , center[1] , " , " , center[2] );
 					for( int x=range.begin[0] ; x<range.end[0] ; x++ ) for( int y=range.begin[1] ; y<range.end[1] ; y++ ) for( int z=range.begin[2] ; z<range.end[2] ; z++ )
 						_polygons[ Index1D(x,y,z) ].push_back( polygons[i] );
 				}
 				printf( "Chunked polygons: %.2f(s)\n" , Time()-t );
 
+#pragma omp parallel for
 				for( int i=0 ; i<_polygons.size() ; i++ ) if( _polygons[i].size() )
 				{
 					std::vector< Vertex > _vertices;
@@ -274,13 +278,17 @@ int Execute( void )
 
 					stream << Out.value << "." << x << "." << y << "." << z << ".ply";
 
-					printf( "\t%s\n" , stream.str().c_str() );
-					printf( "\t\tVertices / Polygons: %llu / %llu\n" , (unsigned long long)_vertices.size() , (unsigned long long)_polygons[i].size() );
 
 					Point< float , 3 > min , max;
 					min = Point< float , 3 >( x+0 , y+0 , z+0 ) * width;
 					max = Point< float , 3 >( x+1 , y+1 , z+1 ) * width;
-					printf( "\t\t" ) ; PrintBoundingBox( min , max ) ; printf( "\n" );
+					{
+						static std::mutex mutex;
+						std::lock_guard< std::mutex > lock( mutex );
+						printf( "\t%s\n" , stream.str().c_str() );
+						printf( "\t\tVertices / Polygons: %llu / %llu\n" , (unsigned long long)_vertices.size() , (unsigned long long)_polygons[i].size() );
+						printf( "\t\t" ) ; PrintBoundingBox( min , max ) ; printf( "\n" );
+					}
 
 					WriteMesh( stream.str().c_str() , ASCII.set ? PLY_ASCII : ft , _vertices , _polygons[i] , comments );
 					vCount += _vertices.size() , pCount += _polygons[i].size();
@@ -295,12 +303,12 @@ int Execute( void )
 				for( size_t i=0 ; i<vertices.size() ; i++ )
 				{
 					SetRange( vertices[i].point , range );
-					if( range.begin[0]>=range.end[0] || range.begin[1]>=range.end[1] || range.begin[2]>=range.end[2] ) WARN( "empty range for: " , vertices[i].point[0] , " , " , vertices[i].point[1] , " , " , vertices[i].point[2] );
 					for( int x=range.begin[0] ; x<range.end[0] ; x++ ) for( int y=range.begin[1] ; y<range.end[1] ; y++ ) for( int z=range.begin[2] ; z<range.end[2] ; z++ )
 						_vertices[ Index1D(x,y,z) ].push_back( vertices[i] );
 				}
 				printf( "Chunked vertices: %.2f(s)\n" , Time()-t );
 
+#pragma omp parallel for
 				for( int i=0 ; i<_vertices.size() ; i++ ) if( _vertices[i].size() )
 				{
 					std::stringstream stream;
@@ -311,9 +319,13 @@ int Execute( void )
 					min = Point< float , 3 >( x+0 , y+0 , z+0 ) * width;
 					max = Point< float , 3 >( x+1 , y+1 , z+1 ) * width;
 
-					printf( "\t%s\n" , stream.str().c_str() );
-					printf( "\t\tPoints: %llu\n" , (unsigned long long)_vertices[i].size() );
-					printf( "\t\t" ) ; PrintBoundingBox( min , max ) ; printf( "\n" );
+					{
+						static std::mutex mutex;
+						std::lock_guard< std::mutex > lock( mutex );
+						printf( "\t%s\n" , stream.str().c_str() );
+						printf( "\t\tPoints: %llu\n" , (unsigned long long)_vertices[i].size() );
+						printf( "\t\t" ) ; PrintBoundingBox( min , max ) ; printf( "\n" );
+					}
 
 					WritePoints( stream.str().c_str() , ASCII.set ? PLY_ASCII : ft , _vertices[i] , comments );
 					vCount += _vertices[i].size();
@@ -378,7 +390,7 @@ int Execute( void )
 			else WritePoints( Out.value , ASCII.set ? PLY_ASCII : ft , vertices , comments );
 		}
 	}
-	printf( "Got chunks: %.2f(s)\n" , Time()-t );
+	printf( "Wrote chunks: %.2f(s)\n" , Time()-t );
 	return EXIT_SUCCESS;
 }
 int main( int argc , char* argv[] )

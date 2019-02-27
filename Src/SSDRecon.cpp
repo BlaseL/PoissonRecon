@@ -28,17 +28,10 @@ DAMAGE.
 #define NEW_CODE
 
 #ifdef NEW_CODE
-#define BIG_DATA								// Supports processing requiring more than 32-bit integers for indexing
-												// Note: enabling BIG_DATA can generate .ply files using "longlong" for face indices instead of "int".
-												// These are not standardly supported by .ply reading/writing applications.
-#define NEW_THREADS								// Enabling this flag replaces the OpenMP implementation of parallelism with C++11's
-#define FORCE_PARALLEL							// Forces parallel methods to pass in a thread pool
+#include "PreProcessor.h"
 #endif // NEW_CODE
 
-#undef SHOW_WARNINGS							// Display compilation warnings
 #undef USE_DOUBLE								// If enabled, double-precesion is used
-#undef FAST_COMPILE								// If enabled, only a single version of the reconstruction code is compiled
-#undef ARRAY_DEBUG								// If enabled, array access is tested for validity
 #define DATA_DEGREE 0							// The order of the B-Spline used to splat in data for color interpolation
 												// This can be changed to zero if more interpolatory performance is desired.
 #define WEIGHT_DEGREE 2							// The order of the B-Spline used to splat in the weights for density estimation
@@ -458,7 +451,7 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 		Real avg = 0;
 #ifdef NEW_THREADS
 		std::vector< Real > avgs( tp.threadNum() , 0 );
-		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum &thread , size_t i ){ avgs[thread()] += values[i]; } );
+		tp.parallel_for( 0 , resolution , [&]( unsigned int thread , size_t i ){ avgs[thread] += values[i]; } );
 		for( unsigned int t=0 ; t<tp.threadNum() ; t++ ) avg += avgs[t];
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : avg )
@@ -469,7 +462,7 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 		Real std = 0;
 #ifdef NEW_THREADS
 		std::vector< Real > stds( tp.threadNum() , 0 );
-		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum &thread , size_t i ){ stds[thread()] += ( values[i] - avg ) * ( values[i] - avg ); } );
+		tp.parallel_for( 0 , resolution , [&]( unsigned int thread , size_t i ){ stds[thread] += ( values[i] - avg ) * ( values[i] - avg ); } );
 		for( unsigned int t=0 ; t<tp.threadNum() ; t++ ) std += stds[t];
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : std )
@@ -481,7 +474,7 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 
 		unsigned char *pixels = new unsigned char[ resolution*3 ];
 #ifdef NEW_THREADS
-		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum & , size_t i )
+		tp.parallel_for( 0 , resolution , [&]( unsigned int , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 		for( int i=0 ; i<resolution ; i++ )
@@ -651,8 +644,8 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 				std::get< 0 >( d.data ).data /= l;
 				return (Real)1.;
 			};
-			if( Confidence.value>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< TotalPointSampleData >( tree.spaceRoot() , _pointStream , Depth.value , *samples , *sampleData , true , tree.nodeAllocator , tree.initializer() , ProcessDataWithConfidence );
-			else                     pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< TotalPointSampleData >( tree.spaceRoot() , _pointStream , Depth.value , *samples , *sampleData , true , tree.nodeAllocator , tree.initializer() , ProcessData );
+			if( Confidence.value>0 ) pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< TotalPointSampleData >( tree.spaceRoot() , _pointStream , Depth.value , *samples , *sampleData , true , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() , ProcessDataWithConfidence );
+			else                     pointCount = FEMTreeInitializer< Dim , Real >::template Initialize< TotalPointSampleData >( tree.spaceRoot() , _pointStream , Depth.value , *samples , *sampleData , true , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() , ProcessData );
 		}
 		iXForm = xForm.inverse();
 		delete pointStream;
@@ -771,7 +764,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 #ifdef NEW_THREADS
 		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 0 > evaluator( tp , &tree , solution );
 		std::vector< double > valueSums( tp.threadNum() , 0 ) , weightSums( tp.threadNum() , 0 );
-		tp.parallel_for( 0 , samples->size() , [&]( const ThreadPool::ThreadNum &thread , size_t j )
+		tp.parallel_for( 0 , samples->size() , [&]( unsigned int thread , size_t j )
 #else // !NEW_THREADS
 		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 0 > evaluator( &tree , solution );
 #pragma omp parallel for reduction( + : valueSum , weightSum )
@@ -781,7 +774,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 			ProjectiveData< Point< Real , Dim > , Real >& sample = (*samples)[j].sample;
 			Real w = sample.weight;
 #ifdef NEW_THREADS
-			if( w>0 ) weightSums[thread()] += w , valueSums[thread()] += evaluator.values( sample.data / sample.weight , thread() , (*samples)[j].node )[0] * w;
+			if( w>0 ) weightSums[thread] += w , valueSums[thread] += evaluator.values( sample.data / sample.weight , thread , (*samples)[j].node )[0] * w;
 #else // !NEW_THREADS
 			if( w>0 ) weightSum += w , valueSum += evaluator.values( sample.data / sample.weight , omp_get_thread_num() , (*samples)[j].node )[0] * w;
 #endif // NEW_THREADS
@@ -818,7 +811,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 		size_t resolution = 1;
 		for( int d=0 ; d<Dim ; d++ ) resolution *= res;
 #ifdef NEW_THREADS
-		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum & , size_t i ){ values[i] -= isoValue; } );
+		tp.parallel_for( 0 , resolution , [&]( unsigned int , size_t i ){ values[i] -= isoValue; } );
 #else // !NEW_THREADS
 #pragma omp parallel for
 		for( int i=0 ; i<resolution ; i++ ) values[i] -= isoValue;

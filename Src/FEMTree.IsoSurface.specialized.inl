@@ -639,7 +639,7 @@ protected:
 
 			// Try and get at the nodes outside of the slab through the neighbor key
 #ifdef NEW_THREADS
-			tp.parallel_for( sNodes.begin(depth,offset) , sNodes.end(depth,offset) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
+			tp.parallel_for( sNodes.begin(depth,offset) , sNodes.end(depth,offset) , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for schedule( guided )
 #ifdef NEW_CODE
@@ -650,7 +650,7 @@ protected:
 #endif // NEW_THREADS
 			{
 #ifdef NEW_THREADS
-				ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread() ];
+				ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
 #else // !NEW_THREADS
 				ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
@@ -692,7 +692,7 @@ protected:
 				int off = sNodes.begin(depth,offset-1) , size = sNodes.end(depth,offset-1) - sNodes.begin(depth,offset-1);
 #endif // NEW_CODE
 #ifdef NEW_THREADS
-				tp.parallel_for( 0 , size , [&]( const ThreadPool::ThreadNum &thread , size_t i )
+				tp.parallel_for( 0 , size , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for schedule( guided )
 #ifdef NEW_CODE
@@ -705,7 +705,7 @@ protected:
 					if( !sData0->_processed[i] )
 					{
 #ifdef NEW_THREADS
-						ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread() ];
+						ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
 #else // !NEW_THREADS
 						ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
@@ -728,7 +728,7 @@ protected:
 				int off = sNodes.begin(depth,offset+1) , size = sNodes.end(depth,offset+1) - sNodes.begin(depth,offset+1);
 #endif // NEW_CODE
 #ifdef NEW_THREADS
-				tp.parallel_for( 0 , size , [&]( const ThreadPool::ThreadNum &thread , size_t i )
+				tp.parallel_for( 0 , size , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for schedule( guided )
 #ifdef NEW_CODE
@@ -741,7 +741,7 @@ protected:
 					if( !sData1->_processed[i] )
 					{
 #ifdef NEW_THREADS
-						ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread() ];
+						ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
 #else // !NEW_THREADS
 						ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
@@ -765,7 +765,7 @@ protected:
 				for( node_index_type i=0 ; i<sData.nodeCount * (node_index_type)HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() ; i++ ) if( sData._eMap[i] ) sData._eMap[i] = eCount++;
 				for( node_index_type i=0 ; i<sData.nodeCount * (node_index_type)HyperCube::Cube< Dim-1 >::template ElementNum< 2 >() ; i++ ) if( sData._fMap[i] ) sData._fMap[i] = fCount++;
 #ifdef NEW_THREADS
-				tp.parallel_for( 0 , sData.nodeCount , [&]( const ThreadPool::ThreadNum & , size_t i )
+				tp.parallel_for( 0 , sData.nodeCount , [&]( unsigned int  , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 				for( node_index_type i=0 ; i<sData.nodeCount ; i++ )
@@ -802,7 +802,7 @@ protected:
 				for( node_index_type i=0 ; i<xData.nodeCount * (node_index_type)HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ; i++ ) if( xData._eMap[i] ) xData._eMap[i] = eCount++;
 				for( node_index_type i=0 ; i<xData.nodeCount * (node_index_type)HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() ; i++ ) if( xData._fMap[i] ) xData._fMap[i] = fCount++;
 #ifdef NEW_THREADS
-				tp.parallel_for( 0 , xData.nodeCount , [&]( const ThreadPool::ThreadNum & , size_t i )
+				tp.parallel_for( 0 , xData.nodeCount , [&]( unsigned int , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 				for( node_index_type i=0 ; i<xData.nodeCount ; i++ )
@@ -1224,11 +1224,7 @@ protected:
 		if( useBoundaryEvaluation ) for( size_t i=0 ; i<neighborKeys.size() ; i++ ) bNeighborKeys[i].set( tree._localToGlobal( depth ) );
 		else                        for( size_t i=0 ; i<neighborKeys.size() ; i++ )  neighborKeys[i].set( tree._localToGlobal( depth ) );
 #ifdef NEW_THREADS
-#ifdef USE_SUB_NODES
-		tp.parallel_for( tree._sNodesBegin( *tree._subNodes , depth , slice-(zDir==HyperCube::BACK ? 0 : 1) ) , tree._sNodesEnd( *tree._subNodes , depth , slice-(zDir==HyperCube::BACK ? 0 : 1) ) , [&]( const ThreadPool::ThreadNum &thread , size_t ii )
-#else // !USE_SUB_NODES
-		tp.parallel_for( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#endif // USE_SUB_NODES
+		tp.parallel_for( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -1238,25 +1234,17 @@ protected:
 #endif // NEW_CODE
 #endif // NEW_THREADS
 		{
-#ifdef USE_SUB_NODES
-#else // !USE_SUB_NODES
 			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
-#endif // USE_SUB_NODES
 			{
 				Real squareValues[ HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ];
 #ifdef NEW_THREADS
-				ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& neighborKey = neighborKeys[ thread() ];
-				ConstCornerSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bNeighborKey = bNeighborKeys[ thread() ];
+				ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& neighborKey = neighborKeys[ thread ];
+				ConstCornerSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bNeighborKey = bNeighborKeys[ thread ];
 #else // !NEW_THREADS
 				ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& neighborKey = neighborKeys[ omp_get_thread_num() ];
 				ConstCornerSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& bNeighborKey = bNeighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
-#ifdef USE_SUB_NODES
-				TreeNode* leaf = tree._subNodes->treeNodes[ii];
-				node_index_type i = leaf->nodeData.nodeIndex;
-#else // !USE_SUB_NODES
 				TreeNode* leaf = tree._sNodes.treeNodes[i];
-#endif // USE_SUB_NODES
 				if( !IsActiveNode< Dim >( leaf->children ) )
 				{
 					const typename SliceData::SquareCornerIndices& cIndices = sValues.sliceData.cornerIndices( leaf );
@@ -1433,11 +1421,7 @@ protected:
 #endif // NEW_THREADS
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( tree._localToGlobal( depth ) ) , weightKeys[i].set( tree._localToGlobal( depth ) ) , dataKeys[i].set( tree._localToGlobal( depth ) );
 #ifdef NEW_THREADS
-#ifdef USE_SUB_NODES
-		tp.parallel_for( tree._sNodesBegin( *tree._subNodes , depth , slice-(zDir==HyperCube::BACK ? 0 : 1) ) , tree._sNodesEnd( *tree._subNodes , depth , slice-(zDir==HyperCube::BACK ? 0 : 1) ) , [&]( const ThreadPool::ThreadNum &thread , size_t ii )
-#else // !USE_SUB_NODES
-		tp.parallel_for( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#endif // USE_SUB_NODES
+		tp.parallel_for( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -1447,26 +1431,18 @@ protected:
 #endif // NEW_CODE
 #endif // NEW_THREADS
 		{
-#ifdef USE_SUB_NODES
-#else // !USE_SUB_NODES
 			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
-#endif // USE_SUB_NODES
 			{
 #ifdef NEW_THREADS
-				ConstOneRingNeighborKey& neighborKey =  neighborKeys[ thread() ];
-				ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey = weightKeys[ thread() ];
-				ConstPointSupportKey< IsotropicUIntPack< Dim , DataDegree > >& dataKey = dataKeys[ thread() ];
+				ConstOneRingNeighborKey& neighborKey =  neighborKeys[ thread ];
+				ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey = weightKeys[ thread ];
+				ConstPointSupportKey< IsotropicUIntPack< Dim , DataDegree > >& dataKey = dataKeys[ thread ];
 #else // !NEW_THREADS
 				ConstOneRingNeighborKey& neighborKey =  neighborKeys[ omp_get_thread_num() ];
 				ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey = weightKeys[ omp_get_thread_num() ];
 				ConstPointSupportKey< IsotropicUIntPack< Dim , DataDegree > >& dataKey = dataKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
-#ifdef USE_SUB_NODES
-				TreeNode* leaf = tree._subNodes->treeNodes[ii];
-				node_index_type i = leaf->nodeData.nodeIndex;
-#else // !USE_SUB_NODES
 				TreeNode* leaf = tree._sNodes.treeNodes[i];
-#endif // USE_SUB_NODES
 				if( !IsActiveNode< Dim >( leaf->children ) )
 				{
 #ifdef NEW_CODE
@@ -1540,7 +1516,7 @@ protected:
 #endif // NEW_THREADS
 #ifdef NEW_CODE
 #ifdef NEW_THREADS
-									if( stillOwner ) sValues.edgeVertexKeyValues[ thread() ].push_back( std::pair< _Key , std::pair< node_index_type , Vertex > >( key , hashed_vertex ) );
+									if( stillOwner ) sValues.edgeVertexKeyValues[ thread ].push_back( std::pair< _Key , std::pair< node_index_type , Vertex > >( key , hashed_vertex ) );
 #else // !NEW_THREADS
 									if( stillOwner ) sValues.edgeVertexKeyValues[ omp_get_thread_num() ].push_back( std::pair< _Key , std::pair< node_index_type , Vertex > >( key , hashed_vertex ) );
 #endif // NEW_THREADS
@@ -1575,7 +1551,7 @@ protected:
 													_SliceValues& _sValues = slabValues[_depth].sliceValues( _slice );
 #ifdef NEW_CODE
 #ifdef NEW_THREADS
-													_sValues.edgeVertexKeyValues[ thread() ].push_back( std::pair< _Key , std::pair< node_index_type , Vertex > >( key , hashed_vertex ) );
+													_sValues.edgeVertexKeyValues[ thread ].push_back( std::pair< _Key , std::pair< node_index_type , Vertex > >( key , hashed_vertex ) );
 #else // !NEW_THREADS
 													_sValues.edgeVertexKeyValues[ omp_get_thread_num() ].push_back( std::pair< _Key , std::pair< node_index_type , Vertex > >( key , hashed_vertex ) );
 #endif // NEW_THREADS
@@ -1629,11 +1605,7 @@ protected:
 #endif // NEW_THREADS
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( tree._localToGlobal( depth ) ) , weightKeys[i].set( tree._localToGlobal( depth ) ) , dataKeys[i].set( tree._localToGlobal( depth ) );
 #ifdef NEW_THREADS
-#ifdef USE_SUB_NODES
-		tp.parallel_for( tree._sNodesBegin( *tree._subNodes , depth , slab ) , tree._sNodesEnd( *tree._subNodes , depth , slab ) , [&]( const ThreadPool::ThreadNum &thread , size_t ii )
-#else // !USE_SUB_NODES
-		tp.parallel_for( tree._sNodesBegin(depth,slab) , tree._sNodesEnd(depth,slab) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#endif // USE_SUB_NODES
+		tp.parallel_for( tree._sNodesBegin(depth,slab) , tree._sNodesEnd(depth,slab) , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -1643,26 +1615,18 @@ protected:
 #endif // NEW_CODE
 #endif // NEW_THREADS
 		{
-#ifdef USE_SUB_NODES
-#else // !USE_SUB_NODES
 			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
-#endif // USE_SUB_NODES
 			{
 #ifdef NEW_THREADS
-				ConstOneRingNeighborKey& neighborKey =  neighborKeys[ thread() ];
-				ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey = weightKeys[ thread() ];
-				ConstPointSupportKey< IsotropicUIntPack< Dim , DataDegree > >& dataKey = dataKeys[ thread() ];
+				ConstOneRingNeighborKey& neighborKey =  neighborKeys[ thread ];
+				ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey = weightKeys[ thread ];
+				ConstPointSupportKey< IsotropicUIntPack< Dim , DataDegree > >& dataKey = dataKeys[ thread ];
 #else // !NEW_THREADS
 				ConstOneRingNeighborKey& neighborKey =  neighborKeys[ omp_get_thread_num() ];
 				ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey = weightKeys[ omp_get_thread_num() ];
 				ConstPointSupportKey< IsotropicUIntPack< Dim , DataDegree > >& dataKey = dataKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
-#ifdef USE_SUB_NODES
-				TreeNode* leaf = tree._subNodes->treeNodes[ii];
-				node_index_type i = leaf->nodeData.nodeIndex;
-#else // !USE_SUB_NODES
 				TreeNode* leaf = tree._sNodes.treeNodes[i];
-#endif // USE_SUB_NODES
 				if( !IsActiveNode< Dim >( leaf->children ) )
 				{
 					unsigned char mcIndex = ( bValues.mcIndices[ i - bValues.sliceData.nodeOffset ] ) | ( fValues.mcIndices[ i - fValues.sliceData.nodeOffset ] )<<4;
@@ -1733,7 +1697,7 @@ protected:
 #endif // NEW_THREADS
 #ifdef NEW_CODE
 #ifdef NEW_THREADS
-									if( stillOwner ) xValues.edgeVertexKeyValues[ thread() ].push_back( std::pair< _Key , std::pair< node_index_type , Vertex > >( key , hashed_vertex ) );
+									if( stillOwner ) xValues.edgeVertexKeyValues[ thread ].push_back( std::pair< _Key , std::pair< node_index_type , Vertex > >( key , hashed_vertex ) );
 #else // !NEW_THREADS
 									if( stillOwner ) xValues.edgeVertexKeyValues[ omp_get_thread_num() ].push_back( std::pair< _Key , std::pair< node_index_type , Vertex > >( key , hashed_vertex ) );
 #endif // NEW_THREADS
@@ -1768,7 +1732,7 @@ protected:
 													_XSliceValues& _xValues = slabValues[_depth].xSliceValues( _slab );
 #ifdef NEW_CODE
 #ifdef NEW_THREADS
-													_xValues.edgeVertexKeyValues[ thread() ].push_back( std::pair< _Key , std::pair< node_index_type , Vertex > >( key , hashed_vertex ) );
+													_xValues.edgeVertexKeyValues[ thread ].push_back( std::pair< _Key , std::pair< node_index_type , Vertex > >( key , hashed_vertex ) );
 #else // !NEW_THREADS
 													_xValues.edgeVertexKeyValues[ omp_get_thread_num() ].push_back( std::pair< _Key , std::pair< node_index_type , Vertex > >( key , hashed_vertex ) );
 #endif // NEW_THREADS
@@ -1815,11 +1779,7 @@ protected:
 		typename SliceData::SliceTableData& pSliceData = pSliceValues.sliceData;
 		typename SliceData::SliceTableData& cSliceData = cSliceValues.sliceData;
 #ifdef NEW_THREADS
-#ifdef USE_SUB_NODES
-		tp.parallel_for( tree._sNodesBegin( *tree._subNodes , depth , slice-(zDir==HyperCube::BACK ? 0 : 1) ) , tree._sNodesEnd( *tree._subNodes , depth , slice-(zDir==HyperCube::BACK ? 0 : 1) ) , [&]( const ThreadPool::ThreadNum &thread , size_t ii )
-#else // !USE_SUB_NODES
-		tp.parallel_for( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#endif // USE_SUB_NODES
+		tp.parallel_for( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -1829,19 +1789,12 @@ protected:
 #endif // NEW_CODE
 #endif // NEW_THREADS
 		{
-#ifdef USE_SUB_NODES
-			if( IsActiveNode< Dim >( tree._subNodes->treeNodes[ii]->children ) )
-#else // !USE_SUB_NODES
 			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) ) if( IsActiveNode< Dim >( tree._sNodes.treeNodes[i]->children ) )
-#endif // USE_SUB_NODES
 			{
 #ifdef NEW_THREADS
 #else // !NEW_THREADS
 				int thread = omp_get_thread_num();
 #endif // NEW_THREADS
-#ifdef USE_SUB_NODES
-				node_index_type i = tree._subNodes->treeNodes[ii]->nodeData.nodeIndex;
-#endif // USE_SUB_NODES
 				typename SliceData::SquareEdgeIndices& pIndices = pSliceData.edgeIndices( i );
 				// Copy the edges that overlap the coarser edges
 				for( typename HyperCube::Cube< Dim-1 >::template Element< 1 > _e ; _e<HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() ; _e++ )
@@ -1883,7 +1836,7 @@ protected:
 #ifdef NEW_CODE
 							_Key key1 = cSliceValues.edgeKeys[cIndex1] , key2 = cSliceValues.edgeKeys[cIndex2];
 #ifdef NEW_THREADS
-							pSliceValues.vertexPairKeyValues[ thread() ].push_back( std::pair< _Key , _Key >( key1 , key2 ) );
+							pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< _Key , _Key >( key1 , key2 ) );
 #else // !NEW_THREADS
 							pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< _Key , _Key >( key1 , key2 ) );
 #endif // NEW_THREADS
@@ -1901,7 +1854,7 @@ protected:
 								_SliceValues& _pSliceValues = slabValues[_depth].sliceValues(_slice);
 #ifdef NEW_CODE
 #ifdef NEW_THREADS
-								_pSliceValues.vertexPairKeyValues[ thread() ].push_back( std::pair< _Key , _Key >( key1 , key2 ) );
+								_pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< _Key , _Key >( key1 , key2 ) );
 #else // !NEW_THREADS
 								_pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< _Key , _Key >( key1 , key2 ) );
 #endif // NEW_THREADS
@@ -1931,11 +1884,7 @@ protected:
 		typename SliceData::XSliceTableData& cSliceData0 = cSliceValues0.xSliceData;
 		typename SliceData::XSliceTableData& cSliceData1 = cSliceValues1.xSliceData;
 #ifdef NEW_THREADS
-#ifdef USE_SUB_NODES
-		tp.parallel_for( tree._sNodesBegin( *tree._subNodes , depth , slab ) , tree._sNodesEnd( *tree._subNodes , depth , slab ) , [&]( const ThreadPool::ThreadNum &thread , size_t ii )
-#else // !USE_SUB_NODES
-		tp.parallel_for( tree._sNodesBegin(depth,slab) , tree._sNodesEnd(depth,slab) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#endif // USE_SUB_NODES
+		tp.parallel_for( tree._sNodesBegin(depth,slab) , tree._sNodesEnd(depth,slab) , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -1945,19 +1894,12 @@ protected:
 #endif // NEW_CODE
 #endif // NEW_THREADS
 		{
-#ifdef USE_SUB_NODES
-			if( IsActiveNode< Dim >( tree._subNodes->treeNodes[ii]->children ) )
-#else // !USE_SUB_NODES
 			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) ) if( IsActiveNode< Dim >( tree._sNodes.treeNodes[i]->children ) )
-#endif // USE_SUB_NODES
 			{
 #ifdef NEW_THREADS
 #else // !NEW_THREADS
 				int thread = omp_get_thread_num();
 #endif // NEW_THREADS
-#ifdef USE_SUB_NODES
-				node_index_type i = tree._subNodes->treeNodes[ii]->nodeData.nodeIndex;
-#endif // USE_SUB_NODES
 				typename SliceData::SquareCornerIndices& pIndices = pSliceData.edgeIndices( i );
 				for( typename HyperCube::Cube< Dim-1 >::template Element< 0 > _c ; _c<HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ; _c++ )
 				{
@@ -2001,7 +1943,7 @@ protected:
 #ifdef NEW_CODE
 							_Key key0 = cSliceValues0.edgeKeys[cIndex0] , key1 = cSliceValues1.edgeKeys[cIndex1];
 #ifdef NEW_THREADS
-							pSliceValues.vertexPairKeyValues[ thread() ].push_back( std::pair< _Key , _Key >( key0 , key1 ) );
+							pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< _Key , _Key >( key0 , key1 ) );
 #else // !NEW_THREADS
 							pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< _Key , _Key >( key0 , key1 ) );
 #endif // NEW_THREADS
@@ -2009,11 +1951,7 @@ protected:
 							long long key0 = cSliceValues0.edgeKeys[cIndex0] , key1 = cSliceValues1.edgeKeys[cIndex1];
 							pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< long long , long long >( key0 , key1 ) );
 #endif // NEW_CODE
-#ifdef USE_SUB_NODES
-							const TreeNode* node = tree._subNodes->treeNodes[ii];
-#else // !USE_SUB_NODES
 							const TreeNode* node = tree._sNodes.treeNodes[i];
-#endif // USE_SUB_NODES
 							LocalDepth _depth = depth;
 							int _slab = slab;
 							while( tree._isValidSpaceNode( node->parent ) && SliceData::template HyperCubeTables< Dim , 1 , 0 >::Overlap[e.index][(unsigned int)(node-node->parent->children) ] )
@@ -2022,7 +1960,7 @@ protected:
 								_SliceValues& _pSliceValues = slabValues[_depth].sliceValues(_slab);
 #ifdef NEW_CODE
 #ifdef NEW_THREADS
-								_pSliceValues.vertexPairKeyValues[ thread() ].push_back( std::pair< _Key , _Key >( key0 , key1 ) );
+								_pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< _Key , _Key >( key0 , key1 ) );
 #else // !NEW_THREADS
 								_pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< _Key , _Key >( key0 , key1 ) );
 #endif // NEW_THREADS
@@ -2066,11 +2004,7 @@ protected:
 #endif // NEW_THREADS
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( tree._localToGlobal( depth ) );
 #ifdef NEW_THREADS
-#ifdef USE_SUB_NODES
-		tp.parallel_for( tree._sNodesBegin( *tree._subNodes , depth , slice-(zDir==HyperCube::BACK ? 0 : 1) ) , tree._sNodesEnd( *tree._subNodes , depth , slice-(zDir==HyperCube::BACK ? 0 : 1) ) , [&]( const ThreadPool::ThreadNum &thread , size_t ii )
-#else // !USE_SUB_NODES
-		tp.parallel_for( tree._sNodesBegin(depth, slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#endif // USE_SUB_NODES
+		tp.parallel_for( tree._sNodesBegin(depth, slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -2080,23 +2014,15 @@ protected:
 #endif // NEW_CODE
 #endif // NEW_THREADS
 		{
-#ifdef USE_SUB_NODES
-#else // !USE_SUB_NODES
 			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
-#endif // USE_SUB_NODES
 			{
 				int isoEdges[ 2 * HyperCube::MarchingSquares::MAX_EDGES ];
 #ifdef NEW_THREADS
-				ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread() ];
+				ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
 #else // !NEW_THREADS
 				ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
-#ifdef USE_SUB_NODES
-				TreeNode* leaf = tree._subNodes->treeNodes[ii];
-				node_index_type i = leaf->nodeData.nodeIndex;
-#else // !USE_SUB_NODES
 				TreeNode* leaf = tree._sNodes.treeNodes[i];
-#endif // USE_SUB_NODES
 				if( !IsActiveNode< Dim >( leaf->children ) )
 				{
 #ifdef NEW_CODE
@@ -2142,7 +2068,7 @@ protected:
 								_SliceValues& _sValues = slabValues[_depth].sliceValues( _slice );
 #ifdef NEW_THREADS
 #ifdef NEW_CODE
-								_sValues.faceEdgeKeyValues[ thread() ].push_back( std::pair< _Key , std::vector< _IsoEdge > >( key , edges ) );
+								_sValues.faceEdgeKeyValues[ thread ].push_back( std::pair< _Key , std::vector< _IsoEdge > >( key , edges ) );
 #else // !NEW_CODE
 								_sValues.faceEdgeKeyValues[ thread ].push_back( std::pair< long long , std::vector< _IsoEdge > >( key , edges ) );
 #endif // NEW_CODE
@@ -2180,11 +2106,7 @@ protected:
 #endif // NEW_THREADS
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( tree._localToGlobal( depth ) );
 #ifdef NEW_THREADS
-#ifdef USE_SUB_NODES
-		tp.parallel_for( tree._sNodesBegin( *tree._subNodes , depth , slab ) , tree._sNodesEnd( *tree._subNodes , depth , slab ) , [&]( const ThreadPool::ThreadNum &thread , size_t ii )
-#else // !USE_SUB_NODES
-		tp.parallel_for( tree._sNodesBegin(depth,slab) , tree._sNodesEnd(depth,slab) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#endif // USE_SUB_NODES
+		tp.parallel_for( tree._sNodesBegin(depth,slab) , tree._sNodesEnd(depth,slab) , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -2194,23 +2116,15 @@ protected:
 #endif // NEW_CODE
 #endif // NEW_THREADS
 		{
-#ifdef USE_SUB_NODES
-#else // !USE_SUB_NODES
 			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
-#endif // USE_SUB_NODES
 			{
 				int isoEdges[ 2 * HyperCube::MarchingSquares::MAX_EDGES ];
 #ifdef NEW_THREADS
-				ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread() ];
+				ConstOneRingNeighborKey& neighborKey = neighborKeys[ thread ];
 #else // !NEW_THREADS
 				ConstOneRingNeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
-#ifdef USE_SUB_NODES
-				TreeNode* leaf = tree._subNodes->treeNodes[ii];
-				node_index_type i = leaf->nodeData.nodeIndex;
-#else // !USE_SUB_NODES
 				TreeNode* leaf = tree._sNodes.treeNodes[i];
-#endif //USE_SUB_NODES
 				if( !IsActiveNode< Dim >( leaf->children ) )
 				{
 					const typename SliceData::SquareCornerIndices& cIndices = xValues.xSliceData.edgeIndices( leaf );
@@ -2277,7 +2191,7 @@ protected:
 									_XSliceValues& _xValues = slabValues[_depth].xSliceValues( _slab );
 #ifdef NEW_THREADS
 #ifdef NEW_CODE
-									_xValues.faceEdgeKeyValues[ thread() ].push_back( std::pair< _Key , std::vector< _IsoEdge > >( key , edges ) );
+									_xValues.faceEdgeKeyValues[ thread ].push_back( std::pair< _Key , std::vector< _IsoEdge > >( key , edges ) );
 #else // !NEW_CODE
 									_xValues.faceEdgeKeyValues[ thread ].push_back( std::pair< long long , std::vector< _IsoEdge > >( key , edges ) );
 #endif // NEW_CODE
@@ -2316,11 +2230,7 @@ protected:
 #endif // NEW_CODE
 #ifdef NEW_THREADS
 		std::vector< std::vector< _IsoEdge > > edgess( tp.threadNum() );
-#ifdef USE_SUB_NODES
-		tp.parallel_for( tree._sNodesBegin( *tree._subNodes , depth , offset ) , tree._sNodesEnd( *tree._subNodes , depth , offset ) , [&]( const ThreadPool::ThreadNum &thread , size_t ii )
-#else // !USE_SUB_NODES
-		tp.parallel_for( tree._sNodesBegin(depth,offset) , tree._sNodesEnd(depth,offset) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
-#endif // USE_SUB_NODES
+		tp.parallel_for( tree._sNodesBegin(depth,offset) , tree._sNodesEnd(depth,offset) , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 		std::vector< std::vector< _IsoEdge > > edgess( omp_get_max_threads() );
 #pragma omp parallel for
@@ -2331,22 +2241,14 @@ protected:
 #endif // NEW_CODE
 #endif // NEW_THREADS
 		{
-#ifdef USE_SUB_NODES
-#else // !USE_SUB_NODES
 			if( tree._isValidSpaceNode( tree._sNodes.treeNodes[i] ) )
-#endif // USE_SUB_NODES
 			{
 #ifdef NEW_THREADS
-				std::vector< _IsoEdge >& edges = edgess[ thread() ];
+				std::vector< _IsoEdge >& edges = edgess[ thread ];
 #else // !NEW_THREADS
 				std::vector< _IsoEdge >& edges = edgess[ omp_get_thread_num() ];
 #endif // NEW_THREADS
-#ifdef USE_SUB_NODES
-				TreeNode *leaf = tree._subNodes->treeNodes[ii];
-				node_index_type i = leaf->nodeData.nodeIndex;
-#else // !USE_SUB_NODES
 				TreeNode* leaf = tree._sNodes.treeNodes[i];
-#endif //USE_SUB_NODES
 				int res = 1<<depth;
 				LocalDepth d ; LocalOffset off;
 				tree._localDepthAndOffset( leaf , d , off );
@@ -2496,7 +2398,7 @@ protected:
 								else ERROR_OUT( "Couldn't find vertex in edge map" );
 							}
 #ifdef NEW_THREADS
-							_AddIsoPolygons( thread() , mesh , polygon , polygonMesh , addBarycenter , vOffset );
+							_AddIsoPolygons( thread , mesh , polygon , polygonMesh , addBarycenter , vOffset );
 #else // !NEW_THREADS
 							_AddIsoPolygons( mesh , polygon , polygonMesh , addBarycenter , vOffset );
 #endif // NEW_THREADS
@@ -2859,11 +2761,6 @@ public:
 	static IsoStats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , CoredMeshData< Vertex >& mesh , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex , bool nonLinearFit , bool addBarycenter , bool polygonMesh , bool flipOrientation )
 #endif // NEW_CODE
 	{
-#ifdef USE_SUB_NODES
-		SortedTreeNodes< Dim > *&_subNodes = const_cast< SortedTreeNodes< Dim > *& >( tree._subNodes );
-		if( _subNodes ) delete _subNodes;
-		_subNodes = tree._sNodes.subNodes( [&tree]( const TreeNode *node ){ return tree._isValidSpaceNode( node ); } );
-#endif // USE_SUB_NODES
 		IsoStats isoStats;
 		static_assert( sizeof...(FEMSigs)==Dim , "[ERROR] Number of signatures should match dimension" );
 		tree._setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
@@ -2878,7 +2775,7 @@ public:
 		DenseNodeData< Real , UIntPack< FEMSigs ... > > coarseCoefficients( tree._sNodesEnd( tree._maxDepth-1 ) );
 		memset( coarseCoefficients() , 0 , sizeof(Real)*tree._sNodesEnd( tree._maxDepth-1 ) );
 #ifdef NEW_THREADS
-		tp.parallel_for( tree._sNodesBegin(0) , tree._sNodesEnd( tree._maxDepth-1 ) , [&]( const ThreadPool::ThreadNum &, size_t i ){ coarseCoefficients[i] = coefficients[i]; } );
+		tp.parallel_for( tree._sNodesBegin(0) , tree._sNodesEnd( tree._maxDepth-1 ) , [&]( unsigned int, size_t i ){ coarseCoefficients[i] = coefficients[i]; } );
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -3011,7 +2908,7 @@ public:
 				isoStats.edgesTime += Time()-t , t = Time();
 
 #ifdef NEW_THREADS
-				auto SlabSet = [&]( const ThreadPool::ThreadNum &, size_t i )
+				auto SlabSet = [&]( unsigned int , size_t i )
 				{
 					switch( i )
 					{
@@ -3082,10 +2979,6 @@ public:
 		}
 		FEMTree< Dim , Real >::MemoryUsage();
 		if( pointEvaluator ) delete pointEvaluator;
-#ifdef USE_SUB_NODES
-		delete _subNodes;
-		_subNodes = NULL;
-#endif // USE_SUB_NODES
 		return isoStats;
 	}
 };

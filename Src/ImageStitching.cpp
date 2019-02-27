@@ -28,20 +28,17 @@ DAMAGE.
 #define NEW_CODE
 
 #ifdef NEW_CODE
-#define BIG_DATA								// Supports processing requiring more than 32-bit integers for indexing
-												// Note: enabling BIG_DATA can generate .ply files using "longlong" for face indices instead of "int".
-												// These are not standardly supported by .ply reading/writing applications.
-#define NEW_THREADS								// Enabling this flag replaces the OpenMP implementation of parallelism with C++11's
-#define FORCE_PARALLEL							// Forces parallel methods to pass in a thread pool
+#include "PreProcessor.h"
 #endif // NEW_CODE
 
-#undef ARRAY_DEBUG
-#undef FAST_COMPILE
 #undef USE_DOUBLE
 #define DIMENSION 2
-#define USE_DEEP_TREE_NODES
 #define ROW_BLOCK_SIZE 16
 #define DEFAULT_FEM_DEGREE 1
+
+#ifndef USE_DEEP_TREE_NODES
+#define USE_DEEP_TREE_NODES
+#endif // USE_DEEP_TREE_NODES
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -254,7 +251,7 @@ struct BufferedImageDerivativeStream : public FEMTreeInitializer< DIMENSION , Re
 				for( int i=0 ; i<(int)_resolution[0] ; i++ ) labelRow[i][0] = labelRow[i][1] = labelRow[i][2] = __labelRow[i];
 			}
 #ifdef NEW_THREADS
-			tp.parallel_for( 0 , _resolution[0] , [&]( const ThreadPool::ThreadNum & , size_t i ){ maskRow[i] = labelRow[i].mask(); } );
+			tp.parallel_for( 0 , _resolution[0] , [&]( unsigned int , size_t i ){ maskRow[i] = labelRow[i].mask(); } );
 #else // !NEW_THREADS
 #pragma omp parallel for
 			for( int i=0 ; i<(int)_resolution[0] ; i++ ) maskRow[i] = labelRow[i].mask();
@@ -341,10 +338,10 @@ void _Execute( void )
 		for( int j=0 ; j<h ; j++ )
 		{
 #ifdef NEW_THREADS
-			tp.parallel_for( 0 , 2 , [&]( const ThreadPool::ThreadNum & , size_t i )
+			tp.parallel_for( 0 , 2 , [&]( unsigned int , size_t i )
 			{
 				if( i==0 ) dStream.prefetch();
-				else maxDepth = FEMTreeInitializer< Dim , Real >::template Initialize< (Degree&1)==0 , Point< Real , Colors > >( tree.spaceRoot() , dStream , derivatives , tree.nodeAllocator , tree.initializer() );
+				else maxDepth = FEMTreeInitializer< Dim , Real >::template Initialize< (Degree&1)==0 , Point< Real , Colors > >( tree.spaceRoot() , dStream , derivatives , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() );
 			} , ThreadPool::STATIC , 1
 			);
 #else // !NEW_THREADS
@@ -495,7 +492,7 @@ void _Execute( void )
 					in->nextRow( inRow );
 					RGBPixel *_inRow = inRows[block&1] + rr*w;
 #ifdef NEW_THREADS
-					tp.parallel_for( 0 , w , [&]( const ThreadPool::ThreadNum & , size_t i ){ _inRow[i][0] = _inRow[i][1] = _inRow[i][2] = inRow[i]; } );
+					tp.parallel_for( 0 , w , [&]( unsigned int , size_t i ){ _inRow[i][0] = _inRow[i][1] = _inRow[i][2] = inRow[i]; } );
 #else // !NEW_THREADS
 #pragma omp parallel for
 					for( int i=0 ; i<w ; i++ ) _inRow[i][0] = _inRow[i][1] = _inRow[i][2] = inRow[i];
@@ -520,7 +517,7 @@ void _Execute( void )
 		for( int rStart=0 , block=0 ; rStart<h ; rStart+=ROW_BLOCK_SIZE , block++ )
 		{
 #ifdef NEW_THREADS
-			tp.parallel_for( 0 , 3 , [&]( const ThreadPool::ThreadNum & , size_t i )
+			tp.parallel_for( 0 , 3 , [&]( unsigned int , size_t i )
 			{
 				switch( i )
 				{
@@ -536,7 +533,7 @@ void _Execute( void )
 					begin[0] = 0 , begin[1] = rStart , end[0] = w , end[1] = rEnd;
 					Pointer( Point< Real , Colors > ) outBlock = tree.template regularGridUpSample< true >( tp , solution , begin , end );
 					int size = (rEnd-rStart)*w;
-					tp.parallel_for( 0 , size , [&]( const ThreadPool::ThreadNum & , size_t ii )
+					tp.parallel_for( 0 , size , [&]( unsigned int , size_t ii )
 					{
 						Point< Real , Colors > c = Point< Real , Colors >( _inRows[ii][0] , _inRows[ii][1] , _inRows[ii][2] ) / 255;
 						c += outBlock[ii] - average;

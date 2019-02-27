@@ -631,7 +631,7 @@ Pointer( V ) FEMTree< Dim , Real >::regularGridEvaluate( const DenseNodeData< V 
 			);
 		}
 #ifdef NEW_THREADS
-		tp.parallel_for( 0 , cellCount , [&]( const ThreadPool::ThreadNum & , size_t c )
+		tp.parallel_for( 0 , cellCount , [&]( unsigned int , size_t c )
 #else // !NEW_THREADS
 #pragma omp parallel for
 		for( long long c=0 ; c<(long long)cellCount ; c++ )
@@ -723,7 +723,7 @@ Pointer( V ) FEMTree< Dim , Real >::regularGridEvaluate( const DenseNodeData< V 
 			);
 		}
 #ifdef NEW_THREADS
-		tp.parallel_for( 0 , cellCount , [&]( const ThreadPool::ThreadNum & , size_t c )
+		tp.parallel_for( 0 , cellCount , [&]( unsigned int , size_t c )
 #else // !NEW_THREADS
 #pragma omp parallel for
 		for( long long c=0 ; c<(long long)cellCount ; c++ )
@@ -875,7 +875,7 @@ Pointer( V ) FEMTree< Dim , Real >::regularGridUpSample( const DenseNodeData< V 
 		upSampledCoefficients = NewPointer< V >( count );
 		memset( upSampledCoefficients , 0 , sizeof( V ) * count );
 #ifdef NEW_THREADS
-		tp.parallel_for( _sNodesBegin(_depth) , _sNodesEnd(_depth) , [&]( const ThreadPool::ThreadNum & , size_t i )
+		tp.parallel_for( _sNodesBegin(_depth) , _sNodesEnd(_depth) , [&]( unsigned int , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -910,7 +910,7 @@ Pointer( V ) FEMTree< Dim , Real >::regularGridUpSample( const DenseNodeData< V 
 		memset( _coefficients , 0 , sizeof( V ) * count );
 		if( _depth<=_maxDepth )
 #ifdef NEW_THREADS
-			tp.parallel_for( _sNodesBegin(_depth) , _sNodesEnd(_depth) , [&]( const ThreadPool::ThreadNum & , size_t i )
+			tp.parallel_for( _sNodesBegin(_depth) , _sNodesEnd(_depth) , [&]( unsigned int , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -986,7 +986,7 @@ V FEMTree< Dim , Real >::average( const DenseNodeData< V , UIntPack< DataSigs ..
 		for( int dd=0 ; dd<Dim ; dd++ ) off[dd] = center , __begin[dd] = 0 , __end[dd] = 1;
 		double integral = FEMIntegrator::Integral( UIntPack< DataSigs ... >() , d , off , __begin , __end );
 #ifdef NEW_THREADS
-		tp.parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
+		tp.parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
 
 #else // !NEW_THREADS
 #pragma omp parallel for
@@ -1002,8 +1002,8 @@ V FEMTree< Dim , Real >::average( const DenseNodeData< V , UIntPack< DataSigs ..
 				int d , off[Dim];
 				_localDepthAndOffset( _sNodes.treeNodes[i] , d , off );
 #ifdef NEW_THREADS
-				if( BaseFEMIntegrator::IsInteriorlySupported( UIntPack< FEMSignature< DataSigs >::Degree ... >() , d , off , _begin , _end ) ) avgs[ thread() ] += (V)( coefficients[i] * (Real)integral );
-				else                                                                                                                           avgs[ thread() ] += (V)( coefficients[i] * (Real)FEMIntegrator::Integral( UIntPack< DataSigs ... >() , d , off , _begin , _end ) );
+				if( BaseFEMIntegrator::IsInteriorlySupported( UIntPack< FEMSignature< DataSigs >::Degree ... >() , d , off , _begin , _end ) ) avgs[ thread ] += (V)( coefficients[i] * (Real)integral );
+				else                                                                                                                           avgs[ thread ] += (V)( coefficients[i] * (Real)FEMIntegrator::Integral( UIntPack< DataSigs ... >() , d , off , _begin , _end ) );
 #else // !NEW_THREADS
 				if( BaseFEMIntegrator::IsInteriorlySupported( UIntPack< FEMSignature< DataSigs >::Degree ... >() , d , off , _begin , _end ) ) avgs[ omp_get_thread_num() ] += (V)( coefficients[i] * (Real)integral );
 				else                                                                                                                           avgs[ omp_get_thread_num() ] += (V)( coefficients[i] * (Real)FEMIntegrator::Integral( UIntPack< DataSigs ... >() , d , off , _begin , _end ) );
@@ -1048,7 +1048,7 @@ SparseNodeData< CumulativeDerivativeValues< Real , Dim , PointD > , IsotropicUIn
 #endif // NEW_THREADS
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( d ) );
 #ifdef NEW_THREADS
-		tp.parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( const ThreadPool::ThreadNum &thread , size_t i )
+		tp.parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #ifdef NEW_CODE
 		for( node_index_type i=_sNodesBegin(d) ; i<_sNodesEnd(d) ; i++ )
@@ -1060,7 +1060,7 @@ SparseNodeData< CumulativeDerivativeValues< Real , Dim , PointD > , IsotropicUIn
 			if( _isValidSpaceNode( _sNodes.treeNodes[i] ) )
 			{
 #ifdef NEW_THREADS
-				ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& neighborKey = neighborKeys[ thread() ];
+				ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& neighborKey = neighborKeys[ thread ];
 #else // !NEW_THREADS
 				ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > >& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS

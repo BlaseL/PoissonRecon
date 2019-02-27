@@ -41,8 +41,6 @@ DAMAGE.
 
 // -- [TODO] Make thread pool static
 // -- [TODO] Support nested parallelism with thread pools
-// -- [TODO] Make thread pool function taking unsinged int instead of ThreadNum
-// -- [TODO] Make parallel for only iterate over valid nodes
 
 #ifndef FEM_TREE_INCLUDED
 #define FEM_TREE_INCLUDED
@@ -157,11 +155,6 @@ public:
 	~SortedTreeNodes( void );
 	void set( TreeNode& root , std::vector< node_index_type >* map );
 	size_t set( TreeNode& root );
-
-#ifdef USE_SUB_NODES
-	// Extracts the subset of tree nodes that evaluate to true on validFunction
-	template< typename ValidFunction > SortedTreeNodes *subNodes( const ValidFunction &validFunction ) const;
-#endif //USE_SUB_NODES
 #else // !NEW_CODE
 	int begin( int depth ) const { return _sliceStart[depth][0]; }
 	int   end( int depth ) const { return _sliceStart[depth][(size_t)1<<depth]; }
@@ -1647,14 +1640,11 @@ class FEMTree
 public:
 #ifdef NEW_CODE
 	typedef RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > FEMTreeNode;
+	std::vector< Allocator< FEMTreeNode > * > nodeAllocators;
 #else // !NEW_CODE
 	typedef RegularTreeNode< Dim , FEMTreeNodeData > FEMTreeNode;
-#endif // NEW_CODE
-#ifdef MULTI_THREADED_TREE
-	std::vector< Allocator< FEMTreeNode > * > nodeAllocators;
-#else // !MULTI_THREADED_TREE
 	Allocator< FEMTreeNode >* nodeAllocator;
-#endif // MULTI_THREADED_TREE
+#endif // NEW_CODE
 protected:
 	template< unsigned int _Dim , class _Real , class Vertex > friend struct IsoSurfaceExtractor;
 #ifdef NEW_CODE
@@ -1696,14 +1686,14 @@ public:
 	template< unsigned int ... FEMSigs > bool isValidFEMNode( UIntPack< FEMSigs ... > , const FEMTreeNode* node ) const;
 	bool isValidSpaceNode( const FEMTreeNode* node ) const;
 	const FEMTreeNode* leaf( Point< Real , Dim > p ) const;
-#ifdef MULTI_THREADED_TREE
+#ifdef NEW_CODE
 protected:
 	FEMTreeNode* _leaf( Allocator< FEMTreeNode > * nodeAllocator , Point< Real , Dim > p , LocalDepth maxDepth=-1 );
 	FEMTreeNode* _leaf_s( Allocator< FEMTreeNode > * nodeAllocator , Point< Real , Dim > p , LocalDepth maxDepth=-1 );
 public:
-#else // !MULTI_THREADED_TREE
+#else // !NEW_CODE
 	FEMTreeNode* leaf( Point< Real , Dim > p , LocalDepth maxDepth=-1 );
-#endif // MULTI_THREADED_TREE
+#endif // NEW_CODE
 
 	// [NOTE] In the case that T != double, we require both operators() for computing the system dual
 	template< typename T , unsigned int PointD >
@@ -2327,9 +2317,6 @@ protected:
 	FEMTreeNode* _tree;
 	FEMTreeNode* _spaceRoot;
 	SortedTreeNodes< Dim > _sNodes;
-#ifdef USE_SUB_NODES
-	SortedTreeNodes< Dim > *_subNodes;
-#endif // USE_SUB_NODES
 	LocalDepth _maxDepth;
 	int _depthOffset;
 	mutable unsigned int _femSigs1[ Dim ];
@@ -2364,16 +2351,6 @@ protected:
 	node_index_type _sNodesEndSlice( LocalDepth d ) const{ return ( 1<<_localToGlobal(d) ) - _localInset(d) - 1; }
 	size_t _sNodesSize( LocalDepth d )             const { return _sNodes.size( _localToGlobal( d ) ); }
 	size_t _sNodesSize( LocalDepth d , int slice ) const { return _sNodes.size( _localToGlobal( d ) , slice + _localInset( d ) ); }
-#ifdef USE_SUB_NODES
-	node_index_type _sNodesBegin     ( const SortedTreeNodes< Dim > &sNodes , LocalDepth d )             const { return sNodes.begin( _localToGlobal( d ) ); }
-	node_index_type _sNodesBegin     ( const SortedTreeNodes< Dim > &sNodes , LocalDepth d , int slice ) const { return sNodes.begin( _localToGlobal( d ) , slice + _localInset( d ) ); }
-	node_index_type _sNodesBeginSlice( const SortedTreeNodes< Dim > &sNodes , LocalDepth d )             const { return _localInset(d); }
-	node_index_type _sNodesEnd       ( const SortedTreeNodes< Dim > &sNodes , LocalDepth d )             const { return sNodes.end  ( _localToGlobal( d ) ); }
-	node_index_type _sNodesEnd       ( const SortedTreeNodes< Dim > &sNodes , LocalDepth d , int slice ) const { return sNodes.end  ( _localToGlobal( d ) , slice + _localInset( d ) ); }
-	node_index_type _sNodesEndSlice  ( const SortedTreeNodes< Dim > &sNodes , LocalDepth d )             const{ return ( 1<<_localToGlobal(d) ) - _localInset(d) - 1; }
-	size_t _sNodesSize               ( const SortedTreeNodes< Dim > &sNodes , LocalDepth d )             const { return sNodes.size( _localToGlobal( d ) ); }
-	size_t _sNodesSize               ( const SortedTreeNodes< Dim > &sNodes , LocalDepth d , int slice ) const { return sNodes.size( _localToGlobal( d ) , slice + _localInset( d ) ); }
-#endif // USE_SUB_NODES
 #else // !NEW_CODE
 	int _sNodesBegin( LocalDepth d ) const { return _sNodes.begin( _localToGlobal( d ) ); }
 	int _sNodesEnd  ( LocalDepth d ) const { return _sNodes.end  ( _localToGlobal( d ) ); }
@@ -2461,13 +2438,13 @@ protected:
 		return cIdx;
 	}
 
-#ifdef MULTI_THREADED_TREE
+#ifdef NEW_CODE
 	template< unsigned int ... Degrees > void _setFullDepth( UIntPack< Degrees ... > , Allocator< FEMTreeNode > *nodeAllocator , FEMTreeNode* node , LocalDepth depth );
 	template< unsigned int ... Degrees > void _setFullDepth( UIntPack< Degrees ... > , Allocator< FEMTreeNode > *nodeAllocator , LocalDepth depth );
-#else // !MULTI_THREADED_TREE
+#else // !NEW_CODE
 	template< unsigned int ... Degrees > void _setFullDepth( UIntPack< Degrees ... > , FEMTreeNode* node , LocalDepth depth );
 	template< unsigned int ... Degrees > void _setFullDepth( UIntPack< Degrees ... > , LocalDepth depth );
-#endif // MULTI_THREADED_TREE
+#endif // NEW_CODE
 	template< unsigned int ... Degrees > LocalDepth _getFullDepth( UIntPack< Degrees ... > , const FEMTreeNode* node ) const;
 
 public:
@@ -2788,11 +2765,11 @@ protected:
 	// MultiGridFEMTreeData.WeightedSamples.inl //
 	//////////////////////////////////////////////
 	template< unsigned int WeightDegree >
-#ifdef MULTI_THREADED_TREE
+#ifdef NEW_CODE
 	void _addWeightContribution( Allocator< FEMTreeNode > *nodeAllocator , DensityEstimator< WeightDegree >& densityWeights , FEMTreeNode* node , Point< Real , Dim > position , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , Real weight=Real(1.0) );
-#else // !MULTI_THREADED_TREE
+#else // !NEW_CODE
 	void _addWeightContribution( DensityEstimator< WeightDegree >& densityWeights , FEMTreeNode* node , Point< Real , Dim > position , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , Real weight=Real(1.0) );
-#endif // MULTI_THREADED_TREE
+#endif // NEW_CODE
 	template< unsigned int WeightDegree , class PointSupportKey >
 	Real _getSamplesPerNode( const DensityEstimator< WeightDegree >& densityWeights , const FEMTreeNode* node , Point< Real , Dim > position , PointSupportKey& weightKey ) const;
 	template< unsigned int WeightDegree , class WeightKey >
@@ -2800,15 +2777,15 @@ protected:
 	template< unsigned int WeightDegree , class WeightKey >
 	void _getSampleDepthAndWeight( const DensityEstimator< WeightDegree >& densityWeights , Point< Real , Dim > position , WeightKey& weightKey , Real& depth , Real& weight ) const;
 
-#ifdef MULTI_THREADED_TREE
+#ifdef NEW_CODE
 	template< bool CreateNodes ,                             class V , unsigned int ... DataSigs > void      _splatPointData( Allocator< FEMTreeNode > *nodeAllocator , FEMTreeNode* node ,                                                          Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data ,                                                                         PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey                                                                        );
 	template< bool CreateNodes , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real      _splatPointData( Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >& densityWeights ,                     Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , LocalDepth minDepth , LocalDepth maxDepth , int dim , Real depthBias );
 	template< bool CreateNodes , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real _multiSplatPointData( Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey ,                                             int dim                  );
-#else // !MULTI_THREADED_TREE
+#else // !NEW_CODE
 	template< bool CreateNodes ,                             class V , unsigned int ... DataSigs > void      _splatPointData( FEMTreeNode* node ,                                                          Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data ,                                                                         PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey                                                                        );
 	template< bool CreateNodes , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real      _splatPointData( const DensityEstimator< WeightDegree >& densityWeights ,                     Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , LocalDepth minDepth , LocalDepth maxDepth , int dim , Real depthBias );
 	template< bool CreateNodes , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real _multiSplatPointData( const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey ,                                             int dim                  );
-#endif // MULTI_THREADED_TREE
+#endif // NEW_CODE
 	template< unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real _nearestMultiSplatPointData( const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , int dim=Dim );
 	template< class V , class Coefficients , unsigned int D , unsigned int ... DataSigs > V _evaluate( const Coefficients& coefficients , Point< Real , Dim > p , const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey ) const;
 public:
@@ -3112,13 +3089,13 @@ public:
 #endif // NEW_CODE
 	~FEMTree( void )
 	{
-#ifdef MULTI_THREADED_TREE
+#ifdef NEW_CODE
 		if( _tree ) for( int c=0 ; c<(1<<Dim) ; c++ ) _tree[c].cleanChildren( !nodeAllocators.size() );
 		for( size_t i=0 ; i<nodeAllocators.size() ; i++ ) delete nodeAllocators[i];
-#else // !MULTI_THREADED_TREE
+#else // !NEW_CODE
 		if( _tree ) for( int c=0 ; c<(1<<Dim) ; c++ ) _tree[c].cleanChildren( nodeAllocator );
 		if( nodeAllocator ) delete nodeAllocator;
-#endif // MULTI_THREADED_TREE
+#endif // NEW_CODE
 	}
 	void write( FILE* fp ) const;
 	static void WriteParameter( FILE* fp )

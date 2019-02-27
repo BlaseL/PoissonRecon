@@ -25,7 +25,8 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING 
 ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
 */
 #define NEW_CODE
-#define NEW_THREADS
+
+#include "PreProcessor.h"
 
 #if defined( _WIN32 ) || defined( _WIN64 )
 #define WINDOWS
@@ -133,7 +134,7 @@ double RunMutex( size_t outIters , size_t inIters , ThreadPool &tp )
 		size_t sum = 0;
 		for( size_t i=0 ; i<outIters ; i++ )
 		{
-			tp.parallel_for( 0 , inIters , [&]( const ThreadPool::ThreadNum & , size_t i ){ Task( i , sum ); } );
+			tp.parallel_for( 0 , inIters , [&]( unsigned int , size_t i ){ Task( i , sum ); } );
 		}
 		printf( "\t\tMutex:             %.2f(s)\t%llu\n" , Time()-t , (unsigned long long)sum );
 	}
@@ -152,7 +153,7 @@ double RunAtomicDouble( size_t outIters , size_t inIters , ThreadPool &tp )
 		double sum = 0;
 		for( size_t i=0 ; i<outIters ; i++ )
 		{
-			tp.parallel_for( 0 , inIters , [&]( const ThreadPool::ThreadNum & , size_t i ){ Task( i , sum ); } );
+			tp.parallel_for( 0 , inIters , [&]( unsigned int , size_t i ){ Task( i , sum ); } );
 		}
 		printf( "\t\tAtomic add double: %.2f(s)\t%g\n" , Time()-t , sum );
 	}
@@ -171,7 +172,7 @@ double RunAtomicFloat( size_t outIters , size_t inIters , ThreadPool &tp )
 		float sum = 0;
 		for( size_t i=0 ; i<outIters ; i++ )
 		{
-			tp.parallel_for( 0 , inIters , [&Task,&sum]( const ThreadPool::ThreadNum & , size_t i ){ Task( i , sum ); } );
+			tp.parallel_for( 0 , inIters , [&Task,&sum]( unsigned int , size_t i ){ Task( i , sum ); } );
 		}
 		printf( "\t\tAtomic add float:  %.2f(s)\t%g\n" , Time()-t , sum );
 	}
@@ -192,7 +193,7 @@ double RunAtomic( size_t outIters , size_t inIters , ThreadPool &tp )
 		sum.store(0);
 		for( size_t i=0 ; i<outIters ; i++ )
 		{
-			tp.parallel_for( 0 , inIters , [&]( const ThreadPool::ThreadNum & , size_t i ){ Task( i , sum ); } );
+			tp.parallel_for( 0 , inIters , [&]( unsigned int , size_t i ){ Task( i , sum ); } );
 		}
 		printf( "\t\tAtomic:            %.2f(s)\t%llu\n" , Time()-t , (unsigned long long)sum );
 	}
@@ -208,7 +209,7 @@ double Run( size_t outIters , size_t inIters , ThreadPool &tp )
 		size_t sum = 0;
 		for( size_t i=0 ; i<outIters ; i++ )
 		{
-			tp.parallel_for( 0 , inIters , [&]( const ThreadPool::ThreadNum & , size_t i ){ Task( i , sum ); } );
+			tp.parallel_for( 0 , inIters , [&]( unsigned int , size_t i ){ Task( i , sum ); } );
 		}
 		printf( "\t\tNone:              %.2f(s)\t%llu\n" , Time()-t , (unsigned long long)sum );
 	}

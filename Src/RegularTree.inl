@@ -44,7 +44,7 @@ RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::RegularTreeNode( std::fu
 	memset( _offset , 0 , sizeof(_offset ) );
 	if( Initializer ) Initializer( *this );
 }
-#ifdef MULTI_THREADED_TREE
+#ifdef NEW_CODE
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::cleanChildren( bool deleteChildren )
 {
@@ -55,7 +55,7 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::cleanChildren( bool
 	}
 	parent = children = NULL;
 }
-#else // !MULTI_THREADED_TREE
+#else // !NEW_CODE
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::cleanChildren( Allocator< RegularTreeNode >* nodeAllocator )
 {
@@ -66,7 +66,7 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::cleanChildren( Allo
 	}
 	parent = children = NULL;
 }
-#endif // MULTI_THREADED_TREE
+#endif // NEW_CODE
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::~RegularTreeNode(void)
 {
@@ -141,7 +141,7 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::setFullDepth( int m
 	}
 }
 
-#ifdef MULTI_THREADED_TREE
+#ifdef NEW_CODE
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren_s( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
 {
@@ -173,7 +173,7 @@ bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren_s( All
 		return false;
 	}
 }
-#endif // MULTI_THREADED_TREE
+#endif // NEW_CODE
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
 {
@@ -558,17 +558,17 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey
 			{
 				if( !pNeighbors[pi]->children )
 #ifdef NEW_THREADS
-#ifdef MULTI_THREADED_TREE
+#ifdef NEW_CODE
 				{
 					pNeighbors[pi]->initChildren_s( nodeAllocator , Initializer );
 				}
-#else // !MULTI_THREADED_TREE
+#else // !NEW_CODE
 				{
 					static std::mutex m;
 					std::lock_guard< std::mutex > lock(m);
 					if( !pNeighbors[pi]->children ) pNeighbors[pi]->initChildren( nodeAllocator , Initializer );
 				}
-#endif // MULTI_THREADED_TREE
+#endif // NEW_CODE
 #else // !NEW_THREADS
 #pragma omp critical ( RegularTreeNode__NeighborKey__Run )
 				{

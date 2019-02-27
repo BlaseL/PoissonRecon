@@ -28,15 +28,8 @@ DAMAGE.
 #define NEW_CODE
 
 #ifdef NEW_CODE
-#define BIG_DATA								// Supports processing requiring more than 32-bit integers for indexing
-												// Note: enabling BIG_DATA can generate .ply files using "longlong" for face indices instead of "int".
-												// These are not standardly supported by .ply reading/writing applications.
-#define NEW_THREADS								// Enabling this flag replaces the OpenMP implementation of parallelism with C++11's
-#define FORCE_PARALLEL							// Forces parallel methods to pass in a thread pool
+#include "PreProcessor.h"
 #endif // NEW_CODE
-
-
-#undef ARRAY_DEBUG
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -138,7 +131,7 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 		Real avg = 0;
 #ifdef NEW_THREADS
 		std::vector< Real > avgs( tp.threadNum() , 0 );
-		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum &thread , size_t i ){ avgs[thread()] += values[i]; } );
+		tp.parallel_for( 0 , resolution , [&]( unsigned int thread , size_t i ){ avgs[thread] += values[i]; } );
 		for( unsigned int t=0 ; t<tp.threadNum() ; t++ ) avg += avgs[t];
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : avg )
@@ -149,7 +142,7 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 		Real std = 0;
 #ifdef NEW_THREADS
 		std::vector< Real > stds( tp.threadNum() , 0 );
-		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum &thread , size_t i ){ stds[thread()] += ( values[i] - avg ) * ( values[i] - avg ); } );
+		tp.parallel_for( 0 , resolution , [&]( unsigned int thread , size_t i ){ stds[thread] += ( values[i] - avg ) * ( values[i] - avg ); } );
 		for( unsigned int t=0 ; t<tp.threadNum() ; t++ ) std += stds[t];
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : std )
@@ -161,7 +154,7 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 
 		unsigned char *pixels = new unsigned char[ resolution*3 ];
 #ifdef NEW_THREADS
-		tp.parallel_for( 0 , resolution , [&]( const ThreadPool::ThreadNum & , size_t i )
+		tp.parallel_for( 0 , resolution , [&]( unsigned int , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 		for( int i=0 ; i<resolution ; i++ )

@@ -56,12 +56,12 @@ public:
 	RegularTreeNode( std::function< void ( RegularTreeNode& ) > Initializer=std::function< void ( RegularTreeNode& ) >() );
 	static RegularTreeNode* NewBrood( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer=std::function< void ( RegularTreeNode& ) >() );
 	int initChildren( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer=std::function< void ( RegularTreeNode& ) >() );
-#ifdef MULTI_THREADED_TREE
+#ifdef NEW_CODE
 	bool initChildren_s( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer=std::function< void ( RegularTreeNode& ) >() );
 	void cleanChildren( bool deleteChildren );
-#else // !MULTI_THREADED_TREE
+#else // !NEW_CODE
 	void cleanChildren( Allocator< RegularTreeNode >* nodeAllocator );
-#endif // MULTI_THREADED_TREE
+#endif // NEW_CODE
 	static void ResetDepthAndOffset( RegularTreeNode* root , int d , int off[Dim] );
 	~RegularTreeNode( void );
 

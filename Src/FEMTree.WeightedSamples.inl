@@ -48,11 +48,11 @@ template< unsigned int Degree > double GetScaleValue( void )
 }
 template< unsigned int Dim , class Real >
 template< unsigned int WeightDegree >
-#ifdef MULTI_THREADED_TREE
+#ifdef NEW_CODE
 void FEMTree< Dim , Real >::_addWeightContribution( Allocator< FEMTreeNode > *nodeAllocator , DensityEstimator< WeightDegree >& densityWeights , FEMTreeNode* node , Point< Real , Dim > position , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , Real weight )
-#else // !MULTI_THREADED_TREE
+#else // !NEW_CODE
 void FEMTree< Dim , Real >::_addWeightContribution( DensityEstimator< WeightDegree >& densityWeights , FEMTreeNode* node , Point< Real , Dim > position , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , Real weight )
-#endif // MULTI_THREADED_TREE
+#endif // NEW_CODE
 {
 	static const double ScaleValue = GetScaleValue< WeightDegree >();
 	double values[ Dim ][ BSplineSupportSizes< WeightDegree >::SupportSize ];
@@ -154,14 +154,13 @@ void FEMTree< Dim , Real >::_getSampleDepthAndWeight( const DensityEstimator< We
 	return _getSampleDepthAndWeight( densityWeights , temp , position , weightKey , depth , weight );
 }
 
-#include <mutex>
 template< unsigned int Dim , class Real >
 template< bool CreateNodes , class V , unsigned int ... DataSigs >
-#ifdef MULTI_THREADED_TREE
+#ifdef NEW_CODE
 void FEMTree< Dim , Real >::_splatPointData( Allocator< FEMTreeNode > *nodeAllocator , FEMTreeNode* node , Point< Real , Dim > position , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& dataInfo , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey )
-#else // !MULTI_THREADED_TREE
+#else // !NEW_CODE
 void FEMTree< Dim , Real >::_splatPointData( FEMTreeNode* node , Point< Real , Dim > position , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& dataInfo , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey )
-#endif // MULTI_THREADED_TREE
+#endif // NEW_CODE
 {
 	typedef UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > SupportSizes;
 	double values[ Dim ][ SupportSizes::Max() ];
@@ -188,11 +187,11 @@ void FEMTree< Dim , Real >::_splatPointData( FEMTreeNode* node , Point< Real , D
 }
 template< unsigned int Dim , class Real >
 template< bool CreateNodes , unsigned int WeightDegree , class V , unsigned int ... DataSigs >
-#ifdef MULTI_THREADED_TREE
+#ifdef NEW_CODE
 Real FEMTree< Dim , Real >::_splatPointData( Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >& densityWeights , Point< Real , Dim > position , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& dataInfo , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , LocalDepth minDepth , LocalDepth maxDepth , int dim , Real depthBias )
-#else // !MULTI_THREADED_TREE
+#else // !NEW_CODE
 Real FEMTree< Dim , Real >::_splatPointData( const DensityEstimator< WeightDegree >& densityWeights , Point< Real , Dim > position , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& dataInfo , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , LocalDepth minDepth , LocalDepth maxDepth , int dim , Real depthBias )
-#endif // MULTI_THREADED_TREE
+#endif // NEW_CODE
 {
 	double dx;
 	V _v;
@@ -242,21 +241,21 @@ Real FEMTree< Dim , Real >::_splatPointData( const DensityEstimator< WeightDegre
 
 	width = 1.0 / ( 1<<_localDepth( temp ) );
 	_v = v * weight / Real( pow( width , dim ) ) * Real( dx );
-#ifdef MULTI_THREADED_TREE
+#ifdef NEW_CODE
 #if defined( __GNUC__ ) && __GNUC__ < 5
 #warning "you've got me gcc version<5"
 	_splatPointData< CreateNodes , V >( nodeAllocator , temp , position , _v , dataInfo , dataKey );
 #else // !__GNUC__ || __GNUC__ >=5
 	_splatPointData< CreateNodes , V ,  DataSigs ... >( nodeAllocator , temp , position , _v , dataInfo , dataKey );
 #endif // __GNUC__ || __GNUC__ < 4
-#else // !MULTI_THREADED_TREE
+#else // !NEW_CODE
 #if defined( __GNUC__ ) && __GNUC__ < 5
 #warning "you've got me gcc version<5"
 	_splatPointData< CreateNodes , V >( temp , position , _v , dataInfo , dataKey );
 #else // !__GNUC__ || __GNUC__ >=5
 	_splatPointData< CreateNodes , V ,  DataSigs ... >( temp , position , _v , dataInfo , dataKey );
 #endif // __GNUC__ || __GNUC__ < 4
-#endif // MULTI_THREADED_TREE
+#endif // NEW_CODE
 	if( fabs(1.0-dx) > 1e-6 )
 	{
 		dx = Real(1.0-dx);
@@ -264,31 +263,31 @@ Real FEMTree< Dim , Real >::_splatPointData( const DensityEstimator< WeightDegre
 		width = 1.0 / ( 1<<_localDepth( temp ) );
 
 		_v = v * weight / Real( pow( width , dim ) ) * Real( dx );
-#ifdef MULTI_THREADED_TREE
+#ifdef NEW_CODE
 #if defined( __GNUC__ ) && __GNUC__ < 5
 #warning "you've got me gcc version<5"
 		_splatPointData< CreateNodes , V >( nodeAllocator , temp , position , _v , dataInfo , dataKey );
 #else // !__GNUC__ || __GNUC__ >=5
 		_splatPointData< CreateNodes , V , DataSigs ... >( nodeAllocator , temp , position , _v , dataInfo , dataKey );
 #endif // __GNUC__ || __GNUC__ < 4
-#else // !MULTI_THREADED_TREE
+#else // !NEW_CODE
 #if defined( __GNUC__ ) && __GNUC__ < 5
 #warning "you've got me gcc version<5"
 		_splatPointData< CreateNodes , V >( temp , position , _v , dataInfo , dataKey );
 #else // !__GNUC__ || __GNUC__ >=5
 		_splatPointData< CreateNodes , V , DataSigs ... >( temp , position , _v , dataInfo , dataKey );
 #endif // __GNUC__ || __GNUC__ < 4
-#endif // MULTI_THREADED_TREE
+#endif // NEW_CODE
 	}
 	return weight;
 }
 template< unsigned int Dim , class Real >
 template< bool CreateNodes , unsigned int WeightDegree , class V , unsigned int ... DataSigs >
-#ifdef MULTI_THREADED_TREE
+#ifdef NEW_CODE
 Real FEMTree< Dim , Real >::_multiSplatPointData( Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node , Point< Real , Dim > position , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& dataInfo , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , int dim )
-#else // !MULTI_THREADED_TREE
+#else // !NEW_CODE
 Real FEMTree< Dim , Real >::_multiSplatPointData( const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node , Point< Real , Dim > position , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& dataInfo , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , int dim )
-#endif // MULTI_THREADED_TREE
+#endif // NEW_CODE
 {
 	typedef UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > SupportSizes;
 	Real _depth , weight;
