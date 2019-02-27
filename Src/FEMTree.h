@@ -52,10 +52,6 @@ DAMAGE.
 //#define NEW_CODE
 #endif // NEW_CODE
 
-#ifdef NEW_CODE
-//#define NEW_THREADS
-#endif // NEW_CODE
-
 
 #include <atomic>
 #include "MyMiscellany.h"

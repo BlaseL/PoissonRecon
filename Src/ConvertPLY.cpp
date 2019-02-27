@@ -43,9 +43,9 @@ DAMAGE.
 
 cmdLineParameter< char* > In( "in" ) , Out( "out" );
 cmdLineParameter< float > Width( "width" , -1.f ) , PadRadius( "radius" , 0.f );
-cmdLineReadable ASCII( "ascii" );
+cmdLineReadable ASCII( "ascii" ) , Verbose( "verbose" );
 
-cmdLineReadable* params[] = { &In , &Out , &Width , &PadRadius , &ASCII , NULL };
+cmdLineReadable* params[] = { &In , &Out , &Width , &PadRadius , &ASCII , &Verbose , NULL };
 
 void ShowUsage( char* ex )
 {
@@ -55,6 +55,7 @@ void ShowUsage( char* ex )
 	printf( "\t[--%s <chunk width>=%f]\n" , Width.name , Width.value );
 	printf( "\t[--%s <padding radius (as a fraction of the width)>=%f]\n" , PadRadius.name , PadRadius.value );
 	printf( "\t[--%s]\n" , ASCII.name );
+	printf( "\t[--%s]\n" , Verbose.name );
 }
 
 void PrintBoundingBox( Point< float , 3 > min , Point< float , 3 > max )
@@ -197,8 +198,9 @@ void GetSubMesh( const std::vector< Vertex > &vertices , const std::vector< std:
 }
 
 template< typename ... VertexData >
-int Execute( void )
+void Execute( void )
 {
+	Timer timer;
 	double t = Time();
 	typedef PlyVertexWithData< float , 3 , MultiPointStreamData< float , VertexData ... > > Vertex;
 	std::vector< Vertex > vertices;
@@ -208,6 +210,8 @@ int Execute( void )
 	std::vector< std::string > comments;
 	PlyReadPolygons< Vertex >( In.value , vertices , polygons , Vertex::PlyReadProperties() , Vertex::PlyReadNum , ft , comments );
 	printf( "Vertices / Polygons: %llu / %llu\n" , (unsigned long long)vertices.size() , (unsigned long long)polygons.size() );
+	printf( "Time (Wall/CPU): %.2f / %.2f\n" , timer.wallTime() , timer.cpuTime() );
+	printf( "Peak Memory (MB): %d\n" , MemoryInfo::PeakMemoryUsageMB() );
 
 	Point< float , 3 > min , max;
 	GetBoundingBox( vertices , min , max );
@@ -255,7 +259,7 @@ int Execute( void )
 				std::vector< std::vector< std::vector< long long > > > _polygons( size[0]*size[1]*size[2] );
 				Range range;
 
-				double t = Time();
+				Timer timer;
 				for( size_t i=0 ; i<polygons.size() ; i++ )
 				{
 					Point< float , 3 > center;
@@ -265,7 +269,9 @@ int Execute( void )
 					for( int x=range.begin[0] ; x<range.end[0] ; x++ ) for( int y=range.begin[1] ; y<range.end[1] ; y++ ) for( int z=range.begin[2] ; z<range.end[2] ; z++ )
 						_polygons[ Index1D(x,y,z) ].push_back( polygons[i] );
 				}
-				printf( "Chunked polygons: %.2f(s)\n" , Time()-t );
+				printf( "\tChunked polygons:\n" );
+				printf( "\t\tTime (Wall/CPU): %.2f / %.2f\n" , timer.wallTime() , timer.cpuTime() );
+				printf( "\t\tPeak Memory (MB): %d\n" , MemoryInfo::PeakMemoryUsageMB() );
 
 #pragma omp parallel for
 				for( int i=0 ; i<_polygons.size() ; i++ ) if( _polygons[i].size() )
@@ -282,12 +288,13 @@ int Execute( void )
 					Point< float , 3 > min , max;
 					min = Point< float , 3 >( x+0 , y+0 , z+0 ) * width;
 					max = Point< float , 3 >( x+1 , y+1 , z+1 ) * width;
+					if( Verbose.set )
 					{
 						static std::mutex mutex;
 						std::lock_guard< std::mutex > lock( mutex );
-						printf( "\t%s\n" , stream.str().c_str() );
-						printf( "\t\tVertices / Polygons: %llu / %llu\n" , (unsigned long long)_vertices.size() , (unsigned long long)_polygons[i].size() );
-						printf( "\t\t" ) ; PrintBoundingBox( min , max ) ; printf( "\n" );
+						printf( "\t\t%s\n" , stream.str().c_str() );
+						printf( "\t\t\tVertices / Polygons: %llu / %llu\n" , (unsigned long long)_vertices.size() , (unsigned long long)_polygons[i].size() );
+						printf( "\t\t\t" ) ; PrintBoundingBox( min , max ) ; printf( "\n" );
 					}
 
 					WriteMesh( stream.str().c_str() , ASCII.set ? PLY_ASCII : ft , _vertices , _polygons[i] , comments );
@@ -299,14 +306,16 @@ int Execute( void )
 				std::vector< std::vector< Vertex > > _vertices( size[0]*size[1]*size[2] );
 				Range range;
 
-				double t = Time();
+				Timer timer;
 				for( size_t i=0 ; i<vertices.size() ; i++ )
 				{
 					SetRange( vertices[i].point , range );
 					for( int x=range.begin[0] ; x<range.end[0] ; x++ ) for( int y=range.begin[1] ; y<range.end[1] ; y++ ) for( int z=range.begin[2] ; z<range.end[2] ; z++ )
 						_vertices[ Index1D(x,y,z) ].push_back( vertices[i] );
 				}
-				printf( "Chunked vertices: %.2f(s)\n" , Time()-t );
+				printf( "\tChunked vertices:\n" );
+				printf( "\t\tTime (Wall/CPU): %.2f / %.2f\n" , timer.wallTime() , timer.cpuTime() );
+				printf( "\t\tPeak Memory (MB): %d\n" , MemoryInfo::PeakMemoryUsageMB() );
 
 #pragma omp parallel for
 				for( int i=0 ; i<_vertices.size() ; i++ ) if( _vertices[i].size() )
@@ -319,12 +328,13 @@ int Execute( void )
 					min = Point< float , 3 >( x+0 , y+0 , z+0 ) * width;
 					max = Point< float , 3 >( x+1 , y+1 , z+1 ) * width;
 
+					if( Verbose.set )
 					{
 						static std::mutex mutex;
 						std::lock_guard< std::mutex > lock( mutex );
-						printf( "\t%s\n" , stream.str().c_str() );
-						printf( "\t\tPoints: %llu\n" , (unsigned long long)_vertices[i].size() );
-						printf( "\t\t" ) ; PrintBoundingBox( min , max ) ; printf( "\n" );
+						printf( "\t\t%s\n" , stream.str().c_str() );
+						printf( "\t\t\tPoints: %llu\n" , (unsigned long long)_vertices[i].size() );
+						printf( "\t\t\t" ) ; PrintBoundingBox( min , max ) ; printf( "\n" );
 					}
 
 					WritePoints( stream.str().c_str() , ASCII.set ? PLY_ASCII : ft , _vertices[i] , comments );
@@ -390,8 +400,6 @@ int Execute( void )
 			else WritePoints( Out.value , ASCII.set ? PLY_ASCII : ft , vertices , comments );
 		}
 	}
-	printf( "Wrote chunks: %.2f(s)\n" , Time()-t );
-	return EXIT_SUCCESS;
 }
 int main( int argc , char* argv[] )
 {
@@ -402,6 +410,8 @@ int main( int argc , char* argv[] )
 		ShowUsage( argv[0] );
 		return EXIT_FAILURE;
 	}
+	Timer timer;
+
 	typedef MultiPointStreamData< float , PointStreamValue< float > , PointStreamNormal< float , 3 > , PointStreamColor< float > > VertexData;
 	typedef PlyVertexWithData< float , 3 , VertexData > Vertex;
 	bool readFlags[ Vertex::PlyReadNum ];
@@ -413,16 +423,20 @@ int main( int argc , char* argv[] )
 
 	if( hasValue )
 		if( hasColor )
-			if( hasNormal ) return Execute< PointStreamValue< float > , PointStreamNormal< float , 3 > , PointStreamColor< float > >();
-			else            return Execute< PointStreamValue< float > ,                                  PointStreamColor< float > >();
+			if( hasNormal ) Execute< PointStreamValue< float > , PointStreamNormal< float , 3 > , PointStreamColor< float > >();
+			else            Execute< PointStreamValue< float > ,                                  PointStreamColor< float > >();
 		else
-			if( hasNormal ) return Execute< PointStreamValue< float > , PointStreamNormal< float , 3 >                             >();
-			else            return Execute< PointStreamValue< float >                                                              >();
+			if( hasNormal ) Execute< PointStreamValue< float > , PointStreamNormal< float , 3 >                             >();
+			else            Execute< PointStreamValue< float >                                                              >();
 	else
 		if( hasColor )
-			if( hasNormal ) return Execute< PointStreamNormal< float , 3 > , PointStreamColor< float > >();
-			else            return Execute<                                  PointStreamColor< float > >();
+			if( hasNormal ) Execute< PointStreamNormal< float , 3 > , PointStreamColor< float > >();
+			else            Execute<                                  PointStreamColor< float > >();
 		else
-			if( hasNormal ) return Execute< PointStreamNormal< float , 3 >                             >();
-			else            return Execute<                                                            >();
+			if( hasNormal ) Execute< PointStreamNormal< float , 3 >                             >();
+			else            Execute<                                                            >();
+	printf( "Time (Wall/CPU): %.2f / %.2f\n" , timer.wallTime() , timer.cpuTime() );
+	printf( "Peak Memory (MB): %d\n" , MemoryInfo::PeakMemoryUsageMB() );
+
+	return EXIT_SUCCESS;
 }
