@@ -28,6 +28,7 @@ DAMAGE.
 #define NEW_CODE
 #undef NEW_CHUNKS
 
+// -80,-130,40
 #include <stdio.h>
 #include <stdlib.h>
 #include <algorithm>
@@ -240,18 +241,20 @@ void Execute( void )
 			printf( "\t\tPeak Memory (MB): %d\n" , MemoryInfo::PeakMemoryUsageMB() );
 
 			if( Out.set )
-			{
-				std::vector< Vertex > _vertices;
-				GetSubVertices( vertices , _polygons , _vertices );
-
-				if( Verbose.set )
+				if( _polygons.size() )
 				{
-					printf( "\t\t%s\n" , Out.value );
-					printf( "\t\t\tVertices / Polygons: %llu / %llu\n" , (unsigned long long)_vertices.size() , (unsigned long long)_polygons.size() );
-				}
+					std::vector< Vertex > _vertices;
+					GetSubVertices( vertices , _polygons , _vertices );
 
-				WriteMesh( Out.value , ASCII.set ? PLY_ASCII : ft , _vertices , _polygons , comments );
-			}
+					if( Verbose.set )
+					{
+						printf( "\t\t%s\n" , Out.value );
+						printf( "\t\t\tVertices / Polygons: %llu / %llu\n" , (unsigned long long)_vertices.size() , (unsigned long long)_polygons.size() );
+					}
+
+					WriteMesh( Out.value , ASCII.set ? PLY_ASCII : ft , _vertices , _polygons , comments );
+				}
+				else WARN( "no polygons in bounding box" )
 		}
 		else
 		{
@@ -272,15 +275,17 @@ void Execute( void )
 			printf( "\t\tPeak Memory (MB): %d\n" , MemoryInfo::PeakMemoryUsageMB() );
 
 			if( Out.set )
-			{
-				if( Verbose.set )
+				if( _vertices.size() )
 				{
-					printf( "\t\t%s\n" , Out.value );
-					printf( "\t\t\tPoints: %llu\n" , (unsigned long long)_vertices.size() );
-				}
+					if( Verbose.set )
+					{
+						printf( "\t\t%s\n" , Out.value );
+						printf( "\t\t\tPoints: %llu\n" , (unsigned long long)_vertices.size() );
+					}
 
-				WritePoints( Out.value , ASCII.set ? PLY_ASCII : ft , _vertices , comments );
-			}
+					WritePoints( Out.value , ASCII.set ? PLY_ASCII : ft , _vertices , comments );
+				}
+				else WARN( "no vertices in bounding box" )
 		}
 	}
 	else if( width>0 )
