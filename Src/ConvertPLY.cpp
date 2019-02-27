@@ -43,9 +43,10 @@ DAMAGE.
 
 cmdLineParameter< char* > In( "in" ) , Out( "out" );
 cmdLineParameter< float > Width( "width" , -1.f ) , PadRadius( "radius" , 0.f );
+cmdLineParameterArray< float , 6 > BoundingBox( "bBox" );
 cmdLineReadable ASCII( "ascii" ) , Verbose( "verbose" );
 
-cmdLineReadable* params[] = { &In , &Out , &Width , &PadRadius , &ASCII , &Verbose , NULL };
+cmdLineReadable* params[] = { &In , &Out , &Width , &PadRadius , &ASCII , &Verbose , &BoundingBox , NULL };
 
 void ShowUsage( char* ex )
 {
@@ -54,6 +55,7 @@ void ShowUsage( char* ex )
 	printf( "\t[--%s <ouput polygon mesh name/header>]\n" , Out.name );
 	printf( "\t[--%s <chunk width>=%f]\n" , Width.name , Width.value );
 	printf( "\t[--%s <padding radius (as a fraction of the width)>=%f]\n" , PadRadius.name , PadRadius.value );
+	printf( "\t[--%s <minx miny minz maxx maxy maxz>]\n" , BoundingBox.name );
 	printf( "\t[--%s]\n" , ASCII.name );
 	printf( "\t[--%s]\n" , Verbose.name );
 }
@@ -196,7 +198,92 @@ void Execute( void )
 
 	float width = Width.value;
 
-	if( width>0 )
+
+	if( BoundingBox.set )
+	{
+		Point< float , 3 > min( BoundingBox.values[0] , BoundingBox.values[1] , BoundingBox.values[2] );
+		Point< float , 3 > max( BoundingBox.values[4] , BoundingBox.values[5] , BoundingBox.values[6] );
+		auto InBoundingBox = [&]( Point< float , 3 > p )
+		{
+			return
+				p[0]>=min[0] && p[0]<max[0] &&
+				p[1]>=min[1] && p[1]<max[1] &&
+				p[2]>=min[2] && p[2]<max[2];
+		};
+		if( polygons.size() )
+		{
+			std::vector< std::vector< long long > > _polygons;
+
+			Timer timer;
+#ifdef NEW_CHUNKS
+			{
+				size_t polygonCount = 0;
+				for( size_t i=0 ; i<polygons.size() ; i++ )
+				{
+					Point< float , 3 > center;
+					for( int j=0 ; j<polygons[i].size() ; j++ ) center += vertices[ polygons[i][j] ].point;
+					center /= polygons[i].size();
+					if( InBoundingBox( center ) ) polygonCount++;
+				}
+				_polygons.reserve( polygonCount );
+			}
+#endif // NEW_CHUNKS
+			for( size_t i=0 ; i<polygons.size() ; i++ )
+			{
+				Point< float , 3 > center;
+				for( int j=0 ; j<polygons[i].size() ; j++ ) center += vertices[ polygons[i][j] ].point;
+				center /= polygons[i].size();
+				if( InBoundingBox( center ) ) _polygons.push_back( polygons[i] );
+			}
+			printf( "\tChunked polygons:\n" );
+			printf( "\t\tTime (Wall/CPU): %.2f / %.2f\n" , timer.wallTime() , timer.cpuTime() );
+			printf( "\t\tPeak Memory (MB): %d\n" , MemoryInfo::PeakMemoryUsageMB() );
+
+			if( Out.set )
+			{
+				std::vector< Vertex > _vertices;
+				GetSubVertices( vertices , _polygons , _vertices );
+
+				if( Verbose.set )
+				{
+					printf( "\t\t%s\n" , Out.value );
+					printf( "\t\t\tVertices / Polygons: %llu / %llu\n" , (unsigned long long)_vertices.size() , (unsigned long long)_polygons.size() );
+				}
+
+				WriteMesh( Out.value , ASCII.set ? PLY_ASCII : ft , _vertices , _polygons , comments );
+			}
+		}
+		else
+		{
+			std::vector< Vertex > _vertices;
+
+			Timer timer;
+#ifdef NEW_CHUNKS
+			{
+				size_t vertexCount = 0;
+				for( size_t i=0 ; i<vertices.size() ; i++ ) if( InBoundingBox( vertices[i].point ) ) vertexCount++
+				_vertices.reserve( vertexCounts[i] );
+			}
+#endif // NEW_CHUNKS
+
+			for( size_t i=0 ; i<vertices.size() ; i++ ) if( InBoundingBox( vertices[i].point ) ) _vertices.push_back( vertices[i] );
+			printf( "\tChunked vertices:\n" );
+			printf( "\t\tTime (Wall/CPU): %.2f / %.2f\n" , timer.wallTime() , timer.cpuTime() );
+			printf( "\t\tPeak Memory (MB): %d\n" , MemoryInfo::PeakMemoryUsageMB() );
+
+			if( Out.set )
+			{
+				if( Verbose.set )
+				{
+					printf( "\t\t%s\n" , Out.value );
+					printf( "\t\t\tPoints: %llu\n" , (unsigned long long)_vertices.size() );
+				}
+
+				WritePoints( Out.value , ASCII.set ? PLY_ASCII : ft , _vertices , comments );
+			}
+		}
+	}
+	else if( width>0 )
 	{
 		float radius = PadRadius.value * width;
 		size_t vCount=0 , pCount=0;
