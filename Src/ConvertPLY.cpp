@@ -159,10 +159,6 @@ void GetSubVertices( const std::vector< Vertex > &vertices , std::vector< std::v
 template< typename Vertex >
 void GetSubMesh( const std::vector< Vertex > &vertices , const std::vector< std::vector< long long > > &polygons , Point< float , 3 > min , Point< float , 3 > max , std::vector< Vertex > &subVertices , std::vector< std::vector< long long > > &subPolygons )
 {
-#ifdef NEW_CHUNKS
-#else // !NEW_CHUNKS
-	subVertices.resize( 0 );
-#endif // NEW_CHUNKS
 	subPolygons.resize( 0 );
 
 	for( size_t i=0 ; i<polygons.size() ; i++ )
@@ -175,26 +171,7 @@ void GetSubMesh( const std::vector< Vertex > &vertices , const std::vector< std:
 		if( inside ) subPolygons.push_back( polygons[i] );
 	}
 
-#ifdef NEW_CHUNKS
 	GetSubVertices( vertices , subPolygons , subVertices );
-#else // !NEW_CHUNKS
-	long long count = 0;
-	std::unordered_map< long long , long long > vMap;
-	for( size_t i=0 ; i<subPolygons.size() ; i++ ) for( size_t j=0 ; j<subPolygons[i].size() ; j++ )
-	{
-		auto iter = vMap.find( subPolygons[i][j] );
-		if( iter==vMap.end() ) vMap[ subPolygons[i][j] ] = count++;
-	}
-
-	subVertices.resize( vMap.size() );
-	for( size_t i=0 ; i<subPolygons.size() ; i++ ) for( size_t j=0 ; j<subPolygons[i].size() ; j++ )
-	{
-		long long oldIdx = subPolygons[i][j];
-		long long newIdx = vMap[ oldIdx ];
-		subVertices[ newIdx ] = vertices[ oldIdx ];
-		subPolygons[i][j] = newIdx;
-	}
-#endif // NEW_CHUNKS
 }
 
 template< typename ... VertexData >
@@ -219,47 +196,47 @@ void Execute( void )
 
 	float width = Width.value;
 
-	if( Out.set )
+	if( width>0 )
 	{
-		if( width>0 )
+		float radius = PadRadius.value * width;
+		size_t vCount=0 , pCount=0;
+		for( unsigned int d=0 ; d<3 ; d++ ) min[d] -= width/10000.f , max[d] += width/10000.f;
+		int begin[] = { (int)floor( min[0]/width ) , (int)floor( min[1]/width ) , (int)floor( min[2]/width ) };
+		int end  [] = { (int)ceil ( max[0]/width ) , (int)ceil ( max[1]/width ) , (int)ceil ( max[2]/width ) };
+		int size [] = { end[0]-begin[0] , end[1]-begin[1] , end[2]-begin[2] };
+		struct Range{ int begin[3] , end[3]; };
+		auto SetRange = [&]( Point< float , 3 > p , Range &range )
 		{
-			float radius = PadRadius.value * width;
-			size_t vCount=0 , pCount=0;
-			for( unsigned int d=0 ; d<3 ; d++ ) min[d] -= width/10000.f , max[d] += width/10000.f;
-			int begin[] = { (int)floor( min[0]/width ) , (int)floor( min[1]/width ) , (int)floor( min[2]/width ) };
-			int end  [] = { (int)ceil ( max[0]/width ) , (int)ceil ( max[1]/width ) , (int)ceil ( max[2]/width ) };
-			int size [] = { end[0]-begin[0] , end[1]-begin[1] , end[2]-begin[2] };
+			for( int d=0 ; d<3 ; d++ )
+			{
+				range.begin[d] = (int)floor( (p[d]-radius)/width ) , range.end[d] = (int)ceil( (p[d]+radius)/width );
+				if( range.begin[d]==range.end[d] ) range.end[d]++;
+			}
+		};
+		auto Index1D = [&]( int x , int y , int z )
+		{
+			x -= begin[0] , y -= begin[1] , z -= begin[2];
+			return x + y*size[0] + z*size[0]*size[1];
+		};
+		auto Index3D = [&]( int idx , int &x , int &y , int &z )
+		{
+			x = idx % size[0];
+			idx /= size[0];
+			y = idx % size[1];
+			idx /= size[1];
+			z = idx % size[2];
+			x += begin[0] , y += begin[1] , z += begin[2];
+		};
+
+		if( polygons.size() )
+		{
+			std::vector< std::vector< std::vector< long long > > > _polygons( size[0]*size[1]*size[2] );
+			Range range;
+
+			Timer timer;
 #ifdef NEW_CHUNKS
-			struct Range{ int begin[3] , end[3]; };
-			auto SetRange = [&]( Point< float , 3 > p , Range &range )
 			{
-				for( int d=0 ; d<3 ; d++ )
-				{
-					range.begin[d] = (int)floor( (p[d]-radius)/width ) , range.end[d] = (int)ceil( (p[d]+radius)/width );
-					if( range.begin[d]==range.end[d] ) range.end[d]++;
-				}
-			};
-			auto Index1D = [&]( int x , int y , int z )
-			{
-				x -= begin[0] , y -= begin[1] , z -= begin[2];
-				return x + y*size[0] + z*size[0]*size[1];
-			};
-			auto Index3D = [&]( int idx , int &x , int &y , int &z )
-			{
-				x = idx % size[0];
-				idx /= size[0];
-				y = idx % size[1];
-				idx /= size[1];
-				z = idx % size[2];
-				x += begin[0] , y += begin[1] , z += begin[2];
-			};
-
-			if( polygons.size() )
-			{
-				std::vector< std::vector< std::vector< long long > > > _polygons( size[0]*size[1]*size[2] );
-				Range range;
-
-				Timer timer;
+				std::vector< size_t > polygonCounts( size[0]*size[1]*size[2] , 0 );
 				for( size_t i=0 ; i<polygons.size() ; i++ )
 				{
 					Point< float , 3 > center;
@@ -267,12 +244,26 @@ void Execute( void )
 					center /= polygons[i].size();
 					SetRange( center , range );
 					for( int x=range.begin[0] ; x<range.end[0] ; x++ ) for( int y=range.begin[1] ; y<range.end[1] ; y++ ) for( int z=range.begin[2] ; z<range.end[2] ; z++ )
-						_polygons[ Index1D(x,y,z) ].push_back( polygons[i] );
+						polygonCounts[ Index1D(x,y,z) ]++;
 				}
-				printf( "\tChunked polygons:\n" );
-				printf( "\t\tTime (Wall/CPU): %.2f / %.2f\n" , timer.wallTime() , timer.cpuTime() );
-				printf( "\t\tPeak Memory (MB): %d\n" , MemoryInfo::PeakMemoryUsageMB() );
+				for( size_t i=0 ; i<polygonCounts.size() ; i++ ) _polygons[i].reserve( polygonCounts[i] );
+			}
+#endif // NEW_CHUNKS
+			for( size_t i=0 ; i<polygons.size() ; i++ )
+			{
+				Point< float , 3 > center;
+				for( int j=0 ; j<polygons[i].size() ; j++ ) center += vertices[ polygons[i][j] ].point;
+				center /= polygons[i].size();
+				SetRange( center , range );
+				for( int x=range.begin[0] ; x<range.end[0] ; x++ ) for( int y=range.begin[1] ; y<range.end[1] ; y++ ) for( int z=range.begin[2] ; z<range.end[2] ; z++ )
+					_polygons[ Index1D(x,y,z) ].push_back( polygons[i] );
+			}
+			printf( "\tChunked polygons:\n" );
+			printf( "\t\tTime (Wall/CPU): %.2f / %.2f\n" , timer.wallTime() , timer.cpuTime() );
+			printf( "\t\tPeak Memory (MB): %d\n" , MemoryInfo::PeakMemoryUsageMB() );
 
+			if( Out.set )
+			{
 #pragma omp parallel for
 				for( int i=0 ; i<_polygons.size() ; i++ ) if( _polygons[i].size() )
 				{
@@ -301,22 +292,38 @@ void Execute( void )
 					vCount += _vertices.size() , pCount += _polygons[i].size();
 				}
 			}
-			else
-			{
-				std::vector< std::vector< Vertex > > _vertices( size[0]*size[1]*size[2] );
-				Range range;
+		}
+		else
+		{
+			std::vector< std::vector< Vertex > > _vertices( size[0]*size[1]*size[2] );
+			Range range;
 
-				Timer timer;
+			Timer timer;
+#ifdef NEW_CHUNKS
+			{
+				std::vector< size_t > vertexCounts( size[0]*size[1]*size[2] , 0 );
 				for( size_t i=0 ; i<vertices.size() ; i++ )
 				{
 					SetRange( vertices[i].point , range );
 					for( int x=range.begin[0] ; x<range.end[0] ; x++ ) for( int y=range.begin[1] ; y<range.end[1] ; y++ ) for( int z=range.begin[2] ; z<range.end[2] ; z++ )
-						_vertices[ Index1D(x,y,z) ].push_back( vertices[i] );
+						vertexCounts[ Index1D(x,y,z) ]++;
 				}
-				printf( "\tChunked vertices:\n" );
-				printf( "\t\tTime (Wall/CPU): %.2f / %.2f\n" , timer.wallTime() , timer.cpuTime() );
-				printf( "\t\tPeak Memory (MB): %d\n" , MemoryInfo::PeakMemoryUsageMB() );
+				for( size_t i=0 ; i<vertexCounts.size() ; i++ ) _vertices[i].reserve( vertexCounts[i] );
+			}
+#endif // NEW_CHUNKS
 
+			for( size_t i=0 ; i<vertices.size() ; i++ )
+			{
+				SetRange( vertices[i].point , range );
+				for( int x=range.begin[0] ; x<range.end[0] ; x++ ) for( int y=range.begin[1] ; y<range.end[1] ; y++ ) for( int z=range.begin[2] ; z<range.end[2] ; z++ )
+					_vertices[ Index1D(x,y,z) ].push_back( vertices[i] );
+			}
+			printf( "\tChunked vertices:\n" );
+			printf( "\t\tTime (Wall/CPU): %.2f / %.2f\n" , timer.wallTime() , timer.cpuTime() );
+			printf( "\t\tPeak Memory (MB): %d\n" , MemoryInfo::PeakMemoryUsageMB() );
+
+			if( Out.set )
+			{
 #pragma omp parallel for
 				for( int i=0 ; i<_vertices.size() ; i++ ) if( _vertices[i].size() )
 				{
@@ -341,64 +348,23 @@ void Execute( void )
 					vCount += _vertices[i].size();
 				}
 			}
-#else // !NEW_CHUNKS
-			for( int i=begin[0] ; i<end[0] ; i++ ) for( int j=begin[1] ; j<end[1] ; j++ ) for( int k=begin[2] ; k<end[2] ; k++ )
-			{
-				std::vector< std::vector< long long > > subPolygons;
-				std::vector< Vertex > subVertices;
-				Point< float , 3 > _min( (i+0)*width - radius , (j+0)*width - radius , (k+0)*width - radius );
-				Point< float , 3 > _max( (i+1)*width + radius , (j+1)*width + radius , (k+1)*width + radius );
-				if( polygons.size() )
-				{
-					GetSubMesh( vertices , polygons , _min , _max , subVertices , subPolygons );
-					if( subPolygons.size() )
-					{
-						std::stringstream stream;
-						stream << Out.value << "." << i << "." << j << "." << k << ".ply";
-
-						printf( "\t%s\n" , stream.str().c_str() );
-						printf( "\t\tVertices / Polygons: %llu / %llu\n" , (unsigned long long)subVertices.size() , (unsigned long long)subPolygons.size() );
-						printf( "\t\t" ) ; PrintBoundingBox( _min , _max ) ; printf( "\n" );
-
-						WriteMesh( stream.str().c_str() , ASCII.set ? PLY_ASCII : ft , subVertices , subPolygons , comments );
-						vCount += subVertices.size() , pCount += subPolygons.size();
-					}
-				}
-				else
-				{
-					GetSubPoints( vertices , _min , _max , subVertices );
-					if( subVertices.size() )
-					{
-						std::stringstream stream;
-						stream << Out.value << "." << i << "." << j << "." << k << ".ply";
-
-						printf( "\t%s\n" , stream.str().c_str() );
-						printf( "\t\tPoints: %llu\n" , (unsigned long long)subVertices.size() );
-						printf( "\t\t" ) ; PrintBoundingBox( _min , _max ) ; printf( "\n" );
-
-						WritePoints( stream.str().c_str() , ASCII.set ? PLY_ASCII : ft , subVertices , comments );
-						vCount += subVertices.size();
-					}
-				}
-			}
-#endif // NEW_CHUNKS
-			if( !radius )
-			{
-				if( polygons.size() )
-				{
-					if( pCount!=polygons.size() ) WARN( "polygon counts don't match: " , polygons.size() , " != " , pCount );
-				}
-				else
-				{
-					if( vCount!=vertices.size() ) WARN( "vertex counts don't match:" , vertices.size() , " != " , vCount );
-				}
-			}
 		}
-		else
+		if( !radius )
 		{
-			if( polygons.size() ) WriteMesh( Out.value , ASCII.set ? PLY_ASCII : ft , vertices , polygons , comments );
-			else WritePoints( Out.value , ASCII.set ? PLY_ASCII : ft , vertices , comments );
+			if( polygons.size() )
+			{
+				if( pCount!=polygons.size() ) WARN( "polygon counts don't match: " , polygons.size() , " != " , pCount );
+			}
+			else
+			{
+				if( vCount!=vertices.size() ) WARN( "vertex counts don't match:" , vertices.size() , " != " , vCount );
+			}
 		}
+	}
+	else
+	{
+		if( polygons.size() ) WriteMesh( Out.value , ASCII.set ? PLY_ASCII : ft , vertices , polygons , comments );
+		else WritePoints( Out.value , ASCII.set ? PLY_ASCII : ft , vertices , comments );
 	}
 }
 int main( int argc , char* argv[] )
