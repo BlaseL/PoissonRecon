@@ -26,7 +26,7 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 #define NEW_CODE
-#define NEW_CHUNKS
+#undef NEW_CHUNKS
 
 #include <stdio.h>
 #include <stdlib.h>
