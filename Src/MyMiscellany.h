@@ -28,7 +28,7 @@ DAMAGE.
 #ifndef MY_MISCELLANY_INCLUDED
 #define MY_MISCELLANY_INCLUDED
 
-#undef VERBOSE_MESSAGING
+#include "PreProcessor.h"
 
 //////////////////
 // OpenMP Stuff //
@@ -430,10 +430,7 @@ struct ThreadPool
 #endif // _OPENMP
 		THREAD_POOL ,
 		THREAD_POOL_HH ,
-#ifdef USE_CHUNK_FUNCTION
-#else // !USE_CHUNK_FUNCTION
 		ASYNC ,
-#endif // USE_CHUNK_FUNCTION
 		NONE
 	};
 	static const std::vector< std::string > ParallelNames;
@@ -453,25 +450,57 @@ struct ThreadPool
 		if( begin>=end ) return;
 		unsigned int threads = (unsigned int)threadNum();
 		size_t range = end - begin;
+#ifdef NEW_ITERATION_FUNCTION
+		size_t chunks = ( range + chunkSize - 1 ) / chunkSize;
+		std::atomic< size_t > index = 0;
+#else // !NEW_ITERATION_FUNCTION
 		_schedule = schedule;
+#endif // NEW_ITERATION_FUNCTION
 
-		if( range<chunkSize || _parallelType==NONE || threadNum()==1 )
+		if( range<chunkSize || _parallelType==NONE || threads==1 )
 		{
 			for( size_t i=begin ; i<end ; i++ ) iterationFunction( 0 , i );
 			return;
 		}
-
+#ifdef NEW_ITERATION_FUNCTION
+		auto _staticThreadFunction = [ &iterationFunction , begin , end , chunks , chunkSize , threads ]( unsigned int thread )
+		{
+			for( size_t chunk=thread ; chunk<chunks ; chunk+=threads )
+			{
+				const size_t _begin = begin + chunkSize*chunk;
+				const size_t _end = std::min< size_t >( end , _begin+chunkSize );
+				for( size_t i=_begin ; i<_end ; i++ ) iterationFunction( thread , i );
+			}
+		};
+		auto _dynamicThreadFunction = [ &iterationFunction , begin , end , chunks , chunkSize , threads , &index ]( unsigned int thread )
+		{
+			size_t chunk;
+			while( ( chunk=index.fetch_add(1) )<chunks )
+			{
+				const size_t _begin = begin + chunkSize*chunk;
+				const size_t _end = std::min< size_t >( end , _begin+chunkSize );
+				for( size_t i=_begin ; i<_end ; i++ ) iterationFunction( thread , i );
+			}
+		};
+		if     ( schedule==STATIC  ) _threadFunction = _staticThreadFunction;
+		else if( schedule==DYNAMIC ) _threadFunction = _dynamicThreadFunction;
+#else // !NEW_ITERATION_FUNCTION
+		_chunks = ( range + chunkSize - 1 ) / chunkSize;
 		auto _iterationFunction = [ &iterationFunction , begin , end , chunkSize ]( unsigned int thread , size_t chunkIndex )
 		{
 			const size_t _begin = begin + chunkSize*chunkIndex;
 			const size_t _end = std::min< size_t >( end , _begin+chunkSize );
 			for( size_t i=_begin ; i<_end ; i++ ) iterationFunction( thread , i );
 		};
-		_chunks = ( range + chunkSize - 1 ) / chunkSize;
+#endif // NEW_ITERATION_FUNCTION
 		if( false ){}
 #ifdef _OPENMP
 		else if( _parallelType==OPEN_MP )
 		{
+#ifdef NEW_ITERATION_FUNCTION
+#pragma omp parallel for num_threads( threads ) schedule( static , 1 )
+			for( int t=0 ; t<(int)threads ; t++ ) _threadFunction( t );
+#else // !NEW_ITERATION_FUNCTION
 			if( schedule==STATIC )
 			{
 #pragma omp parallel for num_threads( threads ) schedule( static , 1 )
@@ -482,6 +511,7 @@ struct ThreadPool
 #pragma omp parallel for num_threads( threads ) schedule( dynamic , 1 )
 				for( long long i=0 ; i<(long long)_chunks ; i++ ) _iterationFunction( omp_get_thread_num() , i );
 			}
+#endif // NEW_ITERATION_FUNCTION
 		}
 #endif // _OPENMP
 		else if( _parallelType==THREAD_POOL_HH )
@@ -497,6 +527,9 @@ struct ThreadPool
 			}
 			else
 			{
+#ifdef NEW_ITERATION_FUNCTION
+				thread_pool->execute( num_threads , _threadFunction );
+#else // !NEW_ITERATION_FUNCTION
 				// Traverse the range elements in parallel.
 				if( schedule==ThreadPool::DYNAMIC )
 				{
@@ -519,20 +552,21 @@ struct ThreadPool
 					}
 					);
 				}
+#endif // NEW_ITERATION_FUNCTION
 			}
 		}
-#ifdef USE_CHUNK_FUNCTION
-#else // !USE_CHUNK_FUNCTION
 		else if( _parallelType==ASYNC )
 		{
 			static std::vector< std::future< void > > futures;
 			futures.resize( threadNum() );
-			_index = begin;
-			for( unsigned int t=0 ; t<threadNum() ; t++ ) futures[t] = std::async( std::launch::async , _AsyncThreadFunction< std::function< void ( const ThreadNum & , size_t ) > > , _schedule , std::ref(_index) , t , threadNum() , begin , end , chunkSize , iterationFunction );
-
+#ifdef NEW_ITERATION_FUNCTION
+			for( unsigned int t=0 ; t<threads ; t++ ) futures[t] = std::async( std::launch::async , _threadFunction , t );
+#else // !NEW_ITERATION_FUNCTION
+			_index = 0;
+			for( unsigned int t=0 ; t<threadNum() ; t++ ) futures[t] = std::async( std::launch::async , _AsyncThreadFunction< std::function< void ( unsigned int , size_t ) > > , _schedule , std::ref(_index) , t , threadNum() , _chunks , _iterationFunction );
+#endif // NEW_ITERATION_FUNCTION
 			for( unsigned int t=0 ; t<threadNum() ; t++ ) futures[t].get();
 		}
-#endif // USE_CHUNK_FUNCTION
 		else if( _parallelType==THREAD_POOL )
 		{
 			if( _workToBeDone )
@@ -542,9 +576,12 @@ struct ThreadPool
 			}
 			else
 			{
+#ifdef NEW_ITERATION_FUNCTION
+#else // !NEW_ITERATION_FUNCTION
 				this->_iterationFunction = _iterationFunction;
-				_workToBeDone = (unsigned int)_threads.size();
 				_index = 0;
+#endif // NEW_ITERATION_FUNCTION
+				_workToBeDone = (unsigned int)_threads.size();
 				_waitingForWorkOrClose.notify_all();
 				{
 					std::unique_lock< std::mutex > lock( _mutex );
@@ -609,6 +646,9 @@ protected:
 			lock.unlock();
 			// do the job
 			{
+#ifdef NEW_ITERATION_FUNCTION
+				tPool->_threadFunction( thread );
+#else // !NEW_ITERATION_FUNCTION
 				if( tPool->_schedule==DYNAMIC )
 				{
 					size_t chunk;
@@ -618,6 +658,7 @@ protected:
 				{
 					for( size_t chunk=thread ; chunk<tPool->_chunks ; chunk+=threads ) tPool->_iterationFunction( thread , chunk );
 				}
+#endif // NEW_ITERATION_FUNCTION
 			}
 
 			// Notify and wait for the next job
@@ -628,33 +669,22 @@ protected:
 		}
 	}
 
-#ifdef USE_CHUNK_FUNCTION
-#else // !USE_CHUNK_FUNCTION
+#ifdef NEW_ITERATION_FUNCTION
+#else // !NEW_ITERATION_FUNCTION
 	template< typename Function >
-	static void _AsyncThreadFunction( ScheduleType schedule , std::atomic< size_t > &index , unsigned int thread , unsigned int threads , size_t begin , size_t end , size_t chunkSize , const Function &iterationFunction )
+	static void _AsyncThreadFunction( ScheduleType schedule , std::atomic< size_t > &index , unsigned int thread , unsigned int threads , size_t chunks , const Function &iterationFunction )
 	{
-		ThreadNum threadNum( ThreadPool::ASYNC , thread );
 		if( schedule==ThreadPool::DYNAMIC )
 		{
-			while( index<end )
-			{
-				size_t _begin = index.fetch_add( chunkSize );
-				size_t _end = std::min< size_t >( _begin + chunkSize , end );
-				for( size_t i=_begin ; i<_end ; i++ ) iterationFunction( threadNum , i );
-			}
+			size_t chunk;
+			while( ( chunk=index.fetch_add(1) )<chunks ) iterationFunction( thread , chunk );
 		}
 		else if( schedule==ThreadPool::STATIC )
 		{
-			begin += chunkSize * thread;
-			for( size_t c=begin ; c<end ; c+=(threads*chunkSize) )
-			{
-				size_t _begin = c;
-				size_t _end = std::min< size_t >( c + chunkSize , end );
-				for( size_t i=_begin ; i<_end ; i++ ) iterationFunction( threadNum , i );
-			}
+			for( size_t chunk=thread ; chunk<chunks ; chunk+=threads ) iterationFunction( thread , chunk );
 		}
 	}
-#endif // USE_CHUNK_FUNCTION
+#endif // NEW_ITERATION_FUNCTION
 
 	static const uint64_t k_omp_thresh = 100*1000; // number of instruction cycles above which a loop should be parallelized
 	static constexpr uint64_t k_parallelism_always = k_omp_thresh;
@@ -664,11 +694,15 @@ protected:
 	std::mutex _mutex;
 	std::condition_variable _waitingForWorkOrClose , _doneWithWork;
 	std::vector< std::thread > _threads;
+#ifdef NEW_ITERATION_FUNCTION
+	std::function< void ( unsigned int ) > _threadFunction;
+#else // !NEW_ITERATION_FUNCTION
 	std::function< void ( unsigned int , size_t ) > _iterationFunction;
 	size_t _chunks;
 	std::atomic< size_t > _index;
-	ParallelType _parallelType;
 	ScheduleType _schedule;
+#endif // NEW_ITERATION_FUNCTION
+	ParallelType _parallelType;
 };
 size_t ThreadPool::DefaultChunkSize = 128;
 ThreadPool::ScheduleType ThreadPool::DefaultSchedule = ThreadPool::DYNAMIC;
@@ -679,10 +713,7 @@ const std::vector< std::string >ThreadPool::ParallelNames =
 #endif // _OPENMP
 	"thread pool" ,
 	"thread pool (hh)" ,
-#ifdef USE_CHUNK_FUNCTION
-#else // !USE_CHUNK_FUNCTION
 	"async" ,
-#endif // USE_CHUNK_FUNCTION
 	"none"
 };
 const std::vector< std::string >ThreadPool::ScheduleNames = { "static" , "dynamic" };

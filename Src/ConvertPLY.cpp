@@ -52,7 +52,7 @@ cmdLineReadable* params[] = { &In , &Out , &Width , &PadRadius , &ASCII , &Verbo
 void ShowUsage( char* ex )
 {
 	printf( "Usage: %s\n" , ex );
-	printf( "\t --%s <input polygon mesh>\n" , In.name );
+	printf( "\t --%s <input ply file (vertices or polygons)>\n" , In.name );
 	printf( "\t[--%s <ouput polygon mesh name/header>]\n" , Out.name );
 	printf( "\t[--%s <chunk width>=%f]\n" , Width.name , Width.value );
 	printf( "\t[--%s <padding radius (as a fraction of the width)>=%f]\n" , PadRadius.name , PadRadius.value );
@@ -254,7 +254,7 @@ void Execute( void )
 
 					WriteMesh( Out.value , ASCII.set ? PLY_ASCII : ft , _vertices , _polygons , comments );
 				}
-				else WARN( "no polygons in bounding box" )
+				else WARN( "no polygons in bounding box" );
 		}
 		else
 		{
@@ -285,7 +285,7 @@ void Execute( void )
 
 					WritePoints( Out.value , ASCII.set ? PLY_ASCII : ft , _vertices , comments );
 				}
-				else WARN( "no vertices in bounding box" )
+				else WARN( "no vertices in bounding box" );
 		}
 	}
 	else if( width>0 )

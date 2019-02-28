@@ -31,16 +31,17 @@ DAMAGE.
 #define BIG_DATA								// Supports processing requiring more than 32-bit integers for indexing
 												// Note: enabling BIG_DATA can generate .ply files using "longlong" for face indices instead of "int".
 												// These are not standardly supported by .ply reading/writing applications.
-#define NEW_THREADS								// Enabling this flag augments the OpenMP implementation of parallelism with C++11's
+#undef NEW_THREADS								// Enabling this flag augments the OpenMP implementation of parallelism with C++11's
 #define FORCE_PARALLEL							// Forces parallel methods to pass in a thread pool
 #undef SHOW_WARNINGS							// Display compilation warnings
 #undef ARRAY_DEBUG								// If enabled, array access is tested for validity
 #define FAST_COMPILE							// If enabled, only a single version of the reconstruction code is compiled
-#define USE_CHUNK_FUNCTION
+#define NEW_ITERATION_FUNCTION					// If enabled, the function calls are packaged into a single thread function
+#undef VERBOSE_MESSAGING						// If enabled, warnings/errors give line number
 
 
 #ifdef BIG_DATA
-#define USE_DEEP_TREE_NODES
+#define USE_DEEP_TREE_NODES						// Chances are that if you are using big data, you want to support a tree with depth>15.
 #endif // BIG_DATA
 
 #endif // PRE_PROCESSOR_INCLUDED
