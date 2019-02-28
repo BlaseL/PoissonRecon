@@ -76,7 +76,14 @@ cmdLineParameter< int >
 	BaseVCycles( "baseVCycles" , 1 ) ,
 	MaxMemoryGB( "maxMemory" , 0 ) ,
 #ifdef NEW_THREADS
-	Threads( "threads" , ThreadPool::DefaultThreadNum );
+#ifdef _OPENMP
+	ParallelType( "parallel" , (int)ThreadPool::OPEN_MP ) ,
+#else // !_OPENMP
+	ParallelType( "parallel" , (int)ThreadPool::THREAD_POOL ) ,
+#endif // _OPENMP
+	ScheduleType( "schedule" , (int)ThreadPool::DefaultSchedule ) ,
+	ThreadChunkSize( "tChunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
+	Threads( "threads" , (int)std::thread::hardware_concurrency() );
 #else // !NEW_THREADS
 	Threads( "threads" , omp_get_num_procs() );
 #endif // NEW_THREADS
@@ -219,7 +226,7 @@ template< unsigned int Dim , class Real , unsigned int FEMSig >
 void _Execute( int argc , char* argv[] )
 {
 #ifdef NEW_THREADS
-	ThreadPool tp;
+	static ThreadPool tp( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
 #endif // NEW_THREADS
 	static const unsigned int Degree = FEMSignature< FEMSig >::Degree;
 	typedef typename FEMTree< Dim , Real >::template InterpolationInfo< Real , 0 > InterpolationInfo;
@@ -303,7 +310,7 @@ void _Execute( int argc , char* argv[] )
 		for( int i=0 ; i<vertices.size() ; i++ ) vertices[i] = _xForm * vertices[i];
 		xForm = _xForm * xForm;
 #ifdef NEW_THREADS
-		FEMTreeInitializer< Dim , Real >::Initialize( tp , tree.spaceRoot() , vertices , triangles , Depth.value , geometrySamples , true , tree.nodeAllocator , tree.initializer() );
+		FEMTreeInitializer< Dim , Real >::Initialize( tp , tree.spaceRoot() , vertices , triangles , Depth.value , geometrySamples , true , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() );
 #else // !NEW_THREADS
 		FEMTreeInitializer< Dim , Real >::Initialize( tree.spaceRoot() , vertices , triangles , Depth.value , geometrySamples , true , tree.nodeAllocator , tree.initializer() );
 #endif // NEW_THREADS
@@ -325,8 +332,8 @@ void _Execute( int argc , char* argv[] )
 
 		double area = 0;
 #ifdef NEW_THREADS
-		std::vector< double > area( tp.threadNum() , 0 );
-		tp.parallel_for( 0 , triangles.size() , [&]( const ThreadPool::ThreadNum  &thread , size_t i )
+		std::vector< double > areas( tp.threadNum() , 0 );
+		tp.parallel_for( 0 , triangles.size() , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : area )
 		for( int i=0 ; i<triangles.size() ; i++ )
@@ -336,7 +343,7 @@ void _Execute( int argc , char* argv[] )
 			for( int k=0 ; k<Dim ; k++ ) for( int j=0 ; j<Dim ; j++ ) s[k][j] = vertices[ triangles[i][k] ][j];
 			Real a2 = s.squareMeasure();
 #ifdef NEW_THREADS
-			if( a2>0 ) areas[thread()] += sqrt(a2) / 2;
+			if( a2>0 ) areas[thread] += sqrt(a2) / 2;
 #else // !NEW_THREADS
 			if( a2>0 ) area += sqrt(a2) / 2;
 #endif // NEW_THREADS
@@ -674,7 +681,7 @@ void _Execute( int argc , char* argv[] )
 			GetAverageValueAndError( &tree , edtSolution , average , error );
 			if( Verbose.set ) printf( "Interpolation average / error: %g / %g\n" , average , error );
 #ifdef NEW_THREADS
-			tp.parallel_for( tree.nodesBegin(0) , i<tree.nodesEnd(0) , [&]( unsigned int , size_t i ){ edtSolution[i] -= (Real)average; } );
+			tp.parallel_for( tree.nodesBegin(0) , tree.nodesEnd(0) , [&]( unsigned int , size_t i ){ edtSolution[i] -= (Real)average; } );
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -720,7 +727,8 @@ int main( int argc , char* argv[] )
 #endif // ARRAY_DEBUG
 	cmdLineParse( argc-1 , &argv[1] , params );
 #ifdef NEW_THREADS
-	ThreadPool::DefaultThreadNum = Threads.value > 1 ? Threads.value : 0;
+	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;
+	ThreadPool::DefaultSchedule = (ThreadPool::ScheduleType)ScheduleType.value;
 #else // !NEW_THREADS
 	omp_set_num_threads( Threads.value > 1 ? Threads.value : 1 );
 #endif // NEW_THREADS

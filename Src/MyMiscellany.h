@@ -452,7 +452,8 @@ struct ThreadPool
 		size_t range = end - begin;
 #ifdef NEW_ITERATION_FUNCTION
 		size_t chunks = ( range + chunkSize - 1 ) / chunkSize;
-		std::atomic< size_t > index = 0;
+		std::atomic< size_t > index;
+		index.store( 0 );
 #else // !NEW_ITERATION_FUNCTION
 		_schedule = schedule;
 #endif // NEW_ITERATION_FUNCTION
