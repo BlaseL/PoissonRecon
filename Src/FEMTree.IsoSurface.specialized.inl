@@ -1395,7 +1395,7 @@ protected:
 				if( !IsActiveNode< Dim >( leaf->children ) )
 				{
 #ifdef NEW_CODE
-					node_index_type idx = ( i - sValues.sliceData.nodeOffset );
+					node_index_type idx = (node_index_type)i - sValues.sliceData.nodeOffset;
 #else // !NEW_CODE
 					int idx = i - sValues.sliceData.nodeOffset;
 #endif // NEW_CODE
@@ -1728,7 +1728,7 @@ protected:
 #else // !NEW_THREADS
 				int thread = omp_get_thread_num();
 #endif // NEW_THREADS
-				typename SliceData::SquareEdgeIndices& pIndices = pSliceData.edgeIndices( i );
+				typename SliceData::SquareEdgeIndices& pIndices = pSliceData.edgeIndices( (node_index_type)i );
 				// Copy the edges that overlap the coarser edges
 				for( typename HyperCube::Cube< Dim-1 >::template Element< 1 > _e ; _e<HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() ; _e++ )
 				{
@@ -1821,7 +1821,7 @@ protected:
 #else // !NEW_THREADS
 				int thread = omp_get_thread_num();
 #endif // NEW_THREADS
-				typename SliceData::SquareCornerIndices& pIndices = pSliceData.edgeIndices( i );
+				typename SliceData::SquareCornerIndices& pIndices = pSliceData.edgeIndices( (node_index_type)i );
 				for( typename HyperCube::Cube< Dim-1 >::template Element< 0 > _c ; _c<HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ; _c++ )
 				{
 					typename HyperCube::Cube< Dim >::template Element< 1 > e( HyperCube::CROSS , _c.index );
@@ -1927,7 +1927,7 @@ protected:
 				if( !IsActiveNode< Dim >( leaf->children ) )
 				{
 #ifdef NEW_CODE
-					node_index_type idx = i - sValues.sliceData.nodeOffset;
+					node_index_type idx = (node_index_type)i - sValues.sliceData.nodeOffset;
 #else // !NEW_CODE
 					int idx = i - sValues.sliceData.nodeOffset;
 #endif // NEW_CODE
@@ -2059,7 +2059,7 @@ protected:
 									{
 										const _SliceValues& sValues = dir==HyperCube::BACK ? bValues : fValues;
 #ifdef NEW_CODE
-										node_index_type idx = sValues.sliceData.edgeIndices(i)[ coIndex ];
+										node_index_type idx = sValues.sliceData.edgeIndices((node_index_type)i)[ coIndex ];
 #else // !NEW_CODE
 										int idx = sValues.sliceData.edgeIndices(i)[ coIndex ];
 #endif // NEW_CODE
@@ -2161,7 +2161,7 @@ protected:
 							{
 								const _SliceValues& sValues = (fDir==HyperCube::BACK) ? bValues : fValues;
 #ifdef NEW_CODE
-								node_index_type fIdx = sValues.sliceData.faceIndices(i)[0];
+								node_index_type fIdx = sValues.sliceData.faceIndices((node_index_type)i)[0];
 #else // !NEW_CODE
 								int fIdx = sValues.sliceData.faceIndices(i)[0];
 #endif // NEW_CODE
@@ -2190,7 +2190,7 @@ protected:
 							else
 							{
 #ifdef NEW_CODE
-								node_index_type fIdx = xValues.xSliceData.faceIndices(i)[ f.coIndex() ];
+								node_index_type fIdx = xValues.xSliceData.faceIndices((node_index_type)i)[ f.coIndex() ];
 #else // !NEW_CODE
 								int fIdx = xValues.xSliceData.faceIndices(i)[ f.coIndex() ];
 #endif // NEW_CODE

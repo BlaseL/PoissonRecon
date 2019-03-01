@@ -442,10 +442,10 @@ void _Execute( int argc , char* argv[] )
 #endif // NEW_CODE
 #endif // NEW_THREADS
 		{
-			if( tree.isValidSpaceNode( tree.node(i) ) )
+			if( tree.isValidSpaceNode( tree.node((node_index_type)i) ) )
 			{
 				Point< Real , Dim > center ; Real width;
-				tree.centerAndWidth( i , center , width );
+				tree.centerAndWidth( (node_index_type)i , center , width );
 #ifdef NEW_THREADS
 				leafCenterValues[i] = evaluator.values( center , thread )[0];
 #else // !NEW_THREADS
@@ -530,10 +530,10 @@ void _Execute( int argc , char* argv[] )
 #endif // NEW_CODE
 #endif // NEW_THREADS
 		{
-			if( tree.isValidSpaceNode( tree.node(i) ) && !tree.isValidSpaceNode( tree.node(i)->children ) )
+			if( tree.isValidSpaceNode( tree.node((node_index_type)i) ) && !tree.isValidSpaceNode( tree.node((node_index_type)i)->children ) )
 			{
 #ifdef NEW_CODE
-				RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* leaf = ( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* )tree.node(i);
+				RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* leaf = ( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* )tree.node((node_index_type)i);
 #else // !NEW_CODE
 				RegularTreeNode< Dim , FEMTreeNodeData >* leaf = ( RegularTreeNode< Dim , FEMTreeNodeData >* )tree.node(i);
 #endif // NEW_CODE

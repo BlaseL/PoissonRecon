@@ -2409,7 +2409,7 @@ SparseMatrix< Real , int > FEMTree< Dim , Real >::systemMatrix( UIntPack< FEMSig
 		if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 		{
 #ifdef NEW_CODE
-			node_index_type ii = i - _sNodesBegin(depth);
+			node_index_type ii = (node_index_type)i - _sNodesBegin(depth);
 #else // !NEW_CODE
 			int ii = i - _sNodesBegin(depth);
 #endif // NEW_CODE
@@ -2573,7 +2573,7 @@ SparseMatrix< Real , int > FEMTree< Dim , Real >::downSampleMatrix( UIntPack< FE
 		if( _isValidFEM1Node( _sNodes.treeNodes[i] ) )
 		{
 #ifdef NEW_CODE
-			node_index_type _i = i - _sNodesBegin(lowDepth);
+			node_index_type _i = (node_index_type)i - _sNodesBegin(lowDepth);
 #else // !NEW_CODE
 			int _i = i - _sNodesBegin(lowDepth);
 #endif // NEW_CODE

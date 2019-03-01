@@ -132,7 +132,7 @@ double RunMutex( size_t outIters , size_t inIters )
 	double t = Time();
 	{
 		size_t sum = 0;
-		for( size_t i=0 ; i<outIters ; i++ ) ThreadPool::Parallel_for( 0 , inIters , [&]( unsigned int , size_t i ){ Task( i , sum ); } );
+		for( size_t i=0 ; i<outIters ; i++ ) ThreadPool::Parallel_for( 0 , inIters , [&]( unsigned int , size_t ii ){ Task( ii , sum ); } );
 		printf( "\t\tMutex:             %.2f(s)\t%llu\n" , Time()-t , (unsigned long long)sum );
 	}
 	return Time()-t;
@@ -148,7 +148,7 @@ double RunAtomicDouble( size_t outIters , size_t inIters )
 	double t = Time();
 	{
 		double sum = 0;
-		for( size_t i=0 ; i<outIters ; i++ ) ThreadPool::Parallel_for( 0 , inIters , [&]( unsigned int , size_t i ){ Task( i , sum ); } );
+		for( size_t i=0 ; i<outIters ; i++ ) ThreadPool::Parallel_for( 0 , inIters , [&]( unsigned int , size_t ii ){ Task( ii , sum ); } );
 		printf( "\t\tAtomic add double: %.2f(s)\t%g\n" , Time()-t , sum );
 	}
 	return Time()-t;
@@ -164,7 +164,7 @@ double RunAtomicFloat( size_t outIters , size_t inIters )
 	double t = Time();
 	{
 		float sum = 0;
-		for( size_t i=0 ; i<outIters ; i++ ) ThreadPool::Parallel_for( 0 , inIters , [&Task,&sum]( unsigned int , size_t i ){ Task( i , sum ); } );
+		for( size_t i=0 ; i<outIters ; i++ ) ThreadPool::Parallel_for( 0 , inIters , [&Task,&sum]( unsigned int , size_t ii ){ Task( ii , sum ); } );
 		printf( "\t\tAtomic add float:  %.2f(s)\t%g\n" , Time()-t , sum );
 	}
 	return Time()-t;
@@ -182,7 +182,7 @@ double RunAtomic( size_t outIters , size_t inIters )
 		double t = Time();
 		std::atomic< size_t > sum;
 		sum.store(0);
-		for( size_t i=0 ; i<outIters ; i++ ) ThreadPool::Parallel_for( 0 , inIters , [&]( unsigned int , size_t i ){ Task( i , sum ); } );
+		for( size_t i=0 ; i<outIters ; i++ ) ThreadPool::Parallel_for( 0 , inIters , [&]( unsigned int , size_t ii ){ Task( ii , sum ); } );
 		printf( "\t\tAtomic:            %.2f(s)\t%llu\n" , Time()-t , (unsigned long long)sum );
 	}
 	return Time()-t;
@@ -195,7 +195,7 @@ double Run( size_t outIters , size_t inIters )
 	double t = Time();
 	{
 		size_t sum = 0;
-		for( size_t i=0 ; i<outIters ; i++ ) ThreadPool::Parallel_for( 0 , inIters , [&]( unsigned int , size_t i ){ Task( i , sum ); } );
+		for( size_t i=0 ; i<outIters ; i++ ) ThreadPool::Parallel_for( 0 , inIters , [&]( unsigned int , size_t ii ){ Task( ii , sum ); } );
 		printf( "\t\tNone:              %.2f(s)\t%llu\n" , Time()-t , (unsigned long long)sum );
 	}
 	return Time()-t;

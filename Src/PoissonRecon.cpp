@@ -504,9 +504,6 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 	messageWriter( comments , "*************************************************************\n" );
 	messageWriter( comments , "*************************************************************\n" );
 
-#ifdef NEW_THREADS
-	ThreadPool::Init( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
-#endif // NEW_THREADS
 
 	XForm< Real , Dim+1 > xForm , iXForm;
 	if( Transform.set )
@@ -890,9 +887,11 @@ int main( int argc , char* argv[] )
 #ifdef NEW_THREADS
 	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;
 	ThreadPool::DefaultSchedule = (ThreadPool::ScheduleType)ScheduleType.value;
+	ThreadPool::Init( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
 #else // !NEW_THREADS
 	omp_set_num_threads( Threads.value > 1 ? Threads.value : 1 );
 #endif // NEW_THREADS
+
 	messageWriter.echoSTDOUT = Verbose.set;
 	if( !In.set )
 	{
@@ -930,5 +929,9 @@ int main( int argc , char* argv[] )
 		printf( "Time (Wall/CPU): %.2f / %.2f\n" , timer.wallTime() , timer.cpuTime() );
 		printf( "Peak Memory (MB): %d\n" , MemoryInfo::PeakMemoryUsageMB() );
 	}
+
+#ifdef NEW_THREADS
+	ThreadPool::Terminate();
+#endif // NEW_THREADS
 	return EXIT_SUCCESS;
 }

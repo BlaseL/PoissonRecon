@@ -486,6 +486,14 @@ struct ThreadPool
 			for( size_t i=begin ; i<end ; i++ ) iterationFunction( 0 , i );
 			return;
 		}
+#if 1
+		auto _ChunkFunction = [ &iterationFunction , begin , end , chunkSize ]( unsigned int thread , unsigned int chunk )
+		{
+			const size_t _begin = begin + chunkSize*chunk;
+			const size_t _end = std::min< size_t >( end , _begin+chunkSize );
+			for( size_t i=_begin ; i<_end ; i++ ) iterationFunction( thread , i );
+		};
+#endif
 		auto _StaticThreadFunction = [ &iterationFunction , begin , end , chunks , chunkSize , threads ]( unsigned int thread )
 		{
 			for( size_t chunk=thread ; chunk<chunks ; chunk+=threads )
@@ -512,8 +520,17 @@ struct ThreadPool
 #ifdef _OPENMP
 		else if( _ParallelType==OPEN_MP )
 		{
+#if 1
+			if( schedule==STATIC )
+#pragma omp parallel for num_threads( threads ) schedule( static , 1 )
+				for( int c=0 ; c<chunks ; c++ ) _ChunkFunction( omp_get_thread_num() , c );
+			else if( schedule==DYNAMIC )
+#pragma omp parallel for num_threads( threads ) schedule( dynamic , 1 )
+				for( int c=0 ; c<chunks ; c++ ) _ChunkFunction( omp_get_thread_num() , c );
+#else
 #pragma omp parallel for num_threads( threads ) schedule( static , 1 )
 			for( int t=0 ; t<(int)threads ; t++ ) _ThreadFunction( t );
+#endif
 		}
 #endif // _OPENMP
 		else if( _ParallelType=THREAD_POOL_HH )
@@ -605,7 +622,7 @@ struct ThreadPool
 	static void Init( ParallelType parallelType , unsigned int numThreads=std::thread::hardware_concurrency() )
 	{
 		_ParallelType = parallelType;
-		if( _Threads.size() )
+		if( _Threads.size() && !_Close )
 		{
 			_Close = true;
 			_WaitingForWorkOrClose.notify_all();
@@ -628,6 +645,15 @@ struct ThreadPool
 #else // !USE_FEWER_THREADS
 			for( unsigned int t=0 ; t<numThreads ; t++ ) _Threads[t] = std::thread( _ThreadInitFunction , t );
 #endif // USE_FEWER_THREADS
+		}
+	}
+	static void Terminate( void )
+	{
+		if( _Threads.size() && !_Close )
+		{
+			_Close = true;
+			_WaitingForWorkOrClose.notify_all();
+			for( unsigned int t=0 ; t<_Threads.size() ; t++ ) _Threads[t].join();
 		}
 	}
 private:

@@ -32,9 +32,9 @@ DAMAGE.
 												// Note: enabling BIG_DATA can generate .ply files using "longlong" for face indices instead of "int".
 												// These are not standardly supported by .ply reading/writing applications.
 						
-#undef NEW_THREADS								// Enabling this flag augments the OpenMP implementation of parallelism with C++11's
+#define NEW_THREADS								// Enabling this flag augments the OpenMP implementation of parallelism with C++11's
 #undef SHOW_WARNINGS							// Display compilation warnings
-#define ARRAY_DEBUG								// If enabled, array access is tested for validity
+#undef ARRAY_DEBUG								// If enabled, array access is tested for validity
 #define FAST_COMPILE							// If enabled, only a single version of the reconstruction code is compiled
 #undef VERBOSE_MESSAGING						// If enabled, warnings/errors give line number
 
