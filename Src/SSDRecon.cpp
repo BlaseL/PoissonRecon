@@ -883,6 +883,7 @@ int main( int argc , char* argv[] )
 #else // !NEW_THREADS
 	omp_set_num_threads( Threads.value > 1 ? Threads.value : 1 );
 #endif // NEW_THREADS
+	if( !Threads.set ) printf( "Running with %d threads\n" , Threads.value );
 	messageWriter.echoSTDOUT = Verbose.set;
 
 	if( !In.set )
