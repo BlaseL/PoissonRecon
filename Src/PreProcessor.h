@@ -31,6 +31,8 @@ DAMAGE.
 #define BIG_DATA								// Supports processing requiring more than 32-bit integers for indexing
 												// Note: enabling BIG_DATA can generate .ply files using "longlong" for face indices instead of "int".
 												// These are not standardly supported by .ply reading/writing applications.
+												// The executable ChunkPLY can help by partitioning the mesh into more manageable chunks
+												// (each of which is small enough to be represented using 32-bit indexing.)
 						
 #define NEW_THREADS								// Enabling this flag augments the OpenMP implementation of parallelism with C++11's
 #undef SHOW_WARNINGS							// Display compilation warnings

@@ -4,7 +4,7 @@ ST_TARGET=SurfaceTrimmer
 EH_TARGET=EDTInHeat
 IS_TARGET=ImageStitching
 AV_TARGET=AdaptiveTreeVisualization
-CP_TARGET=ConvertPLY
+CP_TARGET=ChunkPLY
 PT_TARGET=ParallelTest
 PR_SOURCE=PlyFile.cpp PoissonRecon.cpp
 SR_SOURCE=PlyFile.cpp SSDRecon.cpp
@@ -12,7 +12,7 @@ ST_SOURCE=PlyFile.cpp SurfaceTrimmer.cpp
 EH_SOURCE=PlyFile.cpp EDTInHeat.cpp
 IS_SOURCE=ImageStitching.cpp
 AV_SOURCE=PlyFile.cpp AdaptiveTreeVisualization.cpp
-CP_SOURCE=PlyFile.cpp ConvertPLY.cpp
+CP_SOURCE=PlyFile.cpp ChunkPLY.cpp
 PT_SOURCE=ParallelTest.cpp
 
 COMPILER = gcc
@@ -116,10 +116,10 @@ octreevisualization: LFLAGS += $(LFLAGS_RELEASE)
 octreevisualization: make_dir
 octreevisualization: $(BIN)$(AV_TARGET)
 
-convertply: CFLAGS += $(CFLAGS_RELEASE)
-convertply: LFLAGS += $(LFLAGS_RELEASE)
-convertply: make_dir
-convertply: $(BIN)$(CP_TARGET)
+chunkply: CFLAGS += $(CFLAGS_RELEASE)
+chunkply: LFLAGS += $(LFLAGS_RELEASE)
+chunkply: make_dir
+chunkply: $(BIN)$(CP_TARGET)
 
 paralleltest: CFLAGS += $(CFLAGS_RELEASE)
 paralleltest: LFLAGS += $(LFLAGS_RELEASE)
