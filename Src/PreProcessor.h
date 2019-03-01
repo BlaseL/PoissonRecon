@@ -36,7 +36,6 @@ DAMAGE.
 #undef SHOW_WARNINGS							// Display compilation warnings
 #undef ARRAY_DEBUG								// If enabled, array access is tested for validity
 #define FAST_COMPILE							// If enabled, only a single version of the reconstruction code is compiled
-#undef VERBOSE_MESSAGING						// If enabled, warnings/errors give line number
 
 #define USE_FEWER_THREADS						// Use fewer threads if necessary
 #define USE_THREAD_MINUS_ONE					// Do some of the processing the current thread

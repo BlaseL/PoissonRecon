@@ -204,7 +204,6 @@ namespace MKExceptions
 		_AddToMessageStream( stream , arguments ... );
 	}
 
-#ifdef VERBOSE_MESSAGING
 	template< typename ... Arguments >
 	std::string MakeMessageString( std::string header , std::string fileName , int line , std::string functionName , Arguments ... arguments )
 	{
@@ -248,46 +247,7 @@ namespace MKExceptions
 		std::cerr << MakeMessageString( "[ERROR]" , fileName , line , functionName , format , args ... ) << std::endl;
 		exit( 0 );
 	}
-#else // !VERBOSE_MESSAGING
-	template< typename ... Arguments >
-	std::string MakeMessageString( std::string header , std::string functionName , Arguments ... arguments )
-	{
-		std::stringstream stream;
-
-		// The first line is the header, the file name , and the line number
-		stream << header << " " << functionName << ": ";
-
-		_AddToMessageStream( stream , arguments ... );
-
-		return stream.str();
-	}
-
-	struct Exception : public std::exception
-	{
-		const char *what( void ) const noexcept { return _message.c_str(); }
-		template< typename ... Args >
-		Exception( const char *functionName , const char *format , Args ... args )
-		{
-			_message = MakeMessageString( "[EXCEPTION]" , functionName , format , args ... );
-		}
-	private:
-		std::string _message;
-	};
-	template< typename ... Args > void Throw( const char *functionName , const char *format , Args ... args ){ throw Exception( functionName , format , args ... ); }
-	template< typename ... Args >
-	void Warn( const char *functionName , const char *format , Args ... args )
-	{
-		std::cerr << MakeMessageString( "[WARNING]" , functionName , format , args ... ) << std::endl;
-	}
-	template< typename ... Args >
-	void ErrorOut( const char *functionName , const char *format , Args ... args )
-	{
-		std::cerr << MakeMessageString( "[ERROR]" , functionName , format , args ... ) << std::endl;
-		exit( 0 );
-	}
-#endif // VERBOSE_MESSAGING
 }
-#ifdef VERBOSE_MESSAGING
 #ifndef WARN
 #define WARN( ... ) MKExceptions::Warn( __FILE__ , __LINE__ , __FUNCTION__ , __VA_ARGS__ )
 #endif // WARN
@@ -300,20 +260,6 @@ namespace MKExceptions
 #ifndef ERROR_OUT
 #define ERROR_OUT( ... ) MKExceptions::ErrorOut( __FILE__ , __LINE__ , __FUNCTION__ , __VA_ARGS__ )
 #endif // ERROR_OUT
-#else // !VERBOSE_MESSAGING
-#ifndef WARN
-#define WARN( ... ) MKExceptions::Warn( __FUNCTION__ , __VA_ARGS__ )
-#endif // WARN
-#ifndef WARN_ONCE
-#define WARN_ONCE( ... ) { static bool firstTime = true ; if( firstTime ) MKExceptions::Warn( __FUNCTION__ , __VA_ARGS__ ) ; firstTime = false; }
-#endif // WARN_ONCE
-#ifndef THROW
-#define THROW( ... ) MKExceptions::Throw( __FUNCTION__ , __VA_ARGS__ )
-#endif // THROW
-#ifndef ERROR_OUT
-#define ERROR_OUT( ... ) MKExceptions::ErrorOut( __FUNCTION__ , __VA_ARGS__ )
-#endif // ERROR_OUT
-#endif // VERBOSE_MESSAGING
 
 #ifdef NEW_CODE
 
@@ -628,6 +574,7 @@ struct ThreadPool
 			_WaitingForWorkOrClose.notify_all();
 			for( unsigned int t=0 ; t<_Threads.size() ; t++ ) _Threads[t].join();
 		}
+		_Close = true;
 #ifdef USE_THREAD_MINUS_ONE
 		numThreads--;
 #endif // USE_THREAD_MINUS_ONE
@@ -654,6 +601,7 @@ struct ThreadPool
 			_Close = true;
 			_WaitingForWorkOrClose.notify_all();
 			for( unsigned int t=0 ; t<_Threads.size() ; t++ ) _Threads[t].join();
+			_Threads.resize( 0 );
 		}
 	}
 private:
