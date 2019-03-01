@@ -27,7 +27,10 @@ DAMAGE.
 */
 #define NEW_CODE
 
-#undef ARRAY_DEBUG
+#ifdef NEW_CODE
+#include "PreProcessor.h"
+#endif // NEW_CODE
+
 #define DIMENSION 3
 
 #include <stdio.h>
@@ -92,7 +95,11 @@ struct EdgeKey
 	Index key1 , key2;
 	EdgeKey( Index k1=0 , Index k2=0 ) : key1(k1) , key2(k2) {}
 	bool operator == ( const EdgeKey &key ) const  { return key1==key.key1 && key2==key.key2; }
+#if 1
+	struct Hasher{ size_t operator()( const EdgeKey &key ) const { return (size_t)( key.key1 * key.key2 ); } };
+#else
 	struct Hasher{ size_t operator()( const EdgeKey &key ) const { return key.key1 ^ key.key2; } };
+#endif
 };
 #else // !NEW_CODE
 long long EdgeKey( int key1 , int key2 )

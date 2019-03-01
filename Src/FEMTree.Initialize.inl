@@ -230,7 +230,7 @@ int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPoint
 template< unsigned int Dim , class Real >
 #ifdef NEW_CODE
 #ifdef NEW_THREADS
-void FEMTreeInitializer< Dim , Real >::Initialize( ThreadPool &tp , FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
+void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples , std::vector< Allocator< FEMTreeNode > * > &nodeAllocators , std::function< void ( FEMTreeNode& ) > NodeInitializer )
 #else // !NEW_THREADS
 void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , int maxDepth , std::vector< PointSample >& samples , bool mergeNodeSamples , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
 #endif // NEW_THREADS
@@ -244,7 +244,7 @@ void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std
 	std::vector< int > nodeToIndexMap;
 #endif // NEW_CODE
 #ifdef NEW_THREADS
-	tp.parallel_for( 0 , simplices.size() , [&]( unsigned int , size_t  i )
+	ThreadPool::Parallel_for( 0 , simplices.size() , [&]( unsigned int t , size_t  i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -257,8 +257,13 @@ void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std
 		Simplex< Real , Dim , Dim-1 > s;
 		for( int k=0 ; k<Dim ; k++ ) s[k] = vertices[ simplices[i][k] ];
 #ifdef NEW_CODE
+#ifdef NEW_THREADS
+		if( mergeNodeSamples ) _AddSimplex( root , s , maxDepth , samples , &nodeToIndexMap , nodeAllocators.size() ? nodeAllocators[t] : NULL , NodeInitializer );
+		else                   _AddSimplex( root , s , maxDepth , samples , NULL ,            nodeAllocators.size() ? nodeAllocators[t] : NULL , NodeInitializer );
+#else // !NEW_THREADS
 		if( mergeNodeSamples ) _AddSimplex( root , s , maxDepth , samples , &nodeToIndexMap , nodeAllocator , NodeInitializer );
 		else                   _AddSimplex( root , s , maxDepth , samples , NULL ,            nodeAllocator , NodeInitializer );
+#endif // NEW_THREADS
 #else // !NEW_CODE
 		int sCount;
 		if( mergeNodeSamples ) sCount = _AddSimplex( root , s , maxDepth , samples , &nodeToIndexMap , nodeAllocator , NodeInitializer );
@@ -494,7 +499,7 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode* node , Simplex< 
 
 template< unsigned int Dim , class Real >
 #ifdef NEW_CODE
-void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& nodeSimplices , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
+void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 , node_index_type > >& simplices , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& nodeSimplices , Allocator< FEMTreeNode > *nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
 #else // !NEW_CODE
 void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std::vector< Point< Real , Dim > >& vertices , const std::vector< SimplexIndex< Dim-1 > >& simplices , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& nodeSimplices , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
 #endif // NEW_CODE

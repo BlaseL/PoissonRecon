@@ -39,9 +39,6 @@ SparseMatrix< T , IndexType , 0 >::SparseMatrix( void )
 	rowSizes = NullPointer( size_t );
 	rowNum = 0;
 	_entries = NullPointer( Pointer( MatrixEntry< T , IndexType > ) );
-#ifdef USE_THREADS
-	threadPool = NULL;
-#endif // USE_THREADS
 }
 
 template< class T , class IndexType >
@@ -51,9 +48,6 @@ SparseMatrix< T , IndexType , 0 >::SparseMatrix( size_t rowNum )
 	rowSizes = NullPointer( size_t );
 	_entries= NullPointer( Pointer( MatrixEntry< T , IndexType > ) );
 	resize( rowNum );
-#ifdef USE_THREADS
-	threadPool = NULL;
-#endif // USE_THREADS
 }
 template< class T , class IndexType >
 SparseMatrix< T , IndexType , 0 >::SparseMatrix( const SparseMatrix& M )
@@ -75,10 +69,6 @@ SparseMatrix< T , IndexType , 0 >::SparseMatrix( const SparseMatrix& M )
 		for( int j=0 ; j<rowSizes[i] ; j++ ) _entries[i][j] = M._entries[i][j];
 #endif // NEW_CODE_SPARSE_MATRIX
 	}
-#ifdef USE_THREADS
-	threadPool = NULL;
-#endif // USE_THREADS
-
 }
 template< class T , class IndexType >
 SparseMatrix< T , IndexType , 0 >::SparseMatrix( SparseMatrix&& M )
@@ -88,9 +78,6 @@ SparseMatrix< T , IndexType , 0 >::SparseMatrix( SparseMatrix&& M )
 	_entries = NullPointer( Pointer( MatrixEntry< T , IndexType > ) );
 
 	Swap( *this , M );
-#ifdef USE_THREADS
-	threadPool = NULL;
-#endif // USE_THREADS
 }
 template< class T , class IndexType >
 template< class T2 , class IndexType2 >
@@ -113,9 +100,6 @@ SparseMatrix< T , IndexType , 0 >::SparseMatrix( const SparseMatrix< T2 , IndexT
 		for( int j=0 ; j<rowSizes[i] ; j++ ) _entries[i][j] = MatrixEntry< T , IndexType >( M._entries[i][j].N , T( M._entries[i][j].Value ) );
 #endif // NEW_CODE_SPARSE_MATRIX
 	}
-#ifdef USE_THREADS
-	threadPool = NULL;
-#endif // USE_THREADS
 }
 
 template< class T , class IndexType >
@@ -270,7 +254,7 @@ template< class T , class IndexType >
 SparseMatrix< T , IndexType , 0 >& SparseMatrix< T , IndexType , 0 >::operator *= ( T s )
 {
 #ifdef NEW_THREADS
-	_parallel_for( 0 , rowNum , [&]( unsigned int , size_t i ){ for( size_t j=0 ; j<rowSizes[i] ; j++ ) _entries[i][j].Value *= s; } );
+	ThreadPool::Parallel_for( 0 , rowNum , [&]( unsigned int , size_t i ){ for( size_t j=0 ; j<rowSizes[i] ; j++ ) _entries[i][j].Value *= s; } );
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
@@ -334,7 +318,7 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::operator * 
 	out.resize( (int)aRows );
 #endif // NEW_CODE_SPARSE_MATRIX
 #ifdef NEW_THREADS
-	_parallel_for( 0 , aRows , [&]( unsigned int , size_t i )
+	ThreadPool::Parallel_for( 0 , aRows , [&]( unsigned int , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
@@ -388,7 +372,7 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::operator + 
 
 	out.resize( rowNum );
 #ifdef NEW_THREADS
-	_parallel_for( 0 , rowNum , [&]( unsigned int , size_t i )
+	ThreadPool::Parallel_for( 0 , rowNum , [&]( unsigned int , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
@@ -441,7 +425,7 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::operator - 
 
 	out.resize( rowNum );
 #ifdef NEW_THREADS
-	_parallel_for( 0 , rowNum , [&]( unsigned int , size_t i )
+	ThreadPool::Parallel_for( 0 , rowNum , [&]( unsigned int , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
@@ -506,7 +490,7 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::transpose( 
 #ifdef NEW_THREADS
 	const size_t One = 1;
 	for( size_t i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;
-	_parallel_for( 0 , At.rowNum , [&]( unsigned int , size_t i )
+	ThreadPool::Parallel_for( 0 , At.rowNum , [&]( unsigned int , size_t i )
 #else // !NEW_THREADS
 #ifdef NEW_CODE_SPARSE_MATRIX
 	for( size_t i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;
@@ -534,7 +518,7 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::transpose( 
 #endif // NEW_THREADS
 
 #ifdef NEW_THREADS
-	_parallel_for( 0 , A.rowNum , [&]( unsigned int , size_t i )
+	ThreadPool::Parallel_for( 0 , A.rowNum , [&]( unsigned int , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
@@ -593,7 +577,7 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::transpose( 
 	A.resize( aRows );
 #ifdef NEW_THREADS
 	for( size_t i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;
-	_parallel_for( 0 , At.rowNum , [&]( unsigned int , size_t i )
+	ThreadPool::Parallel_for( 0 , At.rowNum , [&]( unsigned int , size_t i )
 #else // !NEW_THREADS
 #ifdef NEW_CODE_SPARSE_MATRIX
 	for( size_t i=0 ; i<aRows ; i++ ) A.rowSizes[i] = 0;
@@ -617,7 +601,7 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::transpose( 
 #endif // NEW_THREADS
 
 #ifdef NEW_THREADS
-	_parallel_for( 0 , A.rowNum , [&]( unsigned int , size_t i )
+	ThreadPool::Parallel_for( 0 , A.rowNum , [&]( unsigned int , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
@@ -688,7 +672,7 @@ SparseMatrix< T , IndexType , 0 > SparseMatrix< T , IndexType , 0 >::Multiply( c
 #endif // NEW_CODE_SPARSE_MATRIX
 
 #ifdef NEW_THREADS
-	_parallel_for( 0 , aRows , [&]( unsigned int , size_t i )
+	ThreadPool::Parallel_for( 0 , aRows , [&]( unsigned int , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX
@@ -950,7 +934,7 @@ template< class T , class IndexType , size_t MaxRowSize >
 SparseMatrix< T , IndexType , MaxRowSize >& SparseMatrix< T , IndexType , MaxRowSize >::operator *= ( T s )
 {
 #ifdef NEW_THREADS
-	_parallel_for( 0 , _rowNum*MaxRowSize , [&]( unsigned int , size_t i ){ _entries[i].Value *= s; } );
+	ThreadPool::Parallel_for( 0 , _rowNum*MaxRowSize , [&]( unsigned int , size_t i ){ _entries[i].Value *= s; } );
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE_SPARSE_MATRIX

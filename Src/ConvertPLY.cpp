@@ -26,7 +26,8 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 DAMAGE.
 */
 #define NEW_CODE
-#undef NEW_CHUNKS
+#define NEW_CHUNKS
+#define DISABLE_PARALLELIZATION
 
 // -80,-130,40
 #include <stdio.h>
@@ -76,7 +77,7 @@ void WritePoints( const char *fileName , int ft , const std::vector< PlyVertexWi
 	typedef PlyVertexWithData< float , 3 , MultiPointStreamData< float , VertexData ... > > Vertex;
 	typedef MultiPointStreamData< float , VertexData ... > StreamData;
 
-	PLYOutputPointStreamWithData< float , 3 , StreamData > pointStream( fileName , vertices.size() , ft , StreamData::PlyWriteProperties() , StreamData::PlyReadNum );
+	PLYOutputPointStreamWithData< float , 3 , StreamData > pointStream( fileName , vertices.size() , ft , StreamData::PlyWriteProperties() , StreamData::PlyWriteNum );
 	for( size_t i=0 ; i<vertices.size() ; i++ ) pointStream.nextPoint( vertices[i].point , vertices[i].data );
 }
 
@@ -264,8 +265,8 @@ void Execute( void )
 #ifdef NEW_CHUNKS
 			{
 				size_t vertexCount = 0;
-				for( size_t i=0 ; i<vertices.size() ; i++ ) if( InBoundingBox( vertices[i].point ) ) vertexCount++
-				_vertices.reserve( vertexCounts[i] );
+				for( size_t i=0 ; i<vertices.size() ; i++ ) if( InBoundingBox( vertices[i].point ) ) vertexCount++;
+				_vertices.reserve( vertexCount );
 			}
 #endif // NEW_CHUNKS
 
@@ -356,7 +357,10 @@ void Execute( void )
 
 			if( Out.set )
 			{
+#ifdef DISABLE_PARALLELIZATION
+#else // !DISABLE_PARALLELIZATION
 #pragma omp parallel for
+#endif // DISABLE_PARALLELIZATION
 				for( int i=0 ; i<_polygons.size() ; i++ ) if( _polygons[i].size() )
 				{
 					std::vector< Vertex > _vertices;
@@ -416,7 +420,10 @@ void Execute( void )
 
 			if( Out.set )
 			{
+#ifdef DISABLE_PARALLELIZATION
+#else // !DISABLE_PARALLELIZATION
 #pragma omp parallel for
+#endif  // DISABLE_PARALLELIZATION
 				for( int i=0 ; i<_vertices.size() ; i++ ) if( _vertices[i].size() )
 				{
 					std::stringstream stream;
@@ -455,8 +462,11 @@ void Execute( void )
 	}
 	else
 	{
-		if( polygons.size() ) WriteMesh( Out.value , ASCII.set ? PLY_ASCII : ft , vertices , polygons , comments );
-		else WritePoints( Out.value , ASCII.set ? PLY_ASCII : ft , vertices , comments );
+		if( Out.set )
+		{
+			if( polygons.size() ) WriteMesh( Out.value , ASCII.set ? PLY_ASCII : ft , vertices , polygons , comments );
+			else WritePoints( Out.value , ASCII.set ? PLY_ASCII : ft , vertices , comments );
+		}
 	}
 }
 int main( int argc , char* argv[] )

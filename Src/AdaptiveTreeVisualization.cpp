@@ -116,7 +116,7 @@ void ShowUsage( char* ex )
 
 template< typename Real , unsigned int Dim >
 #ifdef NEW_THREADS
-void WriteGrid( ThreadPool &tp , ConstPointer( Real ) values , int res , const char *fileName )
+void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 #else // !NEW_THREADS
 void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 #endif // NEW_THREADS
@@ -130,9 +130,9 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 	{
 		Real avg = 0;
 #ifdef NEW_THREADS
-		std::vector< Real > avgs( tp.threadNum() , 0 );
-		tp.parallel_for( 0 , resolution , [&]( unsigned int thread , size_t i ){ avgs[thread] += values[i]; } );
-		for( unsigned int t=0 ; t<tp.threadNum() ; t++ ) avg += avgs[t];
+		std::vector< Real > avgs( ThreadPool::NumThreads() , 0 );
+		ThreadPool::Parallel_for( 0 , resolution , [&]( unsigned int thread , size_t i ){ avgs[thread] += values[i]; } );
+		for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) avg += avgs[t];
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : avg )
 		for( int i=0 ; i<resolution ; i++ ) avg += values[i];
@@ -141,9 +141,9 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 
 		Real std = 0;
 #ifdef NEW_THREADS
-		std::vector< Real > stds( tp.threadNum() , 0 );
-		tp.parallel_for( 0 , resolution , [&]( unsigned int thread , size_t i ){ stds[thread] += ( values[i] - avg ) * ( values[i] - avg ); } );
-		for( unsigned int t=0 ; t<tp.threadNum() ; t++ ) std += stds[t];
+		std::vector< Real > stds( ThreadPool::NumThreads() , 0 );
+		ThreadPool::Parallel_for( 0 , resolution , [&]( unsigned int thread , size_t i ){ stds[thread] += ( values[i] - avg ) * ( values[i] - avg ); } );
+		for( unsigned int t=0 ; t<ThreadPool::NumThreads() ; t++ ) std += stds[t];
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : std )
 		for( int i=0 ; i<resolution ; i++ ) std += ( values[i] - avg ) * ( values[i] - avg );
@@ -154,7 +154,7 @@ void WriteGrid( ConstPointer( Real ) values , int res , const char *fileName )
 
 		unsigned char *pixels = new unsigned char[ resolution*3 ];
 #ifdef NEW_THREADS
-		tp.parallel_for( 0 , resolution , [&]( unsigned int , size_t i )
+		ThreadPool::Parallel_for( 0 , resolution , [&]( unsigned int , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 		for( int i=0 ; i<resolution ; i++ )
@@ -197,7 +197,7 @@ template< unsigned int Dim , class Real , unsigned int FEMSig >
 void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 {
 #ifdef NEW_THREADS
-	ThreadPool tp( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
+	ThreadPool::Init( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
 #endif // NEW_THREADS
 	static const unsigned int Degree = FEMSignature< FEMSig >::Degree;
 	DenseNodeData< Real , IsotropicUIntPack< Dim , FEMSig > > coefficients;
@@ -209,17 +209,9 @@ void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 	{
 		int res = 0;
 		double t = Time();
-#ifdef NEW_THREADS
-		Pointer( Real ) values = tree->template regularGridEvaluate< true >( tp , coefficients , res , -1 , PrimalGrid.set );
-#else // !NEW_THREADS
 		Pointer( Real ) values = tree->template regularGridEvaluate< true >( coefficients , res , -1 , PrimalGrid.set );
-#endif // NEW_THREADS
 		if( Verbose.set ) printf( "Got grid: %.2f(s)\n" , Time()-t );
-#ifdef NEW_THREADS
-		WriteGrid< Real , Dim >( tp , values , res , OutGrid.value );
-#else // !NEW_THREADS
 		WriteGrid< Real , Dim >( values , res , OutGrid.value );
-#endif // NEW_THREADS
 		DeletePointer( values );
 	}
 
@@ -234,15 +226,6 @@ void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 		CoredFileMeshData< Vertex > mesh;
 #endif // NEW_CODE
 		std::function< void ( Vertex& , Point< Real , Dim > , Real , Real ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real , Real ){ v.point = p; };
-#ifdef NEW_THREADS
-#if defined( __GNUC__ ) && __GNUC__ < 5
-#warning "you've got me gcc version<5"
-		static const unsigned int DataSig = FEMDegreeAndBType< 0 , BOUNDARY_FREE >::Signature;
-		IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , tp , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , ( SparseNodeData< ProjectiveData< Real , Real > , IsotropicUIntPack< Dim , DataSig > > * )NULL , coefficients , IsoValue.value , mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
-#else // !__GNUC__ || __GNUC__ >=5
-		IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , tp , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , NULL , coefficients , IsoValue.value , mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
-#endif // __GNUC__ || __GNUC__ < 4
-#else // !NEW_THREADS
 #if defined( __GNUC__ ) && __GNUC__ < 5
 #warning "you've got me gcc version<5"
 		static const unsigned int DataSig = FEMDegreeAndBType< 0 , BOUNDARY_FREE >::Signature;
@@ -250,7 +233,6 @@ void _Execute( const FEMTree< Dim , Real >* tree , FILE* fp )
 #else // !__GNUC__ || __GNUC__ >=5
 		IsoSurfaceExtractor< Dim , Real , Vertex >::template Extract< Real >( IsotropicUIntPack< Dim , FEMSig >() , UIntPack< 0 >() , UIntPack< FEMTrivialSignature >() , *tree , ( typename FEMTree< Dim , Real >::template DensityEstimator< 0 >* )NULL , NULL , coefficients , IsoValue.value , mesh , SetVertex , NonLinearFit.set , !NonManifold.set , PolygonMesh.set , FlipOrientation.set );
 #endif // __GNUC__ || __GNUC__ < 4
-#endif // NEW_THREADS
 
 		if( Verbose.set ) printf( "Got iso-surface: %.2f(s)\n" , Time()-t );
 #ifdef NEW_CODE

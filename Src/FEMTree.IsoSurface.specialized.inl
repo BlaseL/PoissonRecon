@@ -327,11 +327,7 @@ protected:
 			HyperCubeTables< D , K1 , K2 >::SetTables();
 		}
 
-#ifdef NEW_THREADS
-		static void SetSliceTableData( ThreadPool &tp , const SortedTreeNodes< Dim >& sNodes , SliceTableData* sData0 , XSliceTableData* xData , SliceTableData* sData1 , int depth , int offset )
-#else // !NEW_THREADS
 		static void SetSliceTableData( const SortedTreeNodes< Dim >& sNodes , SliceTableData* sData0 , XSliceTableData* xData , SliceTableData* sData1 , int depth , int offset )
-#endif // NEW_THREADS
 		{
 			// [NOTE] This is structure is purely for determining adjacency and is independent of the FEM degree
 			typedef typename FEMTree< Dim , Real >::ConstOneRingNeighborKey ConstOneRingNeighborKey;
@@ -423,7 +419,7 @@ protected:
 #endif // NEW_CODE
 			}
 #ifdef NEW_THREADS
-			std::vector< ConstOneRingNeighborKey > neighborKeys( tp.threadNum() );
+			std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 #else // !NEW_THREADS
 			std::vector< ConstOneRingNeighborKey > neighborKeys( omp_get_max_threads() );
 #endif // NEW_THREADS
@@ -639,7 +635,7 @@ protected:
 
 			// Try and get at the nodes outside of the slab through the neighbor key
 #ifdef NEW_THREADS
-			tp.parallel_for( sNodes.begin(depth,offset) , sNodes.end(depth,offset) , [&]( unsigned int thread , size_t i )
+			ThreadPool::Parallel_for( sNodes.begin(depth,offset) , sNodes.end(depth,offset) , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for schedule( guided )
 #ifdef NEW_CODE
@@ -692,7 +688,7 @@ protected:
 				int off = sNodes.begin(depth,offset-1) , size = sNodes.end(depth,offset-1) - sNodes.begin(depth,offset-1);
 #endif // NEW_CODE
 #ifdef NEW_THREADS
-				tp.parallel_for( 0 , size , [&]( unsigned int thread , size_t i )
+				ThreadPool::Parallel_for( 0 , size , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for schedule( guided )
 #ifdef NEW_CODE
@@ -728,7 +724,7 @@ protected:
 				int off = sNodes.begin(depth,offset+1) , size = sNodes.end(depth,offset+1) - sNodes.begin(depth,offset+1);
 #endif // NEW_CODE
 #ifdef NEW_THREADS
-				tp.parallel_for( 0 , size , [&]( unsigned int thread , size_t i )
+				ThreadPool::Parallel_for( 0 , size , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for schedule( guided )
 #ifdef NEW_CODE
@@ -765,7 +761,7 @@ protected:
 				for( node_index_type i=0 ; i<sData.nodeCount * (node_index_type)HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() ; i++ ) if( sData._eMap[i] ) sData._eMap[i] = eCount++;
 				for( node_index_type i=0 ; i<sData.nodeCount * (node_index_type)HyperCube::Cube< Dim-1 >::template ElementNum< 2 >() ; i++ ) if( sData._fMap[i] ) sData._fMap[i] = fCount++;
 #ifdef NEW_THREADS
-				tp.parallel_for( 0 , sData.nodeCount , [&]( unsigned int  , size_t i )
+				ThreadPool::Parallel_for( 0 , sData.nodeCount , [&]( unsigned int  , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 				for( node_index_type i=0 ; i<sData.nodeCount ; i++ )
@@ -802,7 +798,7 @@ protected:
 				for( node_index_type i=0 ; i<xData.nodeCount * (node_index_type)HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ; i++ ) if( xData._eMap[i] ) xData._eMap[i] = eCount++;
 				for( node_index_type i=0 ; i<xData.nodeCount * (node_index_type)HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() ; i++ ) if( xData._fMap[i] ) xData._fMap[i] = fCount++;
 #ifdef NEW_THREADS
-				tp.parallel_for( 0 , xData.nodeCount , [&]( unsigned int , size_t i )
+				ThreadPool::Parallel_for( 0 , xData.nodeCount , [&]( unsigned int , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 				for( node_index_type i=0 ; i<xData.nodeCount ; i++ )
@@ -865,11 +861,7 @@ protected:
 		std::vector< std::vector< std::pair< long long , long long > > > vertexPairKeyValues;
 #endif // NEW_CODE
 
-#ifdef NEW_THREADS
-		_SliceValues( ThreadPool &tp )
-#else // !NEW_THREADS
 		_SliceValues( void )
-#endif // NEW_THREADS
 		{
 #ifdef NEW_CODE
 			_oldCCount = _oldECount = _oldFCount = 0;
@@ -886,9 +878,9 @@ protected:
 			faceEdges = NullPointer( _FaceEdges ) ; faceSet = NullPointer( char );
 			mcIndices = NullPointer( char );
 #ifdef NEW_THREADS
-			edgeVertexKeyValues.resize( tp.threadNum() );
-			vertexPairKeyValues.resize( tp.threadNum() );
-			faceEdgeKeyValues.resize( tp.threadNum() );
+			edgeVertexKeyValues.resize( ThreadPool::NumThreads() );
+			vertexPairKeyValues.resize( ThreadPool::NumThreads() );
+			faceEdgeKeyValues.resize( ThreadPool::NumThreads() );
 #else // !NEW_THREADS
 			edgeVertexKeyValues.resize( omp_get_max_threads() );
 			vertexPairKeyValues.resize( omp_get_max_threads() );
@@ -1043,11 +1035,7 @@ protected:
 		std::vector< std::vector< std::pair< long long , std::vector< _IsoEdge > > > > faceEdgeKeyValues;
 #endif // NEW_CODE
 
-#ifdef NEW_THREADS
-		_XSliceValues( ThreadPool &tp )
-#else // !NEW_THREADS
 		_XSliceValues( void )
-#endif // NEW_THREADS
 		{
 			_oldECount = _oldFCount = 0;
 #ifdef NEW_CODE
@@ -1057,9 +1045,9 @@ protected:
 #endif // NEW_CODE
 			faceEdges = NullPointer( _FaceEdges ) ; faceSet = NullPointer( char );
 #ifdef NEW_THREADS
-			edgeVertexKeyValues.resize( tp.threadNum() );
-			vertexPairKeyValues.resize( tp.threadNum() );
-			faceEdgeKeyValues.resize( tp.threadNum() );
+			edgeVertexKeyValues.resize( ThreadPool::NumThreads() );
+			vertexPairKeyValues.resize( ThreadPool::NumThreads() );
+			faceEdgeKeyValues.resize( ThreadPool::NumThreads() );
 #else // !NEW_THREADS
 			edgeVertexKeyValues.resize( omp_get_max_threads() );
 			vertexPairKeyValues.resize( omp_get_max_threads() );
@@ -1166,57 +1154,31 @@ protected:
 	struct _SlabValues
 	{
 	protected:
-#ifdef NEW_THREADS
-		std::vector< _XSliceValues > _xSliceValues;
-		std::vector< _SliceValues > _sliceValues;
-#else // !NEW_THREADS
 		_XSliceValues _xSliceValues[2];
 		_SliceValues _sliceValues[2];
-#endif // NEW_THREADS
 	public:
-#ifdef NEW_THREADS
-		_SlabValues( ThreadPool &tp )
-		{
-			_xSliceValues.reserve( 2 );
-			_sliceValues.reserve( 2 );
-			for( unsigned int i=0 ; i<2 ; i++ ) _xSliceValues.emplace_back( tp ) , _sliceValues.emplace_back( tp );
-		}
-#endif // NEW_THREADS
 		_SliceValues& sliceValues( int idx ){ return _sliceValues[idx&1]; }
 		const _SliceValues& sliceValues( int idx ) const { return _sliceValues[idx&1]; }
 		_XSliceValues& xSliceValues( int idx ){ return _xSliceValues[idx&1]; }
 		const _XSliceValues& xSliceValues( int idx ) const { return _xSliceValues[idx&1]; }
 	};
 
-#ifdef NEW_THREADS
-	template< unsigned int ... FEMSigs >
-	static void _SetSliceIsoCorners( ThreadPool &tp , const FEMTree< Dim , Real >& tree , ConstPointer( Real ) coefficients , ConstPointer( Real ) coarseCoefficients , Real isoValue , LocalDepth depth , int slice ,         std::vector< _SlabValues >& slabValues , const _Evaluator< UIntPack< FEMSigs ... > , 1 >& evaluator )
-	{
-		if( slice>0          ) _SetSliceIsoCorners< FEMSigs ... >( tp , tree , coefficients , coarseCoefficients , isoValue , depth , slice , HyperCube::FRONT , slabValues , evaluator );
-		if( slice<(1<<depth) ) _SetSliceIsoCorners< FEMSigs ... >( tp , tree , coefficients , coarseCoefficients , isoValue , depth , slice , HyperCube::BACK  , slabValues , evaluator );
-	}
-#else // !NEW_THREADS
 	template< unsigned int ... FEMSigs >
 	static void _SetSliceIsoCorners( const FEMTree< Dim , Real >& tree , ConstPointer( Real ) coefficients , ConstPointer( Real ) coarseCoefficients , Real isoValue , LocalDepth depth , int slice ,         std::vector< _SlabValues >& slabValues , const _Evaluator< UIntPack< FEMSigs ... > , 1 >& evaluator )
 	{
 		if( slice>0          ) _SetSliceIsoCorners< FEMSigs ... >( tree , coefficients , coarseCoefficients , isoValue , depth , slice , HyperCube::FRONT , slabValues , evaluator );
 		if( slice<(1<<depth) ) _SetSliceIsoCorners< FEMSigs ... >( tree , coefficients , coarseCoefficients , isoValue , depth , slice , HyperCube::BACK  , slabValues , evaluator );
 	}
-#endif // NEW_THREADS
 	template< unsigned int ... FEMSigs >
-#ifdef NEW_THREADS
-	static void _SetSliceIsoCorners( ThreadPool &tp , const FEMTree< Dim , Real >& tree , ConstPointer( Real ) coefficients , ConstPointer( Real ) coarseCoefficients , Real isoValue , LocalDepth depth , int slice , HyperCube::Direction zDir , std::vector< _SlabValues >& slabValues , const _Evaluator< UIntPack< FEMSigs ... > , 1 >& evaluator )
-#else // !NEW_THREADS
 	static void _SetSliceIsoCorners( const FEMTree< Dim , Real >& tree , ConstPointer( Real ) coefficients , ConstPointer( Real ) coarseCoefficients , Real isoValue , LocalDepth depth , int slice , HyperCube::Direction zDir , std::vector< _SlabValues >& slabValues , const _Evaluator< UIntPack< FEMSigs ... > , 1 >& evaluator )
-#endif // NEW_THREADS
 	{
 		static const unsigned int FEMDegrees[] = { FEMSignature< FEMSigs >::Degree ... };
 		_SliceValues& sValues = slabValues[depth].sliceValues( slice );
 		bool useBoundaryEvaluation = false;
 		for( int d=0 ; d<Dim ; d++ ) if( FEMDegrees[d]==0 || ( FEMDegrees[d]==1 && sValues.cornerGradients ) ) useBoundaryEvaluation = true;
 #ifdef NEW_THREADS
-		std::vector< ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > > > neighborKeys( tp.threadNum() );
-		std::vector< ConstCornerSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > > > bNeighborKeys( tp.threadNum() );
+		std::vector< ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > > > neighborKeys( ThreadPool::NumThreads() );
+		std::vector< ConstCornerSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > > > bNeighborKeys( ThreadPool::NumThreads() );
 #else // !NEW_THREADS
 		std::vector< ConstPointSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > > > neighborKeys( omp_get_max_threads() );
 		std::vector< ConstCornerSupportKey< UIntPack< FEMSignature< FEMSigs >::Degree ... > > > bNeighborKeys( omp_get_max_threads() );
@@ -1224,7 +1186,7 @@ protected:
 		if( useBoundaryEvaluation ) for( size_t i=0 ; i<neighborKeys.size() ; i++ ) bNeighborKeys[i].set( tree._localToGlobal( depth ) );
 		else                        for( size_t i=0 ; i<neighborKeys.size() ; i++ )  neighborKeys[i].set( tree._localToGlobal( depth ) );
 #ifdef NEW_THREADS
-		tp.parallel_for( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
+		ThreadPool::Parallel_for( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -1377,14 +1339,6 @@ protected:
 #endif // NEW_CODE
 	};
 
-#ifdef NEW_THREADS
-	template< unsigned int WeightDegree , typename Data , unsigned int DataSig >
-	static void _SetSliceIsoVertices( ThreadPool &tp , const FEMTree< Dim , Real >& tree , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , int slice , node_index_type& vOffset , CoredMeshData< Vertex , node_index_type >& mesh , std::vector< _SlabValues >& slabValues , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex )
-	{
-		if( slice>0          ) _SetSliceIsoVertices< WeightDegree , Data , DataSig >( tp , tree , pointEvaluator , densityWeights , data , isoValue , depth , slice , HyperCube::FRONT , vOffset , mesh , slabValues , SetVertex );
-		if( slice<(1<<depth) ) _SetSliceIsoVertices< WeightDegree , Data , DataSig >( tp , tree , pointEvaluator , densityWeights , data , isoValue , depth , slice , HyperCube::BACK  , vOffset , mesh , slabValues , SetVertex );
-	}
-#else // !NEW_THREADS
 	template< unsigned int WeightDegree , typename Data , unsigned int DataSig >
 #ifdef NEW_CODE
 	static void _SetSliceIsoVertices( const FEMTree< Dim , Real >& tree , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , int slice , node_index_type& vOffset , CoredMeshData< Vertex , node_index_type >& mesh , std::vector< _SlabValues >& slabValues , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex )
@@ -1395,14 +1349,9 @@ protected:
 		if( slice>0          ) _SetSliceIsoVertices< WeightDegree , Data , DataSig >( tree , pointEvaluator , densityWeights , data , isoValue , depth , slice , HyperCube::FRONT , vOffset , mesh , slabValues , SetVertex );
 		if( slice<(1<<depth) ) _SetSliceIsoVertices< WeightDegree , Data , DataSig >( tree , pointEvaluator , densityWeights , data , isoValue , depth , slice , HyperCube::BACK  , vOffset , mesh , slabValues , SetVertex );
 	}
-#endif // NEW_THREADS
 	template< unsigned int WeightDegree , typename Data , unsigned int DataSig >
 #ifdef NEW_CODE
-#ifdef NEW_THREADS
-	static void _SetSliceIsoVertices( ThreadPool &tp , const FEMTree< Dim , Real >& tree , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , int slice , HyperCube::Direction zDir , node_index_type& vOffset , CoredMeshData< Vertex , node_index_type >& mesh , std::vector< _SlabValues >& slabValues , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex )
-#else // !NEW_THREADS
 	static void _SetSliceIsoVertices( const FEMTree< Dim , Real >& tree , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , int slice , HyperCube::Direction zDir , node_index_type& vOffset , CoredMeshData< Vertex , node_index_type >& mesh , std::vector< _SlabValues >& slabValues , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex )
-#endif // NEW_THREADS
 #else // !NEW_CODE
 	static void _SetSliceIsoVertices( const FEMTree< Dim , Real >& tree , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , int slice , HyperCube::Direction zDir , int& vOffset , CoredMeshData< Vertex >& mesh , std::vector< _SlabValues >& slabValues , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex )
 #endif // NEW_CODE
@@ -1411,9 +1360,9 @@ protected:
 		_SliceValues& sValues = slabValues[depth].sliceValues( slice );
 		// [WARNING] In the case Degree=2, these two keys are the same, so we don't have to maintain them separately.
 #ifdef NEW_THREADS
-		std::vector< ConstOneRingNeighborKey > neighborKeys( tp.threadNum() );
-		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > > > weightKeys( tp.threadNum() );
-		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , DataDegree > > > dataKeys( tp.threadNum() );
+		std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
+		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > > > weightKeys( ThreadPool::NumThreads() );
+		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , DataDegree > > > dataKeys( ThreadPool::NumThreads() );
 #else // !NEW_THREADS
 		std::vector< ConstOneRingNeighborKey > neighborKeys( omp_get_max_threads() );
 		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > > > weightKeys( omp_get_max_threads() );
@@ -1421,7 +1370,7 @@ protected:
 #endif // NEW_THREADS
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( tree._localToGlobal( depth ) ) , weightKeys[i].set( tree._localToGlobal( depth ) ) , dataKeys[i].set( tree._localToGlobal( depth ) );
 #ifdef NEW_THREADS
-		tp.parallel_for( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
+		ThreadPool::Parallel_for( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -1579,11 +1528,7 @@ protected:
 	////////////////////
 	template< unsigned int WeightDegree , typename Data , unsigned int DataSig >
 #ifdef NEW_CODE
-#ifdef NEW_THREADS
-	static void _SetXSliceIsoVertices( ThreadPool &tp , const FEMTree< Dim , Real >& tree , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , int slab , node_index_type &vOffset , CoredMeshData< Vertex , node_index_type >& mesh , std::vector< _SlabValues >& slabValues , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex )
-#else // !NEW_THREADS
 	static void _SetXSliceIsoVertices( const FEMTree< Dim , Real >& tree , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , int slab , node_index_type &vOffset , CoredMeshData< Vertex , node_index_type >& mesh , std::vector< _SlabValues >& slabValues , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex )
-#endif // NEW_THREADS
 #else // !NEW_CODE
 	static void _SetXSliceIsoVertices( const FEMTree< Dim , Real >& tree , typename FEMIntegrator::template PointEvaluator< IsotropicUIntPack< Dim , DataSig > , ZeroUIntPack< Dim > >* pointEvaluator , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , Real isoValue , LocalDepth depth , int slab , int& vOffset , CoredMeshData< Vertex >& mesh , std::vector< _SlabValues >& slabValues , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex )
 #endif // NEW_CODE
@@ -1595,9 +1540,9 @@ protected:
 
 		// [WARNING] In the case Degree=2, these two keys are the same, so we don't have to maintain them separately.
 #ifdef NEW_THREADS
-		std::vector< ConstOneRingNeighborKey > neighborKeys( tp.threadNum() );
-		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > > > weightKeys( tp.threadNum() );
-		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , DataDegree > > > dataKeys( tp.threadNum() );
+		std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
+		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > > > weightKeys( ThreadPool::NumThreads() );
+		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , DataDegree > > > dataKeys( ThreadPool::NumThreads() );
 #else // !NEW_THREADS
 		std::vector< ConstOneRingNeighborKey > neighborKeys( omp_get_max_threads() );
 		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , WeightDegree > > > weightKeys( omp_get_max_threads() );
@@ -1605,7 +1550,7 @@ protected:
 #endif // NEW_THREADS
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( tree._localToGlobal( depth ) ) , weightKeys[i].set( tree._localToGlobal( depth ) ) , dataKeys[i].set( tree._localToGlobal( depth ) );
 #ifdef NEW_THREADS
-		tp.parallel_for( tree._sNodesBegin(depth,slab) , tree._sNodesEnd(depth,slab) , [&]( unsigned int thread , size_t i )
+		ThreadPool::Parallel_for( tree._sNodesBegin(depth,slab) , tree._sNodesEnd(depth,slab) , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -1755,31 +1700,19 @@ protected:
 		);
 #endif // NEW_THREADS
 	}
-#ifdef NEW_THREADS
-	static void _CopyFinerSliceIsoEdgeKeys( ThreadPool &tp , const FEMTree< Dim , Real >& tree , LocalDepth depth , int slice , std::vector< _SlabValues >& slabValues )
-	{
-		if( slice>0          ) _CopyFinerSliceIsoEdgeKeys( tp , tree , depth , slice , HyperCube::FRONT , slabValues );
-		if( slice<(1<<depth) ) _CopyFinerSliceIsoEdgeKeys( tp , tree , depth , slice , HyperCube::BACK  , slabValues );
-	}
-#else // !NEW_THREADS
 	static void _CopyFinerSliceIsoEdgeKeys( const FEMTree< Dim , Real >& tree , LocalDepth depth , int slice , std::vector< _SlabValues >& slabValues )
 	{
 		if( slice>0          ) _CopyFinerSliceIsoEdgeKeys( tree , depth , slice , HyperCube::FRONT , slabValues );
 		if( slice<(1<<depth) ) _CopyFinerSliceIsoEdgeKeys( tree , depth , slice , HyperCube::BACK  , slabValues );
 	}
-#endif // NEW_THREADS
-#ifdef NEW_THREADS
-	static void _CopyFinerSliceIsoEdgeKeys( ThreadPool &tp , const FEMTree< Dim , Real >& tree , LocalDepth depth , int slice , HyperCube::Direction zDir , std::vector< _SlabValues >& slabValues )
-#else // !NEW_THREADS
 	static void _CopyFinerSliceIsoEdgeKeys( const FEMTree< Dim , Real >& tree , LocalDepth depth , int slice , HyperCube::Direction zDir , std::vector< _SlabValues >& slabValues )
-#endif // NEW_THREADS
 	{
 		_SliceValues& pSliceValues = slabValues[depth  ].sliceValues(slice   );
 		_SliceValues& cSliceValues = slabValues[depth+1].sliceValues(slice<<1);
 		typename SliceData::SliceTableData& pSliceData = pSliceValues.sliceData;
 		typename SliceData::SliceTableData& cSliceData = cSliceValues.sliceData;
 #ifdef NEW_THREADS
-		tp.parallel_for( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
+		ThreadPool::Parallel_for( tree._sNodesBegin(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -1835,11 +1768,7 @@ protected:
 						{
 #ifdef NEW_CODE
 							_Key key1 = cSliceValues.edgeKeys[cIndex1] , key2 = cSliceValues.edgeKeys[cIndex2];
-#ifdef NEW_THREADS
 							pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< _Key , _Key >( key1 , key2 ) );
-#else // !NEW_THREADS
-							pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< _Key , _Key >( key1 , key2 ) );
-#endif // NEW_THREADS
 #else // !NEW_CODE
 							long long key1 = cSliceValues.edgeKeys[cIndex1] , key2 = cSliceValues.edgeKeys[cIndex2];
 							pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< long long , long long >( key1 , key2 ) );
@@ -1853,11 +1782,7 @@ protected:
 								node = node->parent , _depth-- , _slice >>= 1;
 								_SliceValues& _pSliceValues = slabValues[_depth].sliceValues(_slice);
 #ifdef NEW_CODE
-#ifdef NEW_THREADS
 								_pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< _Key , _Key >( key1 , key2 ) );
-#else // !NEW_THREADS
-								_pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< _Key , _Key >( key1 , key2 ) );
-#endif // NEW_THREADS
 #else // !NEW_CODE
 								_pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< long long , long long >( key1 , key2 ) );
 #endif // NEW_CODE
@@ -1871,11 +1796,7 @@ protected:
 		);
 #endif // NEW_THREADS
 	}
-#ifdef NEW_THREADS
-	static void _CopyFinerXSliceIsoEdgeKeys( ThreadPool &tp , const FEMTree< Dim , Real >& tree , LocalDepth depth , int slab , std::vector< _SlabValues>& slabValues )
-#else // !NEW_THREADS
 	static void _CopyFinerXSliceIsoEdgeKeys( const FEMTree< Dim , Real >& tree , LocalDepth depth , int slab , std::vector< _SlabValues>& slabValues )
-#endif // NEW_THREADS
 	{
 		_XSliceValues& pSliceValues  = slabValues[depth  ].xSliceValues(slab);
 		_XSliceValues& cSliceValues0 = slabValues[depth+1].xSliceValues( (slab<<1)|0 );
@@ -1884,7 +1805,7 @@ protected:
 		typename SliceData::XSliceTableData& cSliceData0 = cSliceValues0.xSliceData;
 		typename SliceData::XSliceTableData& cSliceData1 = cSliceValues1.xSliceData;
 #ifdef NEW_THREADS
-		tp.parallel_for( tree._sNodesBegin(depth,slab) , tree._sNodesEnd(depth,slab) , [&]( unsigned int thread , size_t i )
+		ThreadPool::Parallel_for( tree._sNodesBegin(depth,slab) , tree._sNodesEnd(depth,slab) , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -1942,11 +1863,7 @@ protected:
 						{
 #ifdef NEW_CODE
 							_Key key0 = cSliceValues0.edgeKeys[cIndex0] , key1 = cSliceValues1.edgeKeys[cIndex1];
-#ifdef NEW_THREADS
 							pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< _Key , _Key >( key0 , key1 ) );
-#else // !NEW_THREADS
-							pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< _Key , _Key >( key0 , key1 ) );
-#endif // NEW_THREADS
 #else // !NEW_CODE
 							long long key0 = cSliceValues0.edgeKeys[cIndex0] , key1 = cSliceValues1.edgeKeys[cIndex1];
 							pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< long long , long long >( key0 , key1 ) );
@@ -1959,11 +1876,7 @@ protected:
 								node = node->parent , _depth-- , _slab>>= 1;
 								_SliceValues& _pSliceValues = slabValues[_depth].sliceValues(_slab);
 #ifdef NEW_CODE
-#ifdef NEW_THREADS
 								_pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< _Key , _Key >( key0 , key1 ) );
-#else // !NEW_THREADS
-								_pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< _Key , _Key >( key0 , key1 ) );
-#endif // NEW_THREADS
 #else // !NEW_CODE
 								_pSliceValues.vertexPairKeyValues[ thread ].push_back( std::pair< long long , long long >( key0 , key1 ) );
 #endif // NEW_CODE
@@ -1977,34 +1890,22 @@ protected:
 		);
 #endif // NEW_THREADS
 	}
-#ifdef NEW_THREADS
-	static void _SetSliceIsoEdges( ThreadPool &tp , const FEMTree< Dim , Real >& tree , LocalDepth depth , int slice , std::vector< _SlabValues >& slabValues )
-	{
-		if( slice>0          ) _SetSliceIsoEdges( tp , tree , depth , slice , HyperCube::FRONT , slabValues );
-		if( slice<(1<<depth) ) _SetSliceIsoEdges( tp , tree , depth , slice , HyperCube::BACK  , slabValues );
-	}
-#else // !NEW_THREADS
 	static void _SetSliceIsoEdges( const FEMTree< Dim , Real >& tree , LocalDepth depth , int slice , std::vector< _SlabValues >& slabValues )
 	{
 		if( slice>0          ) _SetSliceIsoEdges( tree , depth , slice , HyperCube::FRONT , slabValues );
 		if( slice<(1<<depth) ) _SetSliceIsoEdges( tree , depth , slice , HyperCube::BACK  , slabValues );
 	}
-#endif // NEW_THREADS
-#ifdef NEW_THREADS
-	static void _SetSliceIsoEdges( ThreadPool &tp , const FEMTree< Dim , Real >& tree , LocalDepth depth , int slice , HyperCube::Direction zDir , std::vector< _SlabValues >& slabValues )
-#else // !NEW_THREADS
 	static void _SetSliceIsoEdges( const FEMTree< Dim , Real >& tree , LocalDepth depth , int slice , HyperCube::Direction zDir , std::vector< _SlabValues >& slabValues )
-#endif // NEW_THREADS
 	{
 		_SliceValues& sValues = slabValues[depth].sliceValues( slice );
 #ifdef NEW_THREADS
-		std::vector< ConstOneRingNeighborKey > neighborKeys( tp.threadNum() );
+		std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 #else // !NEW_THREADS
 		std::vector< ConstOneRingNeighborKey > neighborKeys( omp_get_max_threads() );
 #endif // NEW_THREADS
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( tree._localToGlobal( depth ) );
 #ifdef NEW_THREADS
-		tp.parallel_for( tree._sNodesBegin(depth, slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
+		ThreadPool::Parallel_for( tree._sNodesBegin(depth, slice-(zDir==HyperCube::BACK ? 0 : 1)) , tree._sNodesEnd(depth,slice-(zDir==HyperCube::BACK ? 0 : 1)) , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -2089,24 +1990,20 @@ protected:
 		);
 #endif // NEW_THREADS
 	}
-#ifdef NEW_THREADS
-	static void _SetXSliceIsoEdges( ThreadPool &tp , const FEMTree< Dim , Real >& tree , LocalDepth depth , int slab , std::vector< _SlabValues >& slabValues )
-#else // !NEW_THREADS
 	static void _SetXSliceIsoEdges( const FEMTree< Dim , Real >& tree , LocalDepth depth , int slab , std::vector< _SlabValues >& slabValues )
-#endif // NEW_THREADS
 	{
 		_SliceValues& bValues = slabValues[depth].sliceValues ( slab   );
 		_SliceValues& fValues = slabValues[depth].sliceValues ( slab+1 );
 		_XSliceValues& xValues = slabValues[depth].xSliceValues( slab   );
 
 #ifdef NEW_THREADS
-		std::vector< ConstOneRingNeighborKey > neighborKeys( tp.threadNum() );
+		std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
 #else // !NEW_THREADS
 		std::vector< ConstOneRingNeighborKey > neighborKeys( omp_get_max_threads() );
 #endif // NEW_THREADS
 		for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( tree._localToGlobal( depth ) );
 #ifdef NEW_THREADS
-		tp.parallel_for( tree._sNodesBegin(depth,slab) , tree._sNodesEnd(depth,slab) , [&]( unsigned int thread , size_t i )
+		ThreadPool::Parallel_for( tree._sNodesBegin(depth,slab) , tree._sNodesEnd(depth,slab) , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -2214,11 +2111,7 @@ protected:
 	}
 
 #ifdef NEW_CODE
-#ifdef NEW_THREADS
-	static void _SetIsoSurface( ThreadPool &tp , const FEMTree< Dim , Real >& tree , LocalDepth depth , int offset , const _SliceValues& bValues , const _SliceValues& fValues , const _XSliceValues& xValues , CoredMeshData< Vertex , node_index_type >& mesh , bool polygonMesh , bool addBarycenter , node_index_type& vOffset , bool flipOrientation )
-#else // !NEW_THREADS
 	static void _SetIsoSurface( const FEMTree< Dim , Real >& tree , LocalDepth depth , int offset , const _SliceValues& bValues , const _SliceValues& fValues , const _XSliceValues& xValues , CoredMeshData< Vertex , node_index_type >& mesh , bool polygonMesh , bool addBarycenter , node_index_type& vOffset , bool flipOrientation )
-#endif // NEW_THREADS
 #else // !NEW_CODE
 	static void _SetIsoSurface( const FEMTree< Dim , Real >& tree , LocalDepth depth , int offset , const _SliceValues& bValues , const _SliceValues& fValues , const _XSliceValues& xValues , CoredMeshData< Vertex >& mesh , bool polygonMesh , bool addBarycenter , int& vOffset , bool flipOrientation )
 #endif // NEW_CODE
@@ -2229,8 +2122,8 @@ protected:
 		std::vector< std::pair< int , Vertex > > polygon;
 #endif // NEW_CODE
 #ifdef NEW_THREADS
-		std::vector< std::vector< _IsoEdge > > edgess( tp.threadNum() );
-		tp.parallel_for( tree._sNodesBegin(depth,offset) , tree._sNodesEnd(depth,offset) , [&]( unsigned int thread , size_t i )
+		std::vector< std::vector< _IsoEdge > > edgess( ThreadPool::NumThreads() );
+		ThreadPool::Parallel_for( tree._sNodesBegin(depth,offset) , tree._sNodesEnd(depth,offset) , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 		std::vector< std::vector< _IsoEdge > > edgess( omp_get_max_threads() );
 #pragma omp parallel for
@@ -2739,24 +2632,9 @@ public:
 			return stream.str();
 		}
 	};
-#ifdef NEW_THREADS
-#ifdef FORCE_PARALLEL
-#else // !FORCE_PARALLEL
-	template< typename Data , unsigned int ... FEMSigs , unsigned int WeightDegree , unsigned int DataSig >
-	static IsoStats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , CoredMeshData< Vertex , node_index_type >& mesh , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex , bool nonLinearFit , bool addBarycenter , bool polygonMesh , bool flipOrientation )
-	{
-		ThreadPool tp;
-		return Extract( UIntPack< FEMSigs ... >() , UIntPack< WeightDegree >() , UIntPack< DataSig >() , tp , tree , densityWeights , data , coefficients , isoValue , mesh , SetVertex , nonLinearFit , addBarycenter , polygonMesh , flipOrientation );
-	}
-#endif // FORCE_PARALLEL
-#endif // NEW_THREADS
 	template< typename Data , unsigned int ... FEMSigs , unsigned int WeightDegree , unsigned int DataSig >
 #ifdef NEW_CODE
-#ifdef NEW_THREADS
-	static IsoStats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , ThreadPool &tp , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , CoredMeshData< Vertex , node_index_type >& mesh , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex , bool nonLinearFit , bool addBarycenter , bool polygonMesh , bool flipOrientation )
-#else // !NEW_THREADS
 	static IsoStats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , CoredMeshData< Vertex , node_index_type >& mesh , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex , bool nonLinearFit , bool addBarycenter , bool polygonMesh , bool flipOrientation )
-#endif // NEW_THREADS
 #else // !NEW_CODE
 	static IsoStats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , CoredMeshData< Vertex >& mesh , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex , bool nonLinearFit , bool addBarycenter , bool polygonMesh , bool flipOrientation )
 #endif // NEW_CODE
@@ -2775,7 +2653,7 @@ public:
 		DenseNodeData< Real , UIntPack< FEMSigs ... > > coarseCoefficients( tree._sNodesEnd( tree._maxDepth-1 ) );
 		memset( coarseCoefficients() , 0 , sizeof(Real)*tree._sNodesEnd( tree._maxDepth-1 ) );
 #ifdef NEW_THREADS
-		tp.parallel_for( tree._sNodesBegin(0) , tree._sNodesEnd( tree._maxDepth-1 ) , [&]( unsigned int, size_t i ){ coarseCoefficients[i] = coefficients[i]; } );
+		ThreadPool::Parallel_for( tree._sNodesBegin(0) , tree._sNodesEnd( tree._maxDepth-1 ) , [&]( unsigned int, size_t i ){ coarseCoefficients[i] = coefficients[i]; } );
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -2785,11 +2663,7 @@ public:
 #endif // NEW_CODE
 #endif // NEW_THREADS
 		typename FEMIntegrator::template RestrictionProlongation< UIntPack< FEMSigs ... > > rp;
-#ifdef NEW_THREADS
-		for( LocalDepth d=1 ; d<tree._maxDepth ; d++ ) tree._upSample( UIntPack< FEMSigs ... >() , tp , rp , d , coarseCoefficients() );
-#else // !NEW_THREADS
 		for( LocalDepth d=1 ; d<tree._maxDepth ; d++ ) tree._upSample( UIntPack< FEMSigs ... >() , rp , d , coarseCoefficients() );
-#endif // NEW_THREADS
 		FEMTree< Dim , Real >::MemoryUsage();
 
 		std::vector< _Evaluator< UIntPack< FEMSigs ... > , 1 > > evaluators( tree._maxDepth+1 );
@@ -2801,23 +2675,13 @@ public:
 		int vertexOffset = 0;
 #endif // NEW_CODE
 
-#ifdef NEW_THREADS
-		std::vector< _SlabValues > slabValues;
-		slabValues.reserve( tree._maxDepth+1 );
-		for( unsigned int d=0 ; d<(unsigned int)tree._maxDepth+1 ;  d++ ) slabValues.emplace_back( tp );
-#else // !NEW_THREADS
 		std::vector< _SlabValues > slabValues( tree._maxDepth+1 );
-#endif //NEW_THREADS
 
 		// Initialize the back slice
 		for( LocalDepth d=tree._maxDepth ; d>=0 ; d-- )
 		{
 			double t = Time();
-#ifdef NEW_THREADS
-			SliceData::SetSliceTableData( tp , tree._sNodes , &slabValues[d].sliceValues(0).sliceData , &slabValues[d].xSliceValues(0).xSliceData , &slabValues[d].sliceValues(1).sliceData , tree._localToGlobal( d ) , tree._localInset( d ) );
-#else // !NEW_THREADS
 			SliceData::SetSliceTableData( tree._sNodes , &slabValues[d].sliceValues(0).sliceData , &slabValues[d].xSliceValues(0).xSliceData , &slabValues[d].sliceValues(1).sliceData , tree._localToGlobal( d ) , tree._localInset( d ) );
-#endif // NEW_THREADS
 			isoStats.setTableTime += Time()-t;
 			slabValues[d].sliceValues (0).reset( nonLinearFit );
 			slabValues[d].sliceValues (1).reset( nonLinearFit );
@@ -2827,29 +2691,13 @@ public:
 		{
 			// Copy edges from finer
 			double t = Time();
-#ifdef NEW_THREADS
-			if( d<tree._maxDepth ) _CopyFinerSliceIsoEdgeKeys( tp , tree , d , 0 , slabValues );
-#else // !NEW_THREADS
 			if( d<tree._maxDepth ) _CopyFinerSliceIsoEdgeKeys( tree , d , 0 , slabValues );
-#endif // NEW_THREADS
 			isoStats.copyFinerTime += Time()-t , t = Time();
-#ifdef NEW_THREADS
-			_SetSliceIsoCorners< FEMSigs ... >( tp , tree , coefficients() , coarseCoefficients() , isoValue , d , 0 , slabValues , evaluators[d] );
-#else // !NEW_THREADS
 			_SetSliceIsoCorners< FEMSigs ... >( tree , coefficients() , coarseCoefficients() , isoValue , d , 0 , slabValues , evaluators[d] );
-#endif // NEW_THREADS
 			isoStats.cornersTime += Time()-t , t = Time();
-#ifdef NEW_THREADS
-			_SetSliceIsoVertices< WeightDegree , Data , DataSig >( tp , tree , pointEvaluator , densityWeights , data , isoValue , d , 0 , vertexOffset , mesh , slabValues , SetVertex );
-#else // !NEW_THREADS
 			_SetSliceIsoVertices< WeightDegree , Data , DataSig >( tree , pointEvaluator , densityWeights , data , isoValue , d , 0 , vertexOffset , mesh , slabValues , SetVertex );
-#endif // NEW_THREADS
 			isoStats.verticesTime += Time()-t , t = Time();
-#ifdef NEW_THREADS
-			_SetSliceIsoEdges( tp , tree , d , 0 , slabValues );
-#else // !NEW_THREADS
 			_SetSliceIsoEdges( tree , d , 0 , slabValues );
-#endif // NEW_THREADS
 			isoStats.edgesTime += Time()-t , t = Time();
 		}
 
@@ -2864,66 +2712,37 @@ public:
 				double t = Time();
 				if( d<tree._maxDepth )
 				{
-#ifdef NEW_THREADS
-					_CopyFinerSliceIsoEdgeKeys( tp , tree , d , o , slabValues );
-					_CopyFinerXSliceIsoEdgeKeys( tp , tree , d , o-1 , slabValues );
-#else // !NEW_THREADS
 					_CopyFinerSliceIsoEdgeKeys( tree , d , o , slabValues );
 					_CopyFinerXSliceIsoEdgeKeys( tree , d , o-1 , slabValues );
-#endif // NEW_THREADS
 				}
 				isoStats.copyFinerTime += Time()-t , t = Time();
 				// Set the slice values/vertices
-#ifdef NEW_THREADS
-				_SetSliceIsoCorners< FEMSigs ... >( tp , tree , coefficients() , coarseCoefficients() , isoValue , d , o , slabValues , evaluators[d] );
-#else // !NEW_THREADS
 				_SetSliceIsoCorners< FEMSigs ... >( tree , coefficients() , coarseCoefficients() , isoValue , d , o , slabValues , evaluators[d] );
-#endif // NEW_THREADS
 				isoStats.cornersTime += Time()-t , t = Time();
-#ifdef NEW_THREADS
-				_SetSliceIsoVertices< WeightDegree , Data , DataSig >( tp , tree , pointEvaluator , densityWeights , data , isoValue , d , o , vertexOffset , mesh , slabValues , SetVertex );
-#else // !NEW_THREADS
 				_SetSliceIsoVertices< WeightDegree , Data , DataSig >( tree , pointEvaluator , densityWeights , data , isoValue , d , o , vertexOffset , mesh , slabValues , SetVertex );
-#endif // NEW_THREADS
 				isoStats.verticesTime += Time()-t , t = Time();
-#ifdef NEW_THREADS
-				_SetSliceIsoEdges( tp , tree , d , o , slabValues );
-#else // !NEW_THREADS
 				_SetSliceIsoEdges( tree , d , o , slabValues );
-#endif // NEW_THREADS
 				isoStats.edgesTime += Time()-t , t = Time();
 
 				// Set the cross-slice edges
-#ifdef NEW_THREADS
-				_SetXSliceIsoVertices< WeightDegree , Data , DataSig >( tp , tree , pointEvaluator , densityWeights , data , isoValue , d , o-1 , vertexOffset , mesh , slabValues , SetVertex );
-#else // !NEW_THREADS
 				_SetXSliceIsoVertices< WeightDegree , Data , DataSig >( tree , pointEvaluator , densityWeights , data , isoValue , d , o-1 , vertexOffset , mesh , slabValues , SetVertex );
-#endif // NEW_THREADS
 				isoStats.verticesTime += Time()-t , t = Time();
-#ifdef NEW_THREADS
-				_SetXSliceIsoEdges( tp , tree , d , o-1 , slabValues );
-#else // !NEW_THREADS
 				_SetXSliceIsoEdges( tree , d , o-1 , slabValues );
-#endif // NEW_THREADS
 				isoStats.edgesTime += Time()-t , t = Time();
 
 #ifdef NEW_THREADS
-				auto SlabSet = [&]( unsigned int , size_t i )
-				{
-					switch( i )
-					{
-					case 0: slabValues[d]. sliceValues(o-1).setEdgeVertexMap() ; return;
-					case 1: slabValues[d]. sliceValues(o  ).setEdgeVertexMap() ; return;
-					case 2: slabValues[d].xSliceValues(o-1).setEdgeVertexMap() ; return;
-					case 3: slabValues[d]. sliceValues(o-1).setVertexPairMap() ; return;
-					case 4: slabValues[d]. sliceValues(o  ).setVertexPairMap() ; return;
-					case 5: slabValues[d].xSliceValues(o-1).setVertexPairMap() ; return;
-					case 6: slabValues[d]. sliceValues(o-1).setFaceEdgeMap() ; return;
-					case 7: slabValues[d]. sliceValues(o  ).setFaceEdgeMap() ; return;
-					case 8: slabValues[d].xSliceValues(o-1).setFaceEdgeMap() ; return;
-					}
-				};
-				tp.parallel_for( 0 , 9 , SlabSet , ThreadPool::STATIC , 1 );
+				ThreadPool::ParallelSections
+					(
+						[ &slabValues , d , o ]( void ){ slabValues[d]. sliceValues(o-1).setEdgeVertexMap(); } ,
+						[ &slabValues , d , o ]( void ){ slabValues[d]. sliceValues(o  ).setEdgeVertexMap(); } ,
+						[ &slabValues , d , o ]( void ){ slabValues[d].xSliceValues(o-1).setEdgeVertexMap(); } ,
+						[ &slabValues , d , o ]( void ){ slabValues[d]. sliceValues(o-1).setVertexPairMap(); } ,
+						[ &slabValues , d , o ]( void ){ slabValues[d]. sliceValues(o  ).setVertexPairMap(); } ,
+						[ &slabValues , d , o ]( void ){ slabValues[d].xSliceValues(o-1).setVertexPairMap(); } ,
+						[ &slabValues , d , o ]( void ){ slabValues[d]. sliceValues(o-1).setFaceEdgeMap(); } ,
+						[ &slabValues , d , o ]( void ){ slabValues[d]. sliceValues(o  ).setFaceEdgeMap(); } ,
+						[ &slabValues , d , o ]( void ){ slabValues[d].xSliceValues(o-1).setFaceEdgeMap(); }
+					);
 #else // !NEW_THREADS
 #pragma omp parallel sections
 				{
@@ -2949,11 +2768,7 @@ public:
 #endif // NEW_THREADS
 				// Add the triangles
 				t = Time();
-#ifdef NEW_THREADS
-				_SetIsoSurface( tp , tree , d , o-1 , slabValues[d].sliceValues(o-1) , slabValues[d].sliceValues(o) , slabValues[d].xSliceValues(o-1) , mesh , polygonMesh , addBarycenter , vertexOffset , flipOrientation );
-#else // !NEW_THREADS
 				_SetIsoSurface( tree , d , o-1 , slabValues[d].sliceValues(o-1) , slabValues[d].sliceValues(o) , slabValues[d].xSliceValues(o-1) , mesh , polygonMesh , addBarycenter , vertexOffset , flipOrientation );
-#endif // NEW_THREADS
 				isoStats.surfaceTime += Time()-t;
 
 				if( o&1 ) break;
@@ -2965,11 +2780,7 @@ public:
 				if( o<(1<<(d+1)) )
 				{
 					double t = Time();
-#ifdef NEW_THREADS
-					SliceData::SetSliceTableData( tp , tree._sNodes , NULL , &slabValues[d].xSliceValues(o).xSliceData , &slabValues[d].sliceValues(o+1).sliceData , tree._localToGlobal( d ) , o + tree._localInset( d ) );
-#else // !NEW_THREADS
 					SliceData::SetSliceTableData( tree._sNodes , NULL , &slabValues[d].xSliceValues(o).xSliceData , &slabValues[d].sliceValues(o+1).sliceData , tree._localToGlobal( d ) , o + tree._localInset( d ) );
-#endif // NEW_THREADS
 					isoStats.setTableTime += Time()-t;
 					slabValues[d].sliceValues(o+1).reset( nonLinearFit );
 					slabValues[d].xSliceValues(o).reset();

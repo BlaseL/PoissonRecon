@@ -393,7 +393,7 @@ void FEMTree< Dim , Real >::thicken( IsThickenNode F , DenseOrSparseNodeData* ..
 template< unsigned int Dim , class Real >
 template< unsigned int DensityDegree >
 #ifdef NEW_THREADS
-typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree >* FEMTree< Dim , Real >::setDensityEstimator( ThreadPool &tp , const std::vector< PointSample >& samples , LocalDepth splatDepth , Real samplesPerNode , int coDimension )
+typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree >* FEMTree< Dim , Real >::setDensityEstimator( const std::vector< PointSample >& samples , LocalDepth splatDepth , Real samplesPerNode , int coDimension )
 #else // !NEW_THREADS
 typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree >* FEMTree< Dim , Real >::setDensityEstimator( const std::vector< PointSample >& samples , LocalDepth splatDepth , Real samplesPerNode , int coDimension )
 #endif // NEW_THREADS
@@ -414,7 +414,7 @@ typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree >* FEMT
 	std::vector< int > sampleMap( nodeCount() , -1 );
 #endif // NEW_CODE
 #ifdef NEW_THREADS
-	tp.parallel_for( 0 , samples.size() , [&]( unsigned int , size_t i ){ if( samples[i].sample.weight>0 ) sampleMap[ samples[i].node->nodeData.nodeIndex ] = (node_index_type)i; } );
+	ThreadPool::Parallel_for( 0 , samples.size() , [&]( unsigned int , size_t i ){ if( samples[i].sample.weight>0 ) sampleMap[ samples[i].node->nodeData.nodeIndex ] = (node_index_type)i; } );
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -476,7 +476,7 @@ typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree >* FEMT
 template< unsigned int Dim , class Real >
 template< unsigned int ... NormalSigs , unsigned int DensityDegree , class Data >
 #ifdef NEW_THREADS
-SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim , Real >::setNormalField( UIntPack< NormalSigs ... > , ThreadPool &tp , const std::vector< PointSample >& samples , const std::vector< Data >& normalData , const DensityEstimator< DensityDegree >* density , Real& pointWeightSum , std::function< Real ( Real ) > BiasFunction )
+SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim , Real >::setNormalField( UIntPack< NormalSigs ... > , const std::vector< PointSample >& samples , const std::vector< Data >& normalData , const DensityEstimator< DensityDegree >* density , Real& pointWeightSum , std::function< Real ( Real ) > BiasFunction )
 #else // !NEW_THREADS
 SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim , Real >::setNormalField( UIntPack< NormalSigs ... > , const std::vector< PointSample >& samples , const std::vector< Data >& normalData , const DensityEstimator< DensityDegree >* density , Real& pointWeightSum , std::function< Real ( Real ) > BiasFunction )
 #endif // NEW_THREADS
@@ -486,8 +486,8 @@ SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim 
 	typedef UIntPack< FEMSignature< NormalSigs >::Degree ... > NormalDegrees;
 	typedef PointSupportKey< UIntPack< FEMSignature< NormalSigs >::Degree ... > > NormalKey;
 #ifdef NEW_THREADS
-	std::vector< DensityKey > densityKeys( tp.threadNum() );
-	std::vector<  NormalKey >  normalKeys( tp.threadNum() );
+	std::vector< DensityKey > densityKeys( ThreadPool::NumThreads() );
+	std::vector<  NormalKey >  normalKeys( ThreadPool::NumThreads() );
 #else // !NEW_THREADS
 	std::vector< DensityKey > densityKeys( omp_get_max_threads() );
 	std::vector<  NormalKey >  normalKeys( omp_get_max_threads() );
@@ -505,7 +505,7 @@ SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim 
 	SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > normalField;
 	Real _pointWeightSum = 0;
 #ifdef NEW_THREADS
-	tp.parallel_for( 0 , samples.size() , [&]( unsigned int thread , size_t i )
+	ThreadPool::Parallel_for( 0 , samples.size() , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for reduction( + : weightSum , _pointWeightSum )
 #ifdef NEW_CODE
@@ -714,7 +714,7 @@ SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig
 template< unsigned int Dim , class Real >
 template< unsigned int MaxDegree , class HasDataFunctor , class ... DenseOrSparseNodeData >
 #ifdef NEW_THREADS
-void FEMTree< Dim , Real >::finalizeForMultigrid( ThreadPool &tp , LocalDepth fullDepth , const HasDataFunctor F , DenseOrSparseNodeData* ... data )
+void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const HasDataFunctor F , DenseOrSparseNodeData* ... data )
 #else // !NEW_THREADS
 void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const HasDataFunctor F , DenseOrSparseNodeData* ... data )
 #endif // NEW_THREADS
@@ -767,7 +767,7 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const H
 
 	// Set the ghost nodes for the high-res part of the tree
 #ifdef NEW_THREADS
-	_clipTree( tp , F , fullDepth );
+	_clipTree( F , fullDepth );
 #else // !NEW_THREADS
 	_clipTree( F , fullDepth );
 #endif // NEW_THREADS
@@ -777,7 +777,7 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const H
 	typedef typename FEMTreeNode::template NeighborKey< IsotropicUIntPack< Dim , OverlapRadius > , IsotropicUIntPack< Dim , OverlapRadius > > NeighborKey;
 
 #ifdef NEW_THREADS
-	std::vector< NeighborKey > neighborKeys( tp.threadNum() );
+	std::vector< NeighborKey > neighborKeys( ThreadPool::NumThreads() );
 #else // !NEW_THREADS
 	std::vector< NeighborKey > neighborKeys( omp_get_max_threads() );
 #endif // NEW_THREADS
@@ -789,7 +789,7 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const H
 		auto NodeTerminationLambda = [&]( const FEMTreeNode *node ){ return _localDepth( node )==d; };
 		for( FEMTreeNode* node=_tree->nextNode( NodeTerminationLambda , NULL ) ; node ; node=_tree->nextNode( NodeTerminationLambda , node ) ) if( _localDepth( node )==d && IsActiveNode< Dim >( node->children ) ) nodes.push_back( node );
 #ifdef NEW_THREADS
-		tp.parallel_for( 0 , nodes.size() , [&]( unsigned int thread , size_t i )
+		ThreadPool::Parallel_for( 0 , nodes.size() , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -829,7 +829,7 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const H
 #endif // NEW_CODE
 	_sNodes.set( *_tree , &map );
 #ifdef NEW_THREADS
-	_setSpaceValidityFlags( tp );
+	_setSpaceValidityFlags();
 #else // !NEW_THREADS
 	_setSpaceValidityFlags();
 #endif // NEW_THREADS
@@ -840,13 +840,13 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const H
 
 template< unsigned int Dim , class Real >
 #ifdef NEW_THREADS
-void FEMTree< Dim , Real >::_setSpaceValidityFlags( ThreadPool &tp ) const
+void FEMTree< Dim , Real >::_setSpaceValidityFlags( void ) const
 #else // !NEW_THREADS
 void FEMTree< Dim , Real >::_setSpaceValidityFlags( void ) const
 #endif // NEW_THREADS
 {
 #ifdef NEW_THREADS
-	tp.parallel_for( 0 , _sNodes.size() , [&]( unsigned int , size_t i )
+	ThreadPool::Parallel_for( 0 , _sNodes.size() , [&]( unsigned int , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -932,7 +932,7 @@ void FEMTree< Dim , Real >::_setFEM2ValidityFlags( UIntPack< FEMSigs2 ... > ) co
 template< unsigned int Dim , class Real >
 template< unsigned int ... FEMSigs >
 #ifdef NEW_THREADS
-void FEMTree< Dim , Real >::_setRefinabilityFlags( UIntPack< FEMSigs ... > , ThreadPool &tp ) const
+void FEMTree< Dim , Real >::_setRefinabilityFlags( UIntPack< FEMSigs ... > ) const
 #else // !NEW_THREADS
 void FEMTree< Dim , Real >::_setRefinabilityFlags( UIntPack< FEMSigs ... > ) const
 #endif // NEW_THREADS
@@ -959,7 +959,7 @@ void FEMTree< Dim , Real >::_setRefinabilityFlags( UIntPack< FEMSigs ... > ) con
 		typedef typename FEMTreeNode::template ConstNeighbors< UIntPack< BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::UpSampleSize ... > > UpSampleNeighbors;
 		static const int UpSampleStart[] = { BSplineSupportSizes< FEMSignature< FEMSigs >::Degree >::UpSampleStart ... };
 #ifdef NEW_THREADS
-		std::vector< UpSampleKey > neighborKeys( tp.threadNum() );
+		std::vector< UpSampleKey > neighborKeys( ThreadPool::NumThreads() );
 #else // !NEW_THREADS
 		std::vector< UpSampleKey > neighborKeys( omp_get_max_threads() );
 #endif // NEW_THREADS
@@ -967,7 +967,7 @@ void FEMTree< Dim , Real >::_setRefinabilityFlags( UIntPack< FEMSigs ... > ) con
 
 		for( int d=0 ; d<_maxDepth ; d++ )
 #ifdef NEW_THREADS
-			tp.parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
+			ThreadPool::Parallel_for( _sNodesBegin(d) , _sNodesEnd(d) , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -1015,7 +1015,7 @@ void FEMTree< Dim , Real >::_setRefinabilityFlags( UIntPack< FEMSigs ... > ) con
 template< unsigned int Dim , class Real >
 template< class HasDataFunctor >
 #ifdef NEW_THREADS
-void FEMTree< Dim , Real >::_clipTree( ThreadPool &tp , const HasDataFunctor& f , LocalDepth fullDepth )
+void FEMTree< Dim , Real >::_clipTree( const HasDataFunctor& f , LocalDepth fullDepth )
 #else // !NEW_THREADS
 void FEMTree< Dim , Real >::_clipTree( const HasDataFunctor& f , LocalDepth fullDepth )
 #endif // NEW_THREADS
@@ -1024,7 +1024,7 @@ void FEMTree< Dim , Real >::_clipTree( const HasDataFunctor& f , LocalDepth full
 	auto NodeTerminationLambda = [&]( const FEMTreeNode *node ){ return _localDepth( node )==fullDepth; };
 	for( FEMTreeNode* temp=_tree->nextNode( NodeTerminationLambda , NULL ) ; temp ; temp=_tree->nextNode( NodeTerminationLambda , temp ) ) if( _localDepth( temp )==fullDepth ) nodes.push_back( temp );
 #ifdef NEW_THREADS
-	tp.parallel_for( 0 , nodes.size() , [&]( unsigned int , size_t i )
+	ThreadPool::Parallel_for( 0 , nodes.size() , [&]( unsigned int , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -1049,7 +1049,7 @@ void FEMTree< Dim , Real >::_clipTree( const HasDataFunctor& f , LocalDepth full
 template< unsigned int Dim , class Real >
 template< typename T , typename Data , unsigned int PointD , typename ConstraintDual , typename SystemDual >
 #ifdef NEW_THREADS
-void FEMTree< Dim , Real >::_ExactPointAndDataInterpolationInfo< T , Data , PointD , ConstraintDual , SystemDual >::_init( ThreadPool &tp , const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , bool noRescale )
+void FEMTree< Dim , Real >::_ExactPointAndDataInterpolationInfo< T , Data , PointD , ConstraintDual , SystemDual >::_init( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , bool noRescale )
 #else // !NEW_THREADS
 void FEMTree< Dim , Real >::_ExactPointAndDataInterpolationInfo< T , Data , PointD , ConstraintDual , SystemDual >::_init( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , bool noRescale )
 #endif // NEW_THREADS
@@ -1057,7 +1057,7 @@ void FEMTree< Dim , Real >::_ExactPointAndDataInterpolationInfo< T , Data , Poin
 	_sampleSpan.resize( tree.nodesSize() );
 #ifdef NEW_CODE
 #ifdef NEW_THREADS
-	tp.parallel_for( 0 , tree.nodesSize() , [&]( unsigned int , size_t i ){ _sampleSpan[i] = std::pair< node_index_type , node_index_type >( 0 , 0 ); } );
+	ThreadPool::Parallel_for( 0 , tree.nodesSize() , [&]( unsigned int , size_t i ){ _sampleSpan[i] = std::pair< node_index_type , node_index_type >( 0 , 0 ); } );
 #else // !NEW_THREADS
 #pragma omp parallel for
 	for( node_index_type i=0 ; i<(node_index_type)tree.nodesSize() ; i++ ) _sampleSpan[i] = std::pair< node_index_type , node_index_type >( 0 , 0 );
@@ -1129,7 +1129,7 @@ void FEMTree< Dim , Real >::_ExactPointAndDataInterpolationInfo< T , Data , Poin
 	}
 
 #ifdef NEW_THREADS
-	tp.parallel_for( 0 , _iData.size() , [&]( unsigned int , size_t i  )
+	ThreadPool::Parallel_for( 0 , _iData.size() , [&]( unsigned int , size_t i  )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -1153,7 +1153,7 @@ void FEMTree< Dim , Real >::_ExactPointAndDataInterpolationInfo< T , Data , Poin
 template< unsigned int Dim , class Real >
 template< typename T , unsigned int PointD , typename ConstraintDual , typename SystemDual >
 #ifdef NEW_THREADS
-void FEMTree< Dim , Real >::ExactPointInterpolationInfo< T , PointD , ConstraintDual , SystemDual >::_init( ThreadPool &tp , const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , bool noRescale )
+void FEMTree< Dim , Real >::ExactPointInterpolationInfo< T , PointD , ConstraintDual , SystemDual >::_init( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , bool noRescale )
 #else // !NEW_THREADS
 void FEMTree< Dim , Real >::ExactPointInterpolationInfo< T , PointD , ConstraintDual , SystemDual >::_init( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , bool noRescale )
 #endif // NEW_THREADS
@@ -1161,7 +1161,7 @@ void FEMTree< Dim , Real >::ExactPointInterpolationInfo< T , PointD , Constraint
 	_sampleSpan.resize( tree.nodesSize() );
 #ifdef NEW_CODE
 #ifdef NEW_THREADS
-	tp.parallel_for( 0 , tree.nodesSize() , [&]( unsigned int , size_t i ){ _sampleSpan[i] = std::pair< node_index_type , node_index_type >( 0 , 0 ); } );
+	ThreadPool::Parallel_for( 0 , tree.nodesSize() , [&]( unsigned int , size_t i ){ _sampleSpan[i] = std::pair< node_index_type , node_index_type >( 0 , 0 ); } );
 #else // !NEW_THREADS
 #pragma omp parallel for
 	for( node_index_type i=0 ; i<(node_index_type)tree.nodesSize() ; i++ ) _sampleSpan[i] = std::pair< node_index_type , node_index_type >( 0 , 0 );
@@ -1232,7 +1232,7 @@ void FEMTree< Dim , Real >::ExactPointInterpolationInfo< T , PointD , Constraint
 	}
 
 #ifdef NEW_THREADS
-	tp.parallel_for( 0 , _iData.size() , [&]( unsigned int , size_t i )
+	ThreadPool::Parallel_for( 0 , _iData.size() , [&]( unsigned int , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -1255,7 +1255,7 @@ void FEMTree< Dim , Real >::ExactPointInterpolationInfo< T , PointD , Constraint
 template< unsigned int Dim , class Real >
 template< unsigned int PointD , typename ConstraintDual , typename SystemDual >
 #ifdef NEW_THREADS
-void FEMTree< Dim , Real >::ExactPointInterpolationInfo< double , PointD , ConstraintDual , SystemDual >::_init( ThreadPool &tp , const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , bool noRescale )
+void FEMTree< Dim , Real >::ExactPointInterpolationInfo< double , PointD , ConstraintDual , SystemDual >::_init( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , bool noRescale )
 #else // !NEW_THREADS
 void FEMTree< Dim , Real >::ExactPointInterpolationInfo< double , PointD , ConstraintDual , SystemDual >::_init( const class FEMTree< Dim , Real >& tree , const std::vector< PointSample >& samples , bool noRescale )
 #endif // NEW_THREADS
@@ -1263,7 +1263,7 @@ void FEMTree< Dim , Real >::ExactPointInterpolationInfo< double , PointD , Const
 	_sampleSpan.resize( tree.nodesSize() );
 #ifdef NEW_CODE
 #ifdef NEW_THREADS
-	tp.parallel_for( 0 , tree.nodesSize() , [&]( unsigned int , size_t i ){ _sampleSpan[i] = std::pair< node_index_type , node_index_type >( 0 , 0 ); } );
+	ThreadPool::Parallel_for( 0 , tree.nodesSize() , [&]( unsigned int , size_t i ){ _sampleSpan[i] = std::pair< node_index_type , node_index_type >( 0 , 0 ); } );
 #else // !NEW_THREADS
 #pragma omp parallel for
 	for( node_index_type i=0 ; i<tree.nodesSize() ; i++ ) _sampleSpan[i] = std::pair< node_index_type , node_index_type >( 0 , 0 );
@@ -1334,7 +1334,7 @@ void FEMTree< Dim , Real >::ExactPointInterpolationInfo< double , PointD , Const
 	}
 
 #ifdef NEW_THREADS
-	tp.parallel_for( 0 , _iData.size() , [&]( unsigned int , size_t i )
+	ThreadPool::Parallel_for( 0 , _iData.size() , [&]( unsigned int , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -1376,7 +1376,7 @@ bool FEMTree< Dim , Real >::_setInterpolationInfoFromChildren( FEMTreeNode* node
 template< unsigned int Dim , class Real >
 template< typename T , unsigned int PointD , typename ConstraintDual >
 #ifdef NEW_THREADS
-SparseNodeData< DualPointInfo< Dim , Real , T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > FEMTree< Dim , Real >::_densifyInterpolationInfoAndSetDualConstraints( ThreadPool &tp , const std::vector< PointSample >& samples , ConstraintDual constraintDual , int adaptiveExponent ) const
+SparseNodeData< DualPointInfo< Dim , Real , T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > FEMTree< Dim , Real >::_densifyInterpolationInfoAndSetDualConstraints( const std::vector< PointSample >& samples , ConstraintDual constraintDual , int adaptiveExponent ) const
 #else // !NEW_THREADS
 SparseNodeData< DualPointInfo< Dim , Real , T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > FEMTree< Dim , Real >::_densifyInterpolationInfoAndSetDualConstraints( const std::vector< PointSample >& samples , ConstraintDual constraintDual , int adaptiveExponent ) const
 #endif // NEW_THREADS
@@ -1404,7 +1404,7 @@ SparseNodeData< DualPointInfo< Dim , Real , T , PointD > , IsotropicUIntPack< Di
 	_setInterpolationInfoFromChildren( _spaceRoot , iInfo );
 
 #ifdef NEW_THREADS
-	tp.parallel_for( 0 , iInfo.size() , [&]( unsigned int , size_t i )
+	ThreadPool::Parallel_for( 0 , iInfo.size() , [&]( unsigned int , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -1439,7 +1439,7 @@ SparseNodeData< DualPointInfo< Dim , Real , T , PointD > , IsotropicUIntPack< Di
 template< unsigned int Dim , class Real >
 template< typename T , typename Data , unsigned int PointD , typename ConstraintDual >
 #ifdef NEW_THREADS
-SparseNodeData< DualPointAndDataInfo< Dim , Real , Data , T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > FEMTree< Dim , Real >::_densifyInterpolationInfoAndSetDualConstraints( ThreadPool &tp , const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , ConstraintDual constraintDual , int adaptiveExponent ) const
+SparseNodeData< DualPointAndDataInfo< Dim , Real , Data , T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > FEMTree< Dim , Real >::_densifyInterpolationInfoAndSetDualConstraints( const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , ConstraintDual constraintDual , int adaptiveExponent ) const
 #else // !NEW_THREADS
 SparseNodeData< DualPointAndDataInfo< Dim , Real , Data , T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > FEMTree< Dim , Real >::_densifyInterpolationInfoAndSetDualConstraints( const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , ConstraintDual constraintDual , int adaptiveExponent ) const
 #endif // NEW_THREADS
@@ -1468,7 +1468,7 @@ SparseNodeData< DualPointAndDataInfo< Dim , Real , Data , T , PointD > , Isotrop
 	_setInterpolationInfoFromChildren( _spaceRoot , iInfo );
 
 #ifdef NEW_THREADS
-	tp.parallel_for( 0 , iInfo.size() , [&]( unsigned int , size_t i )
+	ThreadPool::Parallel_for( 0 , iInfo.size() , [&]( unsigned int , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -1503,7 +1503,7 @@ SparseNodeData< DualPointAndDataInfo< Dim , Real , Data , T , PointD > , Isotrop
 template< unsigned int Dim , class Real >
 template< typename T , unsigned int PointD , typename ConstraintDual >
 #ifdef NEW_THREADS
-SparseNodeData< DualPointInfoBrood< Dim , Real , T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > FEMTree< Dim , Real >::_densifyChildInterpolationInfoAndSetDualConstraints( ThreadPool &tp , const std::vector< PointSample >& samples , ConstraintDual constraintDual , bool noRescale ) const
+SparseNodeData< DualPointInfoBrood< Dim , Real , T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > FEMTree< Dim , Real >::_densifyChildInterpolationInfoAndSetDualConstraints( const std::vector< PointSample >& samples , ConstraintDual constraintDual , bool noRescale ) const
 #else // !NEW_THREADS
 SparseNodeData< DualPointInfoBrood< Dim , Real , T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > FEMTree< Dim , Real >::_densifyChildInterpolationInfoAndSetDualConstraints( const std::vector< PointSample >& samples , ConstraintDual constraintDual , bool noRescale ) const
 #endif // NEW_THREADS
@@ -1533,7 +1533,7 @@ SparseNodeData< DualPointInfoBrood< Dim , Real , T , PointD > , IsotropicUIntPac
 	_setInterpolationInfoFromChildren( _spaceRoot , iInfo );
 
 #ifdef NEW_THREADS
-	tp.parallel_for( 0 , iInfo.size() , [&]( unsigned int , size_t i )
+	ThreadPool::Parallel_for( 0 , iInfo.size() , [&]( unsigned int , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
@@ -1566,7 +1566,7 @@ SparseNodeData< DualPointInfoBrood< Dim , Real , T , PointD > , IsotropicUIntPac
 template< unsigned int Dim , class Real >
 template< typename T , typename Data , unsigned int PointD , typename ConstraintDual >
 #ifdef NEW_THREADS
-SparseNodeData< DualPointAndDataInfoBrood< Dim , Real , Data , T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > FEMTree< Dim , Real >::_densifyChildInterpolationInfoAndSetDualConstraints( ThreadPool &tp , const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , ConstraintDual constraintDual , bool noRescale ) const
+SparseNodeData< DualPointAndDataInfoBrood< Dim , Real , Data , T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > FEMTree< Dim , Real >::_densifyChildInterpolationInfoAndSetDualConstraints( const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , ConstraintDual constraintDual , bool noRescale ) const
 #else // !NEW_THREADS
 SparseNodeData< DualPointAndDataInfoBrood< Dim , Real , Data , T , PointD > , IsotropicUIntPack< Dim , FEMTrivialSignature > > FEMTree< Dim , Real >::_densifyChildInterpolationInfoAndSetDualConstraints( const std::vector< PointSample >& samples , ConstPointer( Data ) sampleData , ConstraintDual constraintDual , bool noRescale ) const
 #endif // NEW_THREADS
@@ -1597,7 +1597,7 @@ SparseNodeData< DualPointAndDataInfoBrood< Dim , Real , Data , T , PointD > , Is
 	_setInterpolationInfoFromChildren( _spaceRoot , iInfo );
 
 #ifdef NEW_THREADS
-	tp.parallel_for( 0 , iInfo.size() , [&]( unsigned int , size_t i )
+	ThreadPool::Parallel_for( 0 , iInfo.size() , [&]( unsigned int , size_t i )
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE

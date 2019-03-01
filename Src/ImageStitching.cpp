@@ -230,9 +230,6 @@ struct BufferedImageDerivativeStream : public FEMTreeInitializer< DIMENSION , Re
 	void advance( void ){ _c = _dir = 0 , _r++; }
 	void prefetch( void )
 	{
-#ifdef NEW_THREADS
-		static ThreadPool tp( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
-#endif // NEW_THREADS
 		if( _r+2<(int)_resolution[1] )
 		{
 			int j = (_r+2)%3;
@@ -251,7 +248,7 @@ struct BufferedImageDerivativeStream : public FEMTreeInitializer< DIMENSION , Re
 				for( int i=0 ; i<(int)_resolution[0] ; i++ ) labelRow[i][0] = labelRow[i][1] = labelRow[i][2] = __labelRow[i];
 			}
 #ifdef NEW_THREADS
-			tp.parallel_for( 0 , _resolution[0] , [&]( unsigned int , size_t i ){ maskRow[i] = labelRow[i].mask(); } );
+			ThreadPool::Parallel_for( 0 , _resolution[0] , [&]( unsigned int , size_t i ){ maskRow[i] = labelRow[i].mask(); } );
 #else // !NEW_THREADS
 #pragma omp parallel for
 			for( int i=0 ; i<(int)_resolution[0] ; i++ ) maskRow[i] = labelRow[i].mask();
@@ -308,7 +305,7 @@ template< typename Real , unsigned int Degree >
 void _Execute( void )
 {
 #ifdef NEW_THREADS
-	ThreadPool tp( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
+	ThreadPool::Init( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
 #endif // NEW_THREADS
 	int w , h;
 	{
@@ -338,12 +335,11 @@ void _Execute( void )
 		for( int j=0 ; j<h ; j++ )
 		{
 #ifdef NEW_THREADS
-			tp.parallel_for( 0 , 2 , [&]( unsigned int , size_t i )
-			{
-				if( i==0 ) dStream.prefetch();
-				else maxDepth = FEMTreeInitializer< Dim , Real >::template Initialize< (Degree&1)==0 , Point< Real , Colors > >( tree.spaceRoot() , dStream , derivatives , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() );
-			} , ThreadPool::STATIC , 1
-			);
+			ThreadPool::ParallelSections
+				(
+					[&]( void ){ dStream.prefetch(); } ,
+					[&]( void ){ maxDepth = FEMTreeInitializer< Dim , Real >::template Initialize< (Degree&1)==0 , Point< Real , Colors > >( tree.spaceRoot() , dStream , derivatives , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() ); }
+				);
 #else // !NEW_THREADS
 #pragma omp parallel sections
 			{
@@ -353,7 +349,11 @@ void _Execute( void )
 				}
 #pragma omp section
 				{
+#ifdef NEW_CODE
+					maxDepth = FEMTreeInitializer< Dim , Real >::template Initialize< (Degree&1)==0 , Point< Real , Colors > >( tree.spaceRoot() , dStream , derivatives , tree.nodeAllocators.size() ? tree.nodeAllocators[0] : NULL , tree.initializer() );
+#else // !NEW_CODE
 					maxDepth = FEMTreeInitializer< Dim , Real >::template Initialize< (Degree&1)==0 , Point< Real , Colors > >( tree.spaceRoot() , dStream , derivatives , tree.nodeAllocator , tree.initializer() );
+#endif // NEW_CODE
 				}
 			}
 #endif // NEW_THREADS
@@ -369,11 +369,7 @@ void _Execute( void )
 			tree.template thicken< 1 , 0 >( &nodes[0] , (int)nodes.size() );
 		}
 #ifdef NEW_CODE
-#ifdef NEW_THREADS
-		tree.template finalizeForMultigrid< Degree >( tp , FullDepth.value , []( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* ){ return true; } );
-#else // !NEW_THREADS
 		tree.template finalizeForMultigrid< Degree >( FullDepth.value , []( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* ){ return true; } );
-#endif // NEW_THREADS
 #else // !NEW_CODE
 		tree.template finalizeForMultigrid< Degree >( FullDepth.value , []( const RegularTreeNode< Dim , FEMTreeNodeData >* ){ return true; } );
 #endif // NEW_CODE
@@ -404,11 +400,7 @@ void _Execute( void )
 			unsigned int derivatives1[] = { 1 , 0 } , derivatives2[] = { 0 , 0 };
 			typename FEMIntegrator::template Constraint< FEMSignature , FEMDerivative , CSignature , CDerivative , 1 > F;
 			F.weights[0][ TensorDerivatives< FEMDerivative >::Index( derivatives1 ) ][ TensorDerivatives< CDerivative >::Index( derivatives2 ) ] = 1;
-#ifdef NEW_THREADS
-			tree.addFEMConstraints( tp , F , partialX , constraints , maxDepth );
-#else // !NEW_THREADS
 			tree.addFEMConstraints( F , partialX , constraints , maxDepth );
-#endif // NEW_THREADS
 		}
 		// Generate the partial-y constraints
 		{
@@ -422,11 +414,7 @@ void _Execute( void )
 			unsigned int derivatives1[] = { 0 , 1 } , derivatives2[] = { 0 , 0 };
 			typename FEMIntegrator::template Constraint< FEMSignature , FEMDerivative , CSignature , CDerivative , 1 > F;
 			F.weights[0][ TensorDerivatives< FEMDerivative >::Index( derivatives1 ) ][ TensorDerivatives< CDerivative >::Index( derivatives2 ) ] = 1;
-#ifdef NEW_THREADS
-			tree.addFEMConstraints( tp , F , partialY , constraints , maxDepth );
-#else // !NEW_THREADS
 			tree.addFEMConstraints( F , partialY , constraints , maxDepth );
-#endif // NEW_THREADS
 		}
 		if( Verbose.set ) printf( "Set constraints: " ) , p.print( true );
 	}
@@ -445,11 +433,7 @@ void _Execute( void )
 		sInfo.wCycle = false;
 		typename FEMIntegrator::template System< IsotropicUIntPack< Dim , FEMSig > , IsotropicUIntPack< Dim , 1 > > F( { 0. , 1. } );
 		DenseNodeData< Point< Real , Colors > , IsotropicUIntPack< Dim , FEMSig > > _constraints = tree.template initDenseNodeData< Point< Real , Colors > >( IsotropicUIntPack< Dim , FEMSig >() );
-#ifdef NEW_THREADS
-		tree.solveSystem( IsotropicUIntPack< Dim , FEMSig >() , tp , F , constraints , solution , Point< Real , Colors >::Dot , maxDepth , sInfo );
-#else // !NEW_THREADS
 		tree.solveSystem( IsotropicUIntPack< Dim , FEMSig >() , F , constraints , solution , Point< Real , Colors >::Dot , maxDepth , sInfo );
-#endif // NEW_THREADS
 		if( Verbose.set ) printf( "Solved system: " ) , p.print( true );
 	}
 
@@ -457,11 +441,7 @@ void _Execute( void )
 	{
 		Profiler p;
 		Real begin[] = { 0 , 0 } , end[] = { (Real)w/(1<<maxDepth) , (Real)h/(1<<maxDepth) };
-#ifdef NEW_THREADS
-		average = tree.average( tp , solution , begin , end );
-#else // !NEW_THREADS
 		average = tree.average( solution , begin , end );
-#endif // NEW_THREADS
 		if( Verbose.set ) printf( "Got average: " ) , p.print( true );
 	}
 	// Stitch the image
@@ -479,9 +459,6 @@ void _Execute( void )
 
 		auto FetchInput = [&]( unsigned int block )
 		{
-#ifdef NEW_THREADS
-			static 	ThreadPool tp( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
-#endif // NEW_THREADS
 			int rStart = block*ROW_BLOCK_SIZE;
 			int rEnd = rStart + ROW_BLOCK_SIZE < h ? rStart + ROW_BLOCK_SIZE : h;
 			for( int r=rStart , rr=0 ; r<rEnd ; r++ , rr++ )
@@ -492,7 +469,7 @@ void _Execute( void )
 					in->nextRow( inRow );
 					RGBPixel *_inRow = inRows[block&1] + rr*w;
 #ifdef NEW_THREADS
-					tp.parallel_for( 0 , w , [&]( unsigned int , size_t i ){ _inRow[i][0] = _inRow[i][1] = _inRow[i][2] = inRow[i]; } );
+					ThreadPool::Parallel_for( 0 , w , [&]( unsigned int , size_t i ){ _inRow[i][0] = _inRow[i][1] = _inRow[i][2] = inRow[i]; } );
 #else // !NEW_THREADS
 #pragma omp parallel for
 					for( int i=0 ; i<w ; i++ ) _inRow[i][0] = _inRow[i][1] = _inRow[i][2] = inRow[i];
@@ -517,23 +494,20 @@ void _Execute( void )
 		for( int rStart=0 , block=0 ; rStart<h ; rStart+=ROW_BLOCK_SIZE , block++ )
 		{
 #ifdef NEW_THREADS
-			tp.parallel_for( 0 , 3 , [&]( unsigned int , size_t i )
-			{
-				switch( i )
+			ThreadPool::ParallelSections
+			(
+				[&]( void ){ if( block<blockNum ) FetchInput( block+1 ); } ,
+				[&]( void ){ if( block>0 ) SetOutput( block-1 ); } ,
+				[&]( void )
 				{
-				case 0: if( block<blockNum ) FetchInput( block+1 ) ; break;
-				case 1: if( block>0 ) SetOutput( block-1 ) ; break;
-				case 2:
-				{
-					static ThreadPool tp( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
 					RGBPixel *_inRows = inRows[block&1] , *_outRows = outRows[block&1];
 					int rEnd = rStart + ROW_BLOCK_SIZE < h ? rStart + ROW_BLOCK_SIZE : h;
 
 					// Expand the next block of values
 					begin[0] = 0 , begin[1] = rStart , end[0] = w , end[1] = rEnd;
-					Pointer( Point< Real , Colors > ) outBlock = tree.template regularGridUpSample< true >( tp , solution , begin , end );
+					Pointer( Point< Real , Colors > ) outBlock = tree.template regularGridUpSample< true >( solution , begin , end );
 					int size = (rEnd-rStart)*w;
-					tp.parallel_for( 0 , size , [&]( unsigned int , size_t ii )
+					ThreadPool::Parallel_for( 0 , size , [&]( unsigned int , size_t ii )
 					{
 						Point< Real , Colors > c = Point< Real , Colors >( _inRows[ii][0] , _inRows[ii][1] , _inRows[ii][2] ) / 255;
 						c += outBlock[ii] - average;
@@ -541,10 +515,7 @@ void _Execute( void )
 					}
 					);
 					DeletePointer( outBlock );
-					break;
 				}
-				}
-			} , ThreadPool::STATIC , 1
 			);
 #else // !NEW_THREADS
 #pragma omp parallel sections
@@ -567,11 +538,7 @@ void _Execute( void )
 
 					// Expand the next block of values
 					begin[0] = 0 , begin[1] = rStart , end[0] = w , end[1] = rEnd;
-#ifdef NEW_THREADS
-					Pointer( Point< Real , Colors > ) outBlock = tree.template regularGridUpSample< true >( tp , solution , begin , end );
-#else // !NEW_THREADS
 					Pointer( Point< Real , Colors > ) outBlock = tree.template regularGridUpSample< true >( solution , begin , end );
-#endif // NEW_THREADS
 					int size = (rEnd-rStart)*w;
 #pragma omp parallel for
 					for( int ii=0 ; ii<size ; ii++ )

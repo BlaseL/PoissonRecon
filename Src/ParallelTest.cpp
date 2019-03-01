@@ -117,7 +117,7 @@ void AddAtomic( double &dest , double value )
 #endif // WINDOWS
 };
 
-double RunMutex( size_t outIters , size_t inIters , ThreadPool &tp )
+double RunMutex( size_t outIters , size_t inIters )
 {
 	auto Task = []( size_t i , size_t &sum )
 	{
@@ -132,16 +132,13 @@ double RunMutex( size_t outIters , size_t inIters , ThreadPool &tp )
 	double t = Time();
 	{
 		size_t sum = 0;
-		for( size_t i=0 ; i<outIters ; i++ )
-		{
-			tp.parallel_for( 0 , inIters , [&]( unsigned int , size_t i ){ Task( i , sum ); } );
-		}
+		for( size_t i=0 ; i<outIters ; i++ ) ThreadPool::Parallel_for( 0 , inIters , [&]( unsigned int , size_t i ){ Task( i , sum ); } );
 		printf( "\t\tMutex:             %.2f(s)\t%llu\n" , Time()-t , (unsigned long long)sum );
 	}
 	return Time()-t;
 }
 
-double RunAtomicDouble( size_t outIters , size_t inIters , ThreadPool &tp )
+double RunAtomicDouble( size_t outIters , size_t inIters )
 {
 	auto Task = []( size_t i , double &sum )
 	{
@@ -151,16 +148,13 @@ double RunAtomicDouble( size_t outIters , size_t inIters , ThreadPool &tp )
 	double t = Time();
 	{
 		double sum = 0;
-		for( size_t i=0 ; i<outIters ; i++ )
-		{
-			tp.parallel_for( 0 , inIters , [&]( unsigned int , size_t i ){ Task( i , sum ); } );
-		}
+		for( size_t i=0 ; i<outIters ; i++ ) ThreadPool::Parallel_for( 0 , inIters , [&]( unsigned int , size_t i ){ Task( i , sum ); } );
 		printf( "\t\tAtomic add double: %.2f(s)\t%g\n" , Time()-t , sum );
 	}
 	return Time()-t;
 }
 
-double RunAtomicFloat( size_t outIters , size_t inIters , ThreadPool &tp )
+double RunAtomicFloat( size_t outIters , size_t inIters )
 {
 	auto Task = []( size_t i , float &sum )
 	{
@@ -170,16 +164,13 @@ double RunAtomicFloat( size_t outIters , size_t inIters , ThreadPool &tp )
 	double t = Time();
 	{
 		float sum = 0;
-		for( size_t i=0 ; i<outIters ; i++ )
-		{
-			tp.parallel_for( 0 , inIters , [&Task,&sum]( unsigned int , size_t i ){ Task( i , sum ); } );
-		}
+		for( size_t i=0 ; i<outIters ; i++ ) ThreadPool::Parallel_for( 0 , inIters , [&Task,&sum]( unsigned int , size_t i ){ Task( i , sum ); } );
 		printf( "\t\tAtomic add float:  %.2f(s)\t%g\n" , Time()-t , sum );
 	}
 	return Time()-t;
 }
 
-double RunAtomic( size_t outIters , size_t inIters , ThreadPool &tp )
+double RunAtomic( size_t outIters , size_t inIters )
 {
 	auto Task = []( size_t i , std::atomic< size_t > &sum )
 	{
@@ -191,26 +182,20 @@ double RunAtomic( size_t outIters , size_t inIters , ThreadPool &tp )
 		double t = Time();
 		std::atomic< size_t > sum;
 		sum.store(0);
-		for( size_t i=0 ; i<outIters ; i++ )
-		{
-			tp.parallel_for( 0 , inIters , [&]( unsigned int , size_t i ){ Task( i , sum ); } );
-		}
+		for( size_t i=0 ; i<outIters ; i++ ) ThreadPool::Parallel_for( 0 , inIters , [&]( unsigned int , size_t i ){ Task( i , sum ); } );
 		printf( "\t\tAtomic:            %.2f(s)\t%llu\n" , Time()-t , (unsigned long long)sum );
 	}
 	return Time()-t;
 }
 
-double Run( size_t outIters , size_t inIters , ThreadPool &tp )
+double Run( size_t outIters , size_t inIters )
 {
 	auto Task = []( size_t i , size_t &sum ){ for( size_t j=0 ; j<i ; j++ ) sum += j; };
 
 	double t = Time();
 	{
 		size_t sum = 0;
-		for( size_t i=0 ; i<outIters ; i++ )
-		{
-			tp.parallel_for( 0 , inIters , [&]( unsigned int , size_t i ){ Task( i , sum ); } );
-		}
+		for( size_t i=0 ; i<outIters ; i++ ) ThreadPool::Parallel_for( 0 , inIters , [&]( unsigned int , size_t i ){ Task( i , sum ); } );
 		printf( "\t\tNone:              %.2f(s)\t%llu\n" , Time()-t , (unsigned long long)sum );
 	}
 	return Time()-t;
@@ -225,19 +210,17 @@ int main( int argc , char* argv[] )
 		ShowUsage( argv[0] );
 		return EXIT_FAILURE;
 	}
-	ThreadPool tp( (ThreadPool::ParallelType)ParallelType.value , Threads.value );
-
 	size_t outIters = OuterIterations.value;
 	size_t inIters = InnerIterations.value;
 
 	printf( "Iterations: %llu x %llu -> %llu\n" , (unsigned long long)outIters , (unsigned long long)inIters , (unsigned long long)outIters*inIters );
-	printf( "Threads: %d\n" , tp.threadNum() );
+	printf( "Threads: %d\n" , ThreadPool::NumThreads() );
 
 
 	ThreadPool::DefaultChunkSize = ThreadChunkSize.value;
 	for( int i=0 ; i<ThreadPool::ParallelNames.size() ; i++ )
 	{
-		ThreadPool tp( (ThreadPool::ParallelType)i , Threads.value );
+		ThreadPool::Init( (ThreadPool::ParallelType)i , Threads.value );
 		for( int j=0 ; j<ThreadPool::ScheduleNames.size() ; j++ )
 		{
 			std::cout << "Parallel / Schedule: " << ThreadPool::ParallelNames[i] << " / " << ThreadPool::ScheduleNames[j] << std::endl;
@@ -245,21 +228,21 @@ int main( int argc , char* argv[] )
 
 			if( AtomicType.value<0 )
 			{
-				Run            ( outIters , inIters , tp );
-				RunAtomic      ( outIters , inIters , tp );
-				RunAtomicFloat ( outIters , inIters , tp );
-				RunAtomicDouble( outIters , inIters , tp );
-				RunMutex       ( outIters , inIters , tp );
+				Run            ( outIters , inIters );
+				RunAtomic      ( outIters , inIters );
+				RunAtomicFloat ( outIters , inIters );
+				RunAtomicDouble( outIters , inIters );
+				RunMutex       ( outIters , inIters );
 			}
 			else
 			{
 				switch( AtomicType.value )
 				{
-				case ATOMIC_NONE:          Run            ( outIters , inIters , tp ) ; break;
-				case ATOMIC_ATOMIC:        RunAtomic      ( outIters , inIters , tp ) ; break;
-				case ATOMIC_ATOMIC_FLOAT:  RunAtomicFloat ( outIters , inIters , tp ) ; break;
-				case ATOMIC_ATOMIC_DOUBLE: RunAtomicDouble( outIters , inIters , tp ) ; break;
-				case ATOMIC_MUTEX:         RunMutex       ( outIters , inIters , tp ) ; break;
+				case ATOMIC_NONE:          Run            ( outIters , inIters ) ; break;
+				case ATOMIC_ATOMIC:        RunAtomic      ( outIters , inIters ) ; break;
+				case ATOMIC_ATOMIC_FLOAT:  RunAtomicFloat ( outIters , inIters ) ; break;
+				case ATOMIC_ATOMIC_DOUBLE: RunAtomicDouble( outIters , inIters ) ; break;
+				case ATOMIC_MUTEX:         RunMutex       ( outIters , inIters ) ; break;
 				}
 			}
 		}
