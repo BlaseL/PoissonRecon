@@ -46,6 +46,7 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF S
 #include <functional>
 #include "MyMiscellany.h"
 #include "CmdLineParser.h"
+#include "Array.h"
 
 enum
 {
@@ -201,8 +202,14 @@ double Run( size_t outIters , size_t inIters )
 	return Time()-t;
 }
 
+void foo( void )
+{
+	Pointer( int ) foo = NewPointer< int >( 10 );
+	printf( "%d\n" , foo[10] );
+}
 int main( int argc , char* argv[] )
 {
+foo();
 	cmdLineParse( argc-1 , &argv[1] , params );
 
 	if( !InnerIterations.set )

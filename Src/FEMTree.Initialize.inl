@@ -137,11 +137,19 @@ int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPoint
 {
 	auto Leaf = [&]( FEMTreeNode& root , Point< Real , Dim > p , int maxDepth )
 	{
+#ifdef USE_ALLOCATOR_POINTERS
+		for( int d=0 ; d<Dim ; d++ ) if( p[d]<0 || p[d]>1 ) return NullPointer( FEMTreeNode );
+#else // !USE_ALLOCATOR_POINTERS
 		for( int d=0 ; d<Dim ; d++ ) if( p[d]<0 || p[d]>1 ) return (FEMTreeNode*)NULL;
+#endif // USE_ALLOCATOR_POINTERS
 		Point< Real , Dim > center;
 		for( int d=0 ; d<Dim ; d++ ) center[d] = (Real)0.5;
 		Real width = Real(1.0);
+#ifdef USE_ALLOCATOR_POINTERS
+		Pointer( FEMTreeNode ) node = GetPointer( root );
+#else // !USE_ALLOCATOR_POINTERS
 		FEMTreeNode* node = &root;
+#endif // USE_ALLOCATOR_POINTERS
 		int d = 0;
 		while( d<maxDepth )
 		{
@@ -176,7 +184,11 @@ int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPoint
 		{
 			Real weight = ProcessData( p , d );
 			if( weight<=0 ){ badData++ ; continue; }
+#ifdef USE_ALLOCATOR_POINTERS
+			Pointer( FEMTreeNode ) temp = Leaf( root , p , maxDepth );
+#else // !USE_ALLOCATOR_POINTERS
 			FEMTreeNode* temp = Leaf( root , p , maxDepth );
+#endif // USE_ALLOCATOR_POINTERS
 			if( !temp ){ outOfBoundPoints++ ; continue; }
 #ifdef NEW_CODE
 			node_index_type nodeIndex = temp->nodeData.nodeIndex;
@@ -222,10 +234,12 @@ int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPoint
 		}
 		pointStream.reset();
 	}
+printf( "Returning 0\n" );
 	if( outOfBoundPoints  ) WARN( "Found out-of-bound points: " , outOfBoundPoints );
 	if( badData           ) WARN( "Found bad data: " , badData );
+printf( "Returning 1...\n" );
 	FEMTree< Dim , Real >::MemoryUsage();
-printf( "Returning...\n" );
+printf( "Returning 2...\n" );
 	return pointCount;
 }
 template< unsigned int Dim , class Real >

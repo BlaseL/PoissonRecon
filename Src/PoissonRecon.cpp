@@ -730,7 +730,11 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 	{
 		profiler.start();
 		double valueSum = 0 , weightSum = 0;
+#ifdef USE_ALLOCATOR_POINTERS
+		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 0 > evaluator( GetPointer( tree ) , solution );
+#else // !USE_ALLOCATOR_POINTERS
 		typename FEMTree< Dim , Real >::template MultiThreadedEvaluator< Sigs , 0 > evaluator( &tree , solution );
+#endif // USE_ALLOCATOR_POINTERS
 #ifdef NEW_THREADS
 		std::vector< double > valueSums( ThreadPool::NumThreads() , 0 ) , weightSums( ThreadPool::NumThreads() , 0 );
 		ThreadPool::Parallel_for( 0 , samples->size() , [&]( unsigned int thread , size_t j )

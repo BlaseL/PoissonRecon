@@ -1523,9 +1523,17 @@ template< unsigned int Dim , class Real >
 struct NodeAndPointSample
 {
 #ifdef NEW_CODE
+#ifdef USE_ALLOCATOR_POINTERS
+	Pointer( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > ) node;
+#else // !USE_ALLOCATOR_POINTERS
 	RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node;
+#endif // USE_ALLOCATOR_POINTERS
 #else // !NEW_CODE
+#ifdef USE_ALLOCATOR_POINTERS
+	Pointer( RegularTreeNode< Dim , FEMTreeNodeData > ) node;
+#else // !USE_ALLOCATOR_POINTERS
 	RegularTreeNode< Dim , FEMTreeNodeData >* node;
+#endif // USE_ALLOCATOR_POINTERS
 #endif // NEW_CODE
 	ProjectiveData< Point< Real , Dim > , Real > sample;
 };
@@ -2263,8 +2271,13 @@ protected:
 	bool _isValidFEM2Node ( const FEMTreeNode* node ) const { return !GetGhostFlag< Dim >( node ) && ( node->nodeData.flags & FEMTreeNodeData::FEM_FLAG_2     ); }
 	bool _isRefinableNode ( const FEMTreeNode* node ) const { return !GetGhostFlag< Dim >( node ) && ( node->nodeData.flags & FEMTreeNodeData::REFINABLE_FLAG ); }
 
+#ifdef USE_ALLOCATOR_POINTERS
+	Pointer( FEMTreeNode ) _tree;
+	Pointer( FEMTreeNode ) _spaceRoot;
+#else // !USE_ALLOCATOR_POINTERS
 	FEMTreeNode* _tree;
 	FEMTreeNode* _spaceRoot;
+#endif // USE_ALLOCATOR_POINTERS
 	SortedTreeNodes< Dim > _sNodes;
 	LocalDepth _maxDepth;
 	int _depthOffset;
@@ -2274,9 +2287,17 @@ protected:
 
 	static bool _InBounds( Point< Real , Dim > p );
 	int _localToGlobal( LocalDepth d ) const { return d + _depthOffset; }
+#ifdef USE_ALLOCATOR_POINTERS
+	LocalDepth _localDepth( ConstPointer( FEMTreeNode ) node ) const { return node->depth() - _depthOffset; }
+#else // !USE_ALLOCATOR_POINTERS
 	LocalDepth _localDepth( const FEMTreeNode* node ) const { return node->depth() - _depthOffset; }
+#endif // USE_ALLOCATOR_POINTERS
 	int _localInset( LocalDepth d ) const { return _depthOffset<=1 ? 0 : 1<<( d + _depthOffset - 1 ); }
+#ifdef USE_ALLOCATOR_POINTERS
+	void _localDepthAndOffset( ConstPointer( FEMTreeNode ) node , LocalDepth& d , LocalOffset& off ) const
+#else // !USE_ALLOCATOR_POINTERS
 	void _localDepthAndOffset( const FEMTreeNode* node , LocalDepth& d , LocalOffset& off ) const
+#endif // USE_ALLOCATOR_POINTERS
 	{
 		node->depthAndOffset( d , off ) ; d -= _depthOffset;
 		int inset = _localInset( d );
@@ -2672,6 +2693,18 @@ protected:
 	// Code for splatting point-sample data     //
 	// MultiGridFEMTreeData.WeightedSamples.inl //
 	//////////////////////////////////////////////
+#ifdef USE_ALLOCATOR_POINTERS
+	template< unsigned int WeightDegree >
+#ifdef NEW_CODE
+	void _addWeightContribution( Allocator< FEMTreeNode > *nodeAllocator , DensityEstimator< WeightDegree >& densityWeights , Pointer( FEMTreeNode ) node , Point< Real , Dim > position , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , Real weight=Real(1.0) );
+#else // !NEW_CODE
+	void _addWeightContribution( DensityEstimator< WeightDegree >& densityWeights , Pointer( FEMTreeNode ) node , Point< Real , Dim > position , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , Real weight=Real(1.0) );
+#endif // NEW_CODE
+	template< unsigned int WeightDegree , class PointSupportKey >
+	Real _getSamplesPerNode( const DensityEstimator< WeightDegree >& densityWeights , ConstPointer( FEMTreeNode ) node , Point< Real , Dim > position , PointSupportKey& weightKey ) const;
+	template< unsigned int WeightDegree , class WeightKey >
+	void _getSampleDepthAndWeight( const DensityEstimator< WeightDegree >& densityWeights , ConstPointer( FEMTreeNode ) node , Point< Real , Dim > position , WeightKey& weightKey , Real& depth , Real& weight ) const;
+#else // !USE_ALLOCATOR_POINTERS
 	template< unsigned int WeightDegree >
 #ifdef NEW_CODE
 	void _addWeightContribution( Allocator< FEMTreeNode > *nodeAllocator , DensityEstimator< WeightDegree >& densityWeights , FEMTreeNode* node , Point< Real , Dim > position , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , Real weight=Real(1.0) );
@@ -2682,6 +2715,7 @@ protected:
 	Real _getSamplesPerNode( const DensityEstimator< WeightDegree >& densityWeights , const FEMTreeNode* node , Point< Real , Dim > position , PointSupportKey& weightKey ) const;
 	template< unsigned int WeightDegree , class WeightKey >
 	void _getSampleDepthAndWeight( const DensityEstimator< WeightDegree >& densityWeights , const FEMTreeNode* node , Point< Real , Dim > position , WeightKey& weightKey , Real& depth , Real& weight ) const;
+#endif // USE_ALLOCATOR_POINTERS
 	template< unsigned int WeightDegree , class WeightKey >
 	void _getSampleDepthAndWeight( const DensityEstimator< WeightDegree >& densityWeights , Point< Real , Dim > position , WeightKey& weightKey , Real& depth , Real& weight ) const;
 
@@ -2856,7 +2890,11 @@ public:
 	{
 		typedef UIntPack< FEMSigs ... > FEMSignatures;
 		typedef UIntPack< FEMSignature< FEMSigs >::Degree ... > FEMDegrees;
+#ifdef USE_ALLOCATOR_POINTERS
+		ConstPointer( FEMTree ) _tree;
+#else // !USE_ALLOCATOR_POINTERS
 		const FEMTree* _tree;
+#endif // USE_ALLOCATOR_POINTERS
 		int _threads;
 		std::vector< ConstPointSupportKey< FEMDegrees > > _pointNeighborKeys;
 		std::vector< ConstCornerSupportKey< FEMDegrees > > _cornerNeighborKeys;
@@ -2864,6 +2902,16 @@ public:
 		const DenseNodeData< T , FEMSignatures >& _coefficients;
 		DenseNodeData< T , FEMSignatures > _coarseCoefficients;
 	public:
+#ifdef USE_ALLOCATOR_POINTERS
+#ifdef NEW_THREADS
+		_MultiThreadedEvaluator( ConstPointer( FEMTree ) tree , const DenseNodeData< T , FEMSignatures >& coefficients , int threads=std::thread::hardware_concurrency() );
+#else // !NEW_THREADS
+		_MultiThreadedEvaluator( ConstPointer( FEMTree ) tree , const DenseNodeData< T , FEMSignatures >& coefficients , int threads=omp_get_max_threads() );
+#endif // NEW_THREADS
+		template< unsigned int _PointD=PointD > CumulativeDerivativeValues< T , Dim , _PointD > values( Point< Real , Dim > p , int thread=0 , ConstPointer( FEMTreeNode ) node=NullPointer( FEMTreeNode ) );
+		template< unsigned int _PointD=PointD > CumulativeDerivativeValues< T , Dim , _PointD > centerValues( ConstPointer( FEMTreeNode ) node , int thread=0 );
+		template< unsigned int _PointD=PointD > CumulativeDerivativeValues< T , Dim , _PointD > cornerValues( ConstPointer( FEMTreeNode ) node , int corner , int thread=0 );
+#else // !USE_ALLOCATOR_POINTERS
 #ifdef NEW_THREADS
 		_MultiThreadedEvaluator( const FEMTree* tree , const DenseNodeData< T , FEMSignatures >& coefficients , int threads=std::thread::hardware_concurrency() );
 #else // !NEW_THREADS
@@ -2872,6 +2920,7 @@ public:
 		template< unsigned int _PointD=PointD > CumulativeDerivativeValues< T , Dim , _PointD > values( Point< Real , Dim > p , int thread=0 , const FEMTreeNode* node=NULL );
 		template< unsigned int _PointD=PointD > CumulativeDerivativeValues< T , Dim , _PointD > centerValues( const FEMTreeNode* node , int thread=0 );
 		template< unsigned int _PointD=PointD > CumulativeDerivativeValues< T , Dim , _PointD > cornerValues( const FEMTreeNode* node , int corner , int thread=0 );
+#endif // USE_ALLOCATOR_POINTERS
 	};
 	template< typename Pack , unsigned int PointD , typename T=Real > using MultiThreadedEvaluator = _MultiThreadedEvaluator< Pack , PointD , T >;
 	template< unsigned int DensityDegree >

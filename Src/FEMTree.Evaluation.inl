@@ -477,11 +477,19 @@ CumulativeDerivativeValues< V , Dim , _PointD > FEMTree< Dim , Real >::_getCorne
 ////////////////////////////
 template< unsigned int Dim , class Real >
 template< unsigned int ... FEMSigs , unsigned int PointD , typename T >
+#ifdef USE_ALLOCATOR_POINTERS
+#ifdef NEW_THREADS
+FEMTree< Dim , Real >::_MultiThreadedEvaluator< UIntPack< FEMSigs ... > , PointD , T >::_MultiThreadedEvaluator( ConstPointer( FEMTree< Dim , Real > ) tree , const DenseNodeData< T , FEMSignatures >& coefficients , int threads ) : _coefficients( coefficients ) , _tree( tree )
+#else // !NEW_THREADS
+FEMTree< Dim , Real >::_MultiThreadedEvaluator< UIntPack< FEMSigs ... > , PointD , T >::_MultiThreadedEvaluator( ConstPointer( FEMTree< Dim , Real > ) tree , const DenseNodeData< T , FEMSignatures >& coefficients , int threads ) : _coefficients( coefficients ) , _tree( tree )
+#endif // NEW_THREADS
+#else // !USE_ALLOCATOR_POINTERS
 #ifdef NEW_THREADS
 FEMTree< Dim , Real >::_MultiThreadedEvaluator< UIntPack< FEMSigs ... > , PointD , T >::_MultiThreadedEvaluator( const FEMTree< Dim , Real >* tree , const DenseNodeData< T , FEMSignatures >& coefficients , int threads ) : _coefficients( coefficients ) , _tree( tree )
 #else // !NEW_THREADS
 FEMTree< Dim , Real >::_MultiThreadedEvaluator< UIntPack< FEMSigs ... > , PointD , T >::_MultiThreadedEvaluator( const FEMTree< Dim , Real >* tree , const DenseNodeData< T , FEMSignatures >& coefficients , int threads ) : _coefficients( coefficients ) , _tree( tree )
 #endif // NEW_THREADS
+#endif // USE_ALLOCATOR_POINTERS
 {
 	tree->_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
 	_threads = std::max< int >( 1 , threads );
@@ -499,7 +507,11 @@ FEMTree< Dim , Real >::_MultiThreadedEvaluator< UIntPack< FEMSigs ... > , PointD
 template< unsigned int Dim , class Real >
 template< unsigned int ... FEMSigs , unsigned int PointD , typename T >
 template< unsigned int _PointD >
+#ifdef USE_ALLOCATOR_POINTERS
+CumulativeDerivativeValues< T , Dim , _PointD > FEMTree< Dim , Real >::_MultiThreadedEvaluator< UIntPack< FEMSigs ... > , PointD , T >::values( Point< Real , Dim > p , int thread , ConstPointer( FEMTreeNode ) node )
+#else // !USE_ALLOCATOR_POINTERS
 CumulativeDerivativeValues< T , Dim , _PointD > FEMTree< Dim , Real >::_MultiThreadedEvaluator< UIntPack< FEMSigs ... > , PointD , T >::values( Point< Real , Dim > p , int thread , const FEMTreeNode* node )
+#endif // USE_ALLOCATOR_POINTERS
 {
 	if( _PointD>PointD ) ERROR_OUT( "Evaluating more derivatives than available: " , _PointD , " <= " , PointD );
 	if( !node ) node = _tree->leaf( p );
@@ -510,7 +522,11 @@ CumulativeDerivativeValues< T , Dim , _PointD > FEMTree< Dim , Real >::_MultiThr
 template< unsigned int Dim , class Real >
 template< unsigned int ... FEMSigs , unsigned int PointD , typename T >
 template< unsigned int _PointD >
+#ifdef USE_ALLOCATOR_POINTERS
+CumulativeDerivativeValues< T , Dim , _PointD > FEMTree< Dim , Real >::_MultiThreadedEvaluator< UIntPack< FEMSigs ... > , PointD , T >::centerValues( ConstPointer( FEMTreeNode ) node , int thread )
+#else // !USE_ALLOCATOR_POINTERS
 CumulativeDerivativeValues< T , Dim , _PointD > FEMTree< Dim , Real >::_MultiThreadedEvaluator< UIntPack< FEMSigs ... > , PointD , T >::centerValues( const FEMTreeNode* node , int thread )
+#endif // USE_ALLOCATOR_POINTERS
 {
 	if( _PointD>PointD ) ERROR_OUT( "Evaluating more derivatives than available: " , _PointD, " <= " , PointD );
 	ConstPointSupportKey< FEMDegrees >& nKey = _pointNeighborKeys[thread];
@@ -522,7 +538,11 @@ CumulativeDerivativeValues< T , Dim , _PointD > FEMTree< Dim , Real >::_MultiThr
 template< unsigned int Dim , class Real >
 template< unsigned int ... FEMSigs , unsigned int PointD , typename T >
 template< unsigned int _PointD >
+#ifdef USE_ALLOCATOR_POINTERS
+CumulativeDerivativeValues< T , Dim , _PointD > FEMTree< Dim , Real >::_MultiThreadedEvaluator< UIntPack< FEMSigs ... > , PointD , T >::cornerValues( ConstPointer( FEMTreeNode ) node , int corner , int thread )
+#else // !USE_ALLOCATOR_POINTERS
 CumulativeDerivativeValues< T , Dim , _PointD > FEMTree< Dim , Real >::_MultiThreadedEvaluator< UIntPack< FEMSigs ... > , PointD , T >::cornerValues( const FEMTreeNode* node , int corner , int thread )
+#endif // USE_ALLOCATOR_POINTERS
 {
 	if( _PointD>PointD ) ERROR_OUT( "Evaluating more derivatives than available: " , _PointD , " <= " , PointD );
 	ConstCornerSupportKey< FEMDegrees >& nKey = _cornerNeighborKeys[thread];

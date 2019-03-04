@@ -263,6 +263,65 @@ namespace MKExceptions
 
 #ifdef NEW_CODE
 
+#if defined(_WIN32) || defined( _WIN64 )
+void StackTrace( void )
+{
+}
+#else // !WINDOWS
+#include <execinfo.h>
+#include <unistd.h>
+#include <cxxabi.h>
+inline void StackTrace( void )
+{
+	// Code borrowed from:
+	// https://stackoverflow.com/questions/77005/how-to-automatically-generate-a-stacktrace-when-my-program-crashes
+	void * array[50];
+	int size = backtrace( array , 50 );
+
+//	array[1] = caller_address;
+
+	char ** messages = backtrace_symbols( array , size );
+	for( int i=1 ; i< size && messages!=NULL ; ++i )
+	{
+		char *mangled_name=0 , *offset_begin=0 , *offset_end=0;
+
+		// find parantheses and +address offset surrounding mangled name
+		for( char *p=messages[i] ; *p ; ++p )
+		{
+			if     ( *p=='(' ) mangled_name = p; 
+			else if( *p=='+' ) offset_begin = p;
+			else if( *p==')' )
+			{
+				offset_end = p;
+				break;
+			}
+		}
+
+		// if the line could be processed, attempt to demangle the symbol
+		if( mangled_name && offset_begin && offset_end && mangled_name<offset_begin )
+		{
+			*mangled_name++ = '\0';
+			*offset_begin++ = '\0';
+			*offset_end++ = '\0';
+
+			int status;
+			char * real_name = abi::__cxa_demangle(mangled_name, 0, 0, &status);
+
+			// if demangling is successful, output the demangled function name
+			if( !status ) std::cerr << "\t(" << i << ") " << messages[i] << " : " << real_name << "+" << offset_begin << offset_end  << std::endl;
+			// otherwise, output the mangled function name
+			else          std::cerr << "\t(" << i << ") " << messages[i] << " : " << mangled_name << "+" << offset_begin << offset_end << std::endl;
+			free( real_name );
+		}
+		// otherwise, print the whole line
+		else std::cerr << "\t(" << i << ") " << messages[i] << std::endl;
+	}
+
+	free( messages );
+}
+#endif // WINDOWS
+
+
 template< typename Value > bool SetAtomic( Value& value , const Value &newValue , const Value &oldValue );
 template< typename Data > void AddAtomic( Data& a , const Data& b );
 

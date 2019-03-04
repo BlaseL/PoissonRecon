@@ -423,7 +423,11 @@ typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree >* FEMT
 	for( int i=0 ; i<samples.size() ; i++ ) if( samples[i].sample.weight>0 ) sampleMap[ samples[i].node->nodeData.nodeIndex ] = i;
 #endif // NEW_CODE
 #endif // NEW_THREADS
+#ifdef USE_ALLOCATOR_POINTERS
+	std::function< ProjectiveData< Point< Real , Dim > , Real > ( Pointer( FEMTreeNode ) ) > SetDensity = [&] ( Pointer( FEMTreeNode ) node )
+#else // !USE_ALLOCATOR_POINTERS
 	std::function< ProjectiveData< Point< Real , Dim > , Real > ( FEMTreeNode* ) > SetDensity = [&] ( FEMTreeNode* node )
+#endif // USE_ALLOCATOR_POINTERS
 	{
 		ProjectiveData< Point< Real , Dim > , Real > sample;
 		LocalDepth d = _localDepth( node );
@@ -743,8 +747,13 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const H
 		//                       | | | | | | | | |
 		//                       +-+-+-+-+-+-+-+-+
 
+#ifdef USE_ALLOCATOR_POINTERS
+		Pointer( FEMTreeNode ) newSpaceRootParent = FEMTreeNode::NewBrood( nodeAllocator , _NodeInitializer( *this ) );
+		Pointer( FEMTreeNode ) oldSpaceRootParent = _spaceRoot->parent;
+#else // !USE_ALLOCATOR_POINTERS
 		FEMTreeNode* newSpaceRootParent = FEMTreeNode::NewBrood( nodeAllocator , _NodeInitializer( *this ) );
 		FEMTreeNode* oldSpaceRootParent = _spaceRoot->parent;
+#endif // USE_ALLOCATOR_POINTERS
 		int corner = _depthOffset<=1 ? (1<<Dim)-1 : 0;
 		newSpaceRootParent[corner].children = _spaceRoot;
 		oldSpaceRootParent->children = newSpaceRootParent;
@@ -763,7 +772,11 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const H
 	_setFullDepth( IsotropicUIntPack< Dim , MaxDegree >() , fullDepth );
 #endif // NEW_CODE
 	// Clear all the flags and make everything that is not low-res a ghost node
+#ifdef USE_ALLOCATOR_POINTERS
+	for( Pointer( FEMTreeNode ) node=_tree->nextNode() ; node ; node=_tree->nextNode( node ) ) node->nodeData.flags = 0 , SetGhostFlag< Dim >( node , _localDepth( node )>fullDepth );
+#else // !USE_ALLOCATOR_POINTERS
 	for( FEMTreeNode* node=_tree->nextNode() ; node ; node=_tree->nextNode( node ) ) node->nodeData.flags = 0 , SetGhostFlag< Dim >( node , _localDepth( node )>fullDepth );
+#endif // USE_ALLOCATOR_POINTERS
 
 	// Set the ghost nodes for the high-res part of the tree
 #ifdef NEW_THREADS
@@ -785,9 +798,15 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const H
 
 	for( LocalDepth d=_maxDepth-1 ; d>=0 ; d-- )
 	{
+#ifdef USE_ALLOCATOR_POINTERS
+		std::vector< Pointer( FEMTreeNode ) > nodes;
+		auto NodeTerminationLambda = [&]( Pointer( FEMTreeNode ) node ){ return _localDepth( node )==d; };
+		for( Pointer( FEMTreeNode ) node=_tree->nextNode( NodeTerminationLambda , NullPointer( FEMTreeNode ) ) ; node ; node=_tree->nextNode( NodeTerminationLambda , node ) ) if( _localDepth( node )==d && IsActiveNode< Dim >( node->children ) ) nodes.push_back( node );
+#else // !USE_ALLOCATOR_POINTERS
 		std::vector< FEMTreeNode* > nodes;
 		auto NodeTerminationLambda = [&]( const FEMTreeNode *node ){ return _localDepth( node )==d; };
 		for( FEMTreeNode* node=_tree->nextNode( NodeTerminationLambda , NULL ) ; node ; node=_tree->nextNode( NodeTerminationLambda , node ) ) if( _localDepth( node )==d && IsActiveNode< Dim >( node->children ) ) nodes.push_back( node );
+#endif // USE_ALLOCATOR_POINTERS
 #ifdef NEW_THREADS
 		ThreadPool::Parallel_for( 0 , nodes.size() , [&]( unsigned int thread , size_t i )
 #else // !NEW_THREADS
@@ -804,7 +823,11 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const H
 #else // !NEW_THREADS
 			NeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
+#ifdef USE_ALLOCATOR_POINTERS
+			Pointer( FEMTreeNode ) node = nodes[i];
+#else // !USE_ALLOCATOR_POINTERS
 			FEMTreeNode* node = nodes[i];
+#endif // USE_ALLOCATOR_POINTERS
 #ifdef NEW_CODE
 #ifdef NEW_THREADS
 			neighborKey.template getNeighbors< true >( node , nodeAllocators.size() ? nodeAllocators[ thread ] : NULL , _NodeInitializer( *this ) );

@@ -77,6 +77,9 @@ class Array
 	void _assertBounds( long long idx ) const
 #endif // ARRAY_NEW_CODE
 	{
+#ifdef NEW_CODE
+		StackTrace();
+#endif // NEW_CODE
 #ifdef ARRAY_NEW_CODE_2
 		if( idx<min || idx>=max ) ERROR_OUT( "Array index out-of-bounds: " , min , " <= " , idx , " < " , max , "\nFile: " , _fileName , "; Line: " , _line , "; Function: " , _functionName );
 #else // !ARRAY_NEW_CODE_2

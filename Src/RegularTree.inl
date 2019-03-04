@@ -51,9 +51,17 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::cleanChildren( bool
 	if( children )
 	{
 		for( int c=0 ; c<(1<<Dim) ; c++ ) children[c].cleanChildren( deleteChildren );
+#ifdef USE_ALLOCATOR_POINTERS
+		if( deleteChildren ) DeletePointer( children );
+#else // !USE_ALLOCATOR_POINTERS
 		if( deleteChildren ) delete[] children;
+#endif // USE_ALLOCATOR_POINTERS
 	}
+#ifdef USE_ALLOCATOR_POINTERS
+	parent = children = NullPointer( RegularTreeNode );
+#else // !USE_ALLOCATOR_POINTERS
 	parent = children = NULL;
+#endif // USE_ALLOCATOR_POINTERS
 }
 #else // !NEW_CODE
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
@@ -62,9 +70,17 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::cleanChildren( Allo
 	if( children )
 	{
 		for( int c=0 ; c<(1<<Dim) ; c++ ) children[c].cleanChildren( nodeAllocator );
+#ifdef USE_ALLOCATOR_POINTERS
+		if( !nodeAllocator ) DeletePointer( children );
+#else // !USE_ALLOCATOR_POINTERS
 		if( !nodeAllocator ) delete[] children;
+#endif // USE_ALLOCATOR_POINTERS
 	}
+#ifdef USE_ALLOCATOR_POINTERS
+	parent = children = NullPointer( RegularTreeNode );
+#else // !USE_ALLOCATOR_POINTERS
 	parent = children = NULL;
+#endif // USE_ALLOCATOR_POINTERS
 }
 #endif // NEW_CODE
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
@@ -73,7 +89,11 @@ RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::~RegularTreeNode(void)
 #ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] Deallocation of children is your responsibility" )
 #endif // SHOW_WARNINGS
+#ifdef USE_ALLOCATOR_POINTERS
+	parent = children = NullPointer( RegularTreeNode );
+#else // !USE_ALLOCATOR_POINTERS
 	parent = children = NULL;
+#endif // USE_ALLOCATOR_POINTERS
 }
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 #ifdef USE_ALLOCATOR_POINTERS
@@ -181,7 +201,11 @@ bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren_s( All
 
 	// Allocate the children
 	if( nodeAllocator ) _children = nodeAllocator->newElements( 1<<Dim );
+#ifdef USE_ALLOCATOR_POINTERS
+	else                _children = NewPointer< RegularTreeNode>( 1<<Dim );
+#else // !USE_ALLOCATOR_POINTERS
 	else                _children = new RegularTreeNode[ 1<<Dim ];
+#endif // USE_ALLOCATOR_POINTERS
 	if( !_children ) ERROR_OUT( "Failed to initialize children" );
 
 	// If we are the first to set the child, initialize
@@ -189,8 +213,13 @@ bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren_s( All
 	{
 		for( int idx=0 ; idx<(1<<Dim) ; idx++ )
 		{
+#ifdef USE_ALLOCATOR_POINTERS
+			children[idx].parent = GetPointer( this , 1<<Dim );
+			children[idx].children = NullPointer( RegularTreeNode );
+#else // !USE_ALLOCATOR_POINTERS
 			children[idx].parent = this;
 			children[idx].children = NULL;
+#endif // USE_ALLOCATOR_POINTERS
 			if( Initializer ) Initializer( children[idx] );
 			children[idx]._depth = _depth+1;
 			for( int d=0 ; d<Dim ; d++ ) children[idx]._offset[d] = (_offset[d]<<1) | ( (idx>>d) & 1 );
@@ -201,7 +230,11 @@ bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren_s( All
 	else
 	{
 		if( nodeAllocator ) ;
+#ifdef USE_ALLOCATOR_POINTERS
+		else DeletePointer( _children );
+#else // !USE_ALLOCATOR_POINTERS
 		else delete[] _children;
+#endif // USE_ALLOCATOR_POINTERS
 		return false;
 	}
 }
@@ -212,14 +245,24 @@ int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren( Alloca
 	if( nodeAllocator ) children = nodeAllocator->newElements( 1<<Dim );
 	else
 	{
+#ifdef USE_ALLOCATOR_POINTERS
+		if( children ) DeletePointer( children );
+		children = NewPointer< RegularTreeNode >( 1<<Dim );
+#else // !USE_ALLOCATOR_POINTERS
 		if( children ) delete[] children;
 		children = new RegularTreeNode[ 1<<Dim ];
+#endif // USE_ALLOCATOR_POINTERS
 	}
 	if( !children ) ERROR_OUT( "Failed to initialize children" );
 	for( int idx=0 ; idx<(1<<Dim) ; idx++ )
 	{
+#ifdef USE_ALLOCATOR_POINTERS
+		children[idx].parent = GetPointer( this , 1<<Dim );
+		children[idx].children = NullPointer( RegularTreeNode );
+#else // !USE_ALLOCATOR_POINTERS
 		children[idx].parent = this;
 		children[idx].children = NULL;
+#endif // USE_ALLOCATOR_POINTERS
 		if( Initializer ) Initializer( children[idx] );
 		children[idx]._depth = _depth+1;
 		for( int d=0 ; d<Dim ; d++ ) children[idx]._offset[d] = (_offset[d]<<1) | ( (idx>>d) & 1 );
@@ -580,12 +623,20 @@ template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::read( FILE* fp , Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
 {
 	if( fread( this , sizeof( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read node" );
+#ifdef USE_ALLOCATOR_POINTERS
+	parent = NullPointer( RegularTreeNode );
+#else // !USE_ALLOCATOR_POINTERS
 	parent = NULL;
+#endif // USE_ALLOCATOR_POINTERS
 	if( children )
 	{
 		children = NULL;
 		initChildren( nodeAllocator , Initializer );
+#ifdef USE_ALLOCATOR_POINTERS
+		for( int i=0 ; i<(1<<Dim) ; i++ ) children[i].read( fp , nodeAllocator , Initializer ) , children[i].parent = GetPointer( this , 1<<Dim );
+#else // !USE_ALLOCATOR_POINTERS
 		for( int i=0 ; i<(1<<Dim) ; i++ ) children[i].read( fp , nodeAllocator , Initializer ) , children[i].parent = this;
+#endif // USE_ALLOCATOR_POINTERS
 	}
 	return true;
 }
