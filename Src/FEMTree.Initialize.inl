@@ -124,7 +124,6 @@ int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPoint
 	}
 	if( outOfBoundPoints  ) WARN( "Found out-of-bound points: " , outOfBoundPoints );
 	FEMTree< Dim , Real >::MemoryUsage();
-printf( "Returning...\n" );
 	return pointCount;
 }
 
@@ -226,6 +225,7 @@ int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPoint
 	if( outOfBoundPoints  ) WARN( "Found out-of-bound points: " , outOfBoundPoints );
 	if( badData           ) WARN( "Found bad data: " , badData );
 	FEMTree< Dim , Real >::MemoryUsage();
+printf( "Returning...\n" );
 	return pointCount;
 }
 template< unsigned int Dim , class Real >

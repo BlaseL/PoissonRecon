@@ -42,6 +42,8 @@ DAMAGE.
 #define USE_FEWER_THREADS						// Use fewer threads if necessary
 #define USE_THREAD_MINUS_ONE					// Do some of the processing the current thread
 
+#define USE_ALLOCATOR_POINTERS					// Use the Pointer wrapper for the allocator
+
 #ifdef BIG_DATA
 #define USE_DEEP_TREE_NODES						// Chances are that if you are using big data, you want to support a tree with depth>15.
 #endif // BIG_DATA

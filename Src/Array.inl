@@ -270,11 +270,23 @@ public:
 		_assertBounds( 0 );
 		return data;
 	}
-	inline const C* operator -> ( ) const
+	inline const C* operator -> ( void ) const
 	{
 		_assertBounds( 0 );
 		return data;
 	}
+#ifdef NEW_CODE
+	inline C &operator * ( void )
+	{
+		_assertBounds( 0 );
+		return data[0];
+	}
+	inline const C &operator * ( void ) const
+	{
+		_assertBounds( 0 );
+		return data[0];
+	}
+#endif // NEW_CODE
 #ifdef ARRAY_NEW_CODE
 	template< typename Int >
 	inline C& operator[]( Int idx )
@@ -560,6 +572,13 @@ public:
 		_assertBounds( 0 );
 		return data;
 	}
+#ifdef NEW_CODE
+	inline const C &operator * ( void )
+	{
+		_assertBounds( 0 );
+		return data[0];
+	}
+#endif // NEW_CODE
 #ifdef ARRAY_NEW_CODE
 	template< typename Int >
 	inline const C& operator[]( Int idx ) const

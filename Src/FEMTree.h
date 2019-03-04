@@ -1492,9 +1492,15 @@ public:
 //////////////////////////////////////////
 
 #ifdef NEW_CODE
+#ifdef USE_ALLOCATOR_POINTERS
+template< unsigned int Dim > inline void SetGhostFlag(      Pointer( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > ) node , bool flag ){ if( node && node->parent ) node->parent->nodeData.setGhostFlag( flag ); }
+template< unsigned int Dim > inline bool GetGhostFlag( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > ) node ){ return node==NULL || node->parent==NULL || node->parent->nodeData.getGhostFlag( ); }
+template< unsigned int Dim > inline bool IsActiveNode( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > ) node ){ return !GetGhostFlag< Dim >( node ); }
+#else // !USE_ALLOCATOR_POINTERS
 template< unsigned int Dim > inline void SetGhostFlag(       RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node , bool flag ){ if( node && node->parent ) node->parent->nodeData.setGhostFlag( flag ); }
 template< unsigned int Dim > inline bool GetGhostFlag( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ){ return node==NULL || node->parent==NULL || node->parent->nodeData.getGhostFlag( ); }
 template< unsigned int Dim > inline bool IsActiveNode( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ){ return !GetGhostFlag< Dim >( node ); }
+#endif // USE_ALLOCATOR_POINTERS
 #else // !NEW_CODE
 template< unsigned int Dim > inline void SetGhostFlag(       RegularTreeNode< Dim , FEMTreeNodeData >* node , bool flag ){ if( node && node->parent ) node->parent->nodeData.setGhostFlag( flag ); }
 template< unsigned int Dim > inline bool GetGhostFlag( const RegularTreeNode< Dim , FEMTreeNodeData >* node ){ return node==NULL || node->parent==NULL || node->parent->nodeData.getGhostFlag( ); }
@@ -3416,14 +3422,27 @@ public:
 	const FEMTreeNode& tree( void ) const { return *_tree; }
 	std::function< void ( FEMTreeNode& ) > initializer( void ){ return _NodeInitializer( *this ); }
 	size_t leaves( void ) const { return _tree->leaves(); }
+#ifdef USE_ALLOCATOR_POINTERS
+	size_t nodes( void ) const { int count = 0 ; for( ConstPointer( FEMTreeNode ) n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( IsActiveNode< Dim >( n ) ) count++ ; return count; }
+	size_t ghostNodes( void ) const { int count = 0 ; for( ConstPointer( FEMTreeNode ) n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( !IsActiveNode< Dim >( n ) ) count++ ; return count; }
+	inline size_t validSpaceNodes( void ) const { int count = 0 ; for( ConstPointer( FEMTreeNode ) n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( isValidSpaceNode( n ) ) count++ ;  return count; }
+	inline size_t validSpaceNodes( LocalDepth d ) const { int count = 0 ; for( ConstPointer( FEMTreeNode ) n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( _localDepth(n)==d && isValidSpaceNode( n ) ) count++ ; return count; }
+	template< unsigned int ... FEMSigs > size_t validFEMNodes( UIntPack< FEMSigs ... > ) const { int count = 0 ; for( ConstPointer( FEMTreeNode ) n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( isValidFEMNode( UIntPack< FEMSigs ... >() , n ) ) count++ ;  return count; }
+	template< unsigned int ... FEMSigs > size_t validFEMNodes( UIntPack< FEMSigs ... > , LocalDepth d ) const { int count = 0 ; for( ConstPointer( FEMTreeNode ) n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( _localDepth(n)==d && isValidFEMNode( UIntPack< FEMSigs ... >() , n ) ) count++ ; return count; }
+#else // !USE_ALLOCATOR_POINTERS
 	size_t nodes( void ) const { int count = 0 ; for( const FEMTreeNode* n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( IsActiveNode< Dim >( n ) ) count++ ; return count; }
 	size_t ghostNodes( void ) const { int count = 0 ; for( const FEMTreeNode* n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( !IsActiveNode< Dim >( n ) ) count++ ; return count; }
 	inline size_t validSpaceNodes( void ) const { int count = 0 ; for( const FEMTreeNode* n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( isValidSpaceNode( n ) ) count++ ;  return count; }
 	inline size_t validSpaceNodes( LocalDepth d ) const { int count = 0 ; for( const FEMTreeNode* n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( _localDepth(n)==d && isValidSpaceNode( n ) ) count++ ; return count; }
 	template< unsigned int ... FEMSigs > size_t validFEMNodes( UIntPack< FEMSigs ... > ) const { int count = 0 ; for( const FEMTreeNode* n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( isValidFEMNode( UIntPack< FEMSigs ... >() , n ) ) count++ ;  return count; }
 	template< unsigned int ... FEMSigs > size_t validFEMNodes( UIntPack< FEMSigs ... > , LocalDepth d ) const { int count = 0 ; for( const FEMTreeNode* n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( _localDepth(n)==d && isValidFEMNode( UIntPack< FEMSigs ... >() , n ) ) count++ ; return count; }
+#endif // USE_ALLOCATOR_POINTERS
 	LocalDepth depth( void ) const { return _spaceRoot->maxDepth(); }
+#ifdef USE_ALLOCATOR_POINTERS
+	void resetNodeIndices( void ){ _nodeCount = 0 ; for( Pointer( FEMTreeNode ) node=_tree->nextNode() ; node ; node=_tree->nextNode( node ) ) _nodeInitializer( *node ) , node->nodeData.flags=0; }
+#else // !USE_ALLOCATOR_POINTERS
 	void resetNodeIndices( void ){ _nodeCount = 0 ; for( FEMTreeNode* node=_tree->nextNode() ; node ; node=_tree->nextNode( node ) ) _nodeInitializer( *node ) , node->nodeData.flags=0; }
+#endif // USE_ALLOCATOR_POINTERS
 
 #ifdef NEW_CODE
 	std::vector< node_index_type > merge( FEMTree* tree );
