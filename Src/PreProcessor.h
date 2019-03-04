@@ -36,7 +36,7 @@ DAMAGE.
 						
 #define NEW_THREADS								// Enabling this flag augments the OpenMP implementation of parallelism with C++11's
 #undef SHOW_WARNINGS							// Display compilation warnings
-#undef ARRAY_DEBUG								// If enabled, array access is tested for validity
+#define ARRAY_DEBUG								// If enabled, array access is tested for validity
 #define FAST_COMPILE							// If enabled, only a single version of the reconstruction code is compiled
 
 #define USE_FEWER_THREADS						// Use fewer threads if necessary

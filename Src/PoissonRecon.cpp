@@ -503,6 +503,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 	messageWriter( comments , "** Running Screened Poisson Reconstruction (Version %s) **\n" , VERSION );
 	messageWriter( comments , "*************************************************************\n" );
 	messageWriter( comments , "*************************************************************\n" );
+	if( !Threads.set ) messageWriter( comments , "Running with %d threads\n" , Threads.value );
 
 
 	XForm< Real , Dim+1 > xForm , iXForm;
@@ -891,7 +892,6 @@ int main( int argc , char* argv[] )
 #else // !NEW_THREADS
 	omp_set_num_threads( Threads.value > 1 ? Threads.value : 1 );
 #endif // NEW_THREADS
-	if( !Threads.set ) printf( "Running with %d threads\n" , Threads.value );
 
 	messageWriter.echoSTDOUT = Verbose.set;
 	if( !In.set )

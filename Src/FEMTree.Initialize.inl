@@ -124,6 +124,7 @@ int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPoint
 	}
 	if( outOfBoundPoints  ) WARN( "Found out-of-bound points: " , outOfBoundPoints );
 	FEMTree< Dim , Real >::MemoryUsage();
+printf( "Returning...\n" );
 	return pointCount;
 }
 

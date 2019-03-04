@@ -230,6 +230,7 @@ void _Execute( int argc , char* argv[] )
 	messageWriter( comments , "** Running EDT in Heat (Version %s) **\n" , VERSION );
 	messageWriter( comments , "*****************************************\n" );
 	messageWriter( comments , "*****************************************\n" );
+	if( !Threads.set ) messageWriter( comments , "Running with %d threads\n" , Threads.value );
 
 
 	XForm< Real , Dim+1 > xForm , iXForm;
@@ -694,7 +695,6 @@ int main( int argc , char* argv[] )
 #else // !NEW_THREADS
 	omp_set_num_threads( Threads.value > 1 ? Threads.value : 1 );
 #endif // NEW_THREADS
-	if( !Threads.set ) printf( "Running with %d threads\n" , Threads.value );
 	if( MaxMemoryGB.value>0 ) SetPeakMemoryMB( MaxMemoryGB.value<<10 );
 	messageWriter.echoSTDOUT = Verbose.set;
 

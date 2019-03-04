@@ -317,7 +317,6 @@ int main( int argc , char* argv[] )
 #else // !NEW_THREADS
 	omp_set_num_threads( Threads.value > 1 ? Threads.value : 1 );
 #endif // NEW_THREADS
-	if( !Threads.set ) printf( "Running with %d threads\n" , Threads.value );
 	if( Verbose.set )
 	{
 		printf( "**************************************************\n" );
@@ -325,6 +324,7 @@ int main( int argc , char* argv[] )
 		printf( "** Running Octree Visualization (Version %s) **\n" , VERSION );
 		printf( "**************************************************\n" );
 		printf( "**************************************************\n" );
+		if( !Threads.set ) printf( "Running with %d threads\n" , Threads.value );
 	}
 
 	if( !In.set )

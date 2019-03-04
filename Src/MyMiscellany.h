@@ -263,6 +263,9 @@ namespace MKExceptions
 
 #ifdef NEW_CODE
 
+template< typename Value > bool SetAtomic( Value& value , const Value &newValue , const Value &oldValue );
+template< typename Data > void AddAtomic( Data& a , const Data& b );
+
 #ifdef NEW_THREADS
 ////////////////////
 // MKThread Stuff //
@@ -423,6 +426,7 @@ struct ThreadPool
 		std::atomic< size_t > index;
 		index.store( 0 );
 
+
 #ifdef USE_FEWER_THREADS
 		if( _ParallelType==NONE || threads==1 )
 #else // !USE_FEWER_THREADS
@@ -432,33 +436,23 @@ struct ThreadPool
 			for( size_t i=begin ; i<end ; i++ ) iterationFunction( 0 , i );
 			return;
 		}
-#if 1
-		auto _ChunkFunction = [ &iterationFunction , begin , end , chunkSize ]( unsigned int thread , unsigned int chunk )
+
+		auto _ChunkFunction = [ &iterationFunction , begin , end , chunkSize ]( unsigned int thread , size_t chunk )
 		{
 			const size_t _begin = begin + chunkSize*chunk;
 			const size_t _end = std::min< size_t >( end , _begin+chunkSize );
 			for( size_t i=_begin ; i<_end ; i++ ) iterationFunction( thread , i );
 		};
-#endif
-		auto _StaticThreadFunction = [ &iterationFunction , begin , end , chunks , chunkSize , threads ]( unsigned int thread )
+		auto _StaticThreadFunction = [ &_ChunkFunction , chunks , threads ]( unsigned int thread )
 		{
-			for( size_t chunk=thread ; chunk<chunks ; chunk+=threads )
-			{
-				const size_t _begin = begin + chunkSize*chunk;
-				const size_t _end = std::min< size_t >( end , _begin+chunkSize );
-				for( size_t i=_begin ; i<_end ; i++ ) iterationFunction( thread , i );
-			}
+			for( size_t chunk=thread ; chunk<chunks ; chunk+=threads ) _ChunkFunction( thread , chunk );
 		};
-		auto _DynamicThreadFunction = [ &iterationFunction , begin , end , chunks , chunkSize , threads , &index ]( unsigned int thread )
+		auto _DynamicThreadFunction = [ &_ChunkFunction , chunks , &index ]( unsigned int thread )
 		{
 			size_t chunk;
-			while( ( chunk=index.fetch_add(1) )<chunks )
-			{
-				const size_t _begin = begin + chunkSize*chunk;
-				const size_t _end = std::min< size_t >( end , _begin+chunkSize );
-				for( size_t i=_begin ; i<_end ; i++ ) iterationFunction( thread , i );
-			}
+			while( ( chunk=index.fetch_add(1) )<chunks ) _ChunkFunction( thread , chunk );
 		};
+
 		if     ( schedule==STATIC  ) _ThreadFunction = _StaticThreadFunction;
 		else if( schedule==DYNAMIC ) _ThreadFunction = _DynamicThreadFunction;
 
@@ -466,17 +460,12 @@ struct ThreadPool
 #ifdef _OPENMP
 		else if( _ParallelType==OPEN_MP )
 		{
-#if 1
 			if( schedule==STATIC )
 #pragma omp parallel for num_threads( threads ) schedule( static , 1 )
 				for( int c=0 ; c<chunks ; c++ ) _ChunkFunction( omp_get_thread_num() , c );
 			else if( schedule==DYNAMIC )
 #pragma omp parallel for num_threads( threads ) schedule( dynamic , 1 )
 				for( int c=0 ; c<chunks ; c++ ) _ChunkFunction( omp_get_thread_num() , c );
-#else
-#pragma omp parallel for num_threads( threads ) schedule( static , 1 )
-			for( int t=0 ; t<(int)threads ; t++ ) _ThreadFunction( t );
-#endif
 		}
 #endif // _OPENMP
 		else if( _ParallelType=THREAD_POOL_HH )
@@ -522,7 +511,16 @@ struct ThreadPool
 		else if( _ParallelType==THREAD_POOL )
 		{
 #ifdef USE_FEWER_THREADS
+#if 1
+#ifdef USE_THREAD_MINUS_ONE
+			unsigned int targetTasks = 0;
+			if( !SetAtomic( _RemainingTasks , threads-1 , targetTasks ) )
+#else // !USE_THREAD_MINUS_ONE
+			if( !SetAtomic( _RemainingTasks , threads , 0 ) )
+#endif // USE_THREAD_MINUS_ONE
+#else
 			if( _RemainingTasks )
+#endif
 #else // !USE_FEWER_THREADS
 			if( _WorkToBeDone )
 #endif // USE_FEWER_THREADS
@@ -535,14 +533,22 @@ struct ThreadPool
 #ifdef USE_FEWER_THREADS
 				std::unique_lock< std::mutex > lock( _Mutex );
 #ifdef USE_THREAD_MINUS_ONE
+#if 1
+				_TotalTasks = threads-1;
+#else
 				_TotalTasks = _RemainingTasks = threads-1;
+#endif
 				_NextTask = 0;
 				for( unsigned int t=0 ; t<threads-1 ; t++ ) _WaitingForWorkOrClose.notify_one();
 				lock.unlock();
 				_ThreadFunction( threads-1 );
 				lock.lock();
 #else // !USE_THREAD_MINUS_ONE
+#if 1
+				_TotalTasks = threads;
+#else
 				_TotalTasks = _RemainingTasks = threads;
+#endif
 				_NextTask = 0;
 				for( unsigned int t=0 ; t<threads ; t++ ) _WaitingForWorkOrClose.notify_one();
 #endif // USE_THREAD_MINUS_ONE
@@ -628,8 +634,11 @@ private:
 		while( !_Close )
 		{
 #ifdef USE_FEWER_THREADS
-			//			if( _NextTask<_TotalTasks )
+#if 1
+			if( _NextTask<_TotalTasks )
+#else
 			while( _NextTask<_TotalTasks )
+#endif
 			{
 				unsigned int currentTask = _NextTask++;
 				lock.unlock();
