@@ -64,9 +64,16 @@ public:
 #else // !USE_ALLOCATOR_POINTERS
 	static RegularTreeNode* NewBrood( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer=std::function< void ( RegularTreeNode& ) >() );
 #endif // USE_ALLOCATOR_POINTERS
+#ifdef SECURE_INIT_ONLY
+#else // !SECURE_INIT_ONLY
 	int initChildren( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer=std::function< void ( RegularTreeNode& ) >() );
+#endif // SECURE_INIT_ONLY
 #ifdef NEW_CODE
+#ifdef SECURE_INIT_ONLY
+	bool initChildren( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer=std::function< void ( RegularTreeNode& ) >() );
+#else // !SECURE_INIT_ONLY
 	bool initChildren_s( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer=std::function< void ( RegularTreeNode& ) >() );
+#endif // SECURE_INIT_ONLY
 	void cleanChildren( bool deleteChildren );
 #else // !NEW_CODE
 	void cleanChildren( Allocator< RegularTreeNode >* nodeAllocator );

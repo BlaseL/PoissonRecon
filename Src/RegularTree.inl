@@ -195,7 +195,11 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::setFullDepth( int m
 
 #ifdef NEW_CODE
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+#ifdef SECURE_INIT_ONLY
+bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
+#else // !SECURE_INIT_ONLY
 bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren_s( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
+#endif // SECURE_INIT_ONLY
 {
 #ifdef USE_ALLOCATOR_POINTERS
 	Pointer( RegularTreeNode ) _children;
@@ -244,6 +248,8 @@ if( children!=_children ) fprintf( stderr , "uhoh\n" );
 	}
 }
 #endif // NEW_CODE
+#ifdef SECURE_INIT_ONLY
+#else // !SECURE_INIT_ONLY
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
 {
@@ -274,6 +280,7 @@ int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren( Alloca
 	}
 	return 1;
 }
+#endif // SECURE_INIT_ONLY
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< class MergeFunctor >
 #ifdef USE_ALLOCATOR_POINTERS
@@ -753,7 +760,11 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey
 #ifdef NEW_THREADS
 #ifdef NEW_CODE
 				{
+#ifdef SECURE_INIT_ONLY
+					pNeighbors[pi]->initChildren( nodeAllocator , Initializer );
+#else // !SECURE_INIT_ONLY
 					pNeighbors[pi]->initChildren_s( nodeAllocator , Initializer );
+#endif // SECURE_INIT_ONLY
 				}
 #else // !NEW_CODE
 				{
@@ -831,7 +842,11 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey
 #ifdef NEW_THREADS
 #ifdef NEW_CODE
 				{
+#ifdef SECURE_INIT_ONLY
+					pNeighbors[pi]->initChildren( nodeAllocator , Initializer );
+#else // !SECURE_INIT_ONLY
 					pNeighbors[pi]->initChildren_s( nodeAllocator , Initializer );
+#endif // SECURE_INIT_ONLY
 				}
 #else // !NEW_CODE
 				{

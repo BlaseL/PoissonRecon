@@ -239,7 +239,11 @@ RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* FEMTree< Dim ,
 	LocalDepth d = _localDepth( node );
 	while( ( d<0 && node->children ) || ( d>=0 && d<maxDepth ) )
 	{
+#ifdef SECURE_INIT_ONLY
+		if( !node->children ) node->initChildren( nodeAllocator , _NodeInitializer( *this ) );
+#else // !SECURE_INIT_ONLY
 		if( !node->children ) node->initChildren_s( nodeAllocator , _NodeInitializer( *this ) );
+#endif // SECURE_INIT_ONLY
 		int cIndex = FEMTreeNode::ChildIndex( center , p );
 		node = node->children + cIndex;
 		d++;
