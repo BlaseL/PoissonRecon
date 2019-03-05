@@ -51,17 +51,9 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::cleanChildren( bool
 	if( children )
 	{
 		for( int c=0 ; c<(1<<Dim) ; c++ ) children[c].cleanChildren( deleteChildren );
-#ifdef USE_ALLOCATOR_POINTERS
-		if( deleteChildren ) DeletePointer( children );
-#else // !USE_ALLOCATOR_POINTERS
 		if( deleteChildren ) delete[] children;
-#endif // USE_ALLOCATOR_POINTERS
 	}
-#ifdef USE_ALLOCATOR_POINTERS
-	parent = children = NullPointer( RegularTreeNode );
-#else // !USE_ALLOCATOR_POINTERS
 	parent = children = NULL;
-#endif // USE_ALLOCATOR_POINTERS
 }
 #else // !NEW_CODE
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
@@ -70,17 +62,9 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::cleanChildren( Allo
 	if( children )
 	{
 		for( int c=0 ; c<(1<<Dim) ; c++ ) children[c].cleanChildren( nodeAllocator );
-#ifdef USE_ALLOCATOR_POINTERS
-		if( !nodeAllocator ) DeletePointer( children );
-#else // !USE_ALLOCATOR_POINTERS
 		if( !nodeAllocator ) delete[] children;
-#endif // USE_ALLOCATOR_POINTERS
 	}
-#ifdef USE_ALLOCATOR_POINTERS
-	parent = children = NullPointer( RegularTreeNode );
-#else // !USE_ALLOCATOR_POINTERS
 	parent = children = NULL;
-#endif // USE_ALLOCATOR_POINTERS
 }
 #endif // NEW_CODE
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
@@ -89,30 +73,14 @@ RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::~RegularTreeNode(void)
 #ifdef SHOW_WARNINGS
 #pragma message( "[WARNING] Deallocation of children is your responsibility" )
 #endif // SHOW_WARNINGS
-#ifdef USE_ALLOCATOR_POINTERS
-	parent = children = NullPointer( RegularTreeNode );
-#else // !USE_ALLOCATOR_POINTERS
 	parent = children = NULL;
-#endif // USE_ALLOCATOR_POINTERS
 }
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-#ifdef USE_ALLOCATOR_POINTERS
-Pointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NewBrood( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
-#else // !USE_ALLOCATOR_POINTERS
 RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NewBrood( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
-#endif // USE_ALLOCATOR_POINTERS
 {
-#ifdef USE_ALLOCATOR_POINTERS
-	Pointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) brood;
-#else // !USE_ALLOCATOR_POINTERS
 	RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* brood;
-#endif // USE_ALLOCATOR_POINTERS
 	if( nodeAllocator ) brood = nodeAllocator->newElements( 1<<Dim );
-#ifdef USE_ALLOCATOR_POINTERS
-	else                brood = NewPointer< RegularTreeNode >( 1<<Dim );
-#else // !USE_ALLOCATOR_POINTERS
 	else                brood = new RegularTreeNode[ 1<<Dim ];
-#endif // USE_ALLOCATOR_POINTERS
 	for( int idx=0 ; idx<(1<<Dim) ; idx++ )
 	{
 		if( Initializer ) Initializer( brood[idx] );
@@ -122,25 +90,13 @@ RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , N
 	return brood;
 }
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-#ifdef USE_ALLOCATOR_POINTERS
-void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ResetDepthAndOffset( Pointer( RegularTreeNode ) root , int d , int off[Dim] )
-#else // !USE_ALLOCATOR_POINTERS
 void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ResetDepthAndOffset( RegularTreeNode* root , int d , int off[Dim] )
-#endif // USE_ALLOCATOR_POINTERS
 {
 	std::function< void ( int& , int[Dim] ) > ParentDepthAndOffset = [] ( int& d , int off[Dim] ){ d-- ; for( int _d=0 ; _d<Dim ; _d++ ) off[_d]>>=1 ; };
 	std::function< void ( int& , int[Dim] ) >  ChildDepthAndOffset = [] ( int& d , int off[Dim] ){ d++ ; for( int _d=0 ; _d<Dim ; _d++ ) off[_d]<<=1 ; };
-#ifdef USE_ALLOCATOR_POINTERS
-	std::function< Pointer( RegularTreeNode ) ( Pointer( RegularTreeNode ) , int& , int[] ) > _nextBranch = [&]( Pointer( RegularTreeNode ) current , int& d , int off[Dim] )
-#else // !USE_ALLOCATOR_POINTERS
 	std::function< RegularTreeNode* ( RegularTreeNode* , int& , int[] ) > _nextBranch = [&]( RegularTreeNode* current , int& d , int off[Dim] )
-#endif // USE_ALLOCATOR_POINTERS
 	{
-#ifdef USE_ALLOCATOR_POINTERS
-		if( current==root ) return NullPointer( RegularTreeNode );
-#else // !USE_ALLOCATOR_POINTERS
 		if( current==root ) return (RegularTreeNode*)NULL;
-#endif // USE_ALLOCATOR_POINTERS
 		else
 		{
 			int c = (int)( current - current->parent->children );
@@ -158,11 +114,7 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ResetDepthAndOffset
 			}
 		}
 	};
-#ifdef USE_ALLOCATOR_POINTERS
-	auto _nextNode = [&]( Pointer( RegularTreeNode ) current , int& d , int off[Dim] )
-#else // !USE_ALLOCATOR_POINTERS
 	auto _nextNode = [&]( RegularTreeNode* current , int& d , int off[Dim] )
-#endif // USE_ALLOCATOR_POINTERS
 	{
 		if( !current ) return root;
 		else if( current->children )
@@ -172,11 +124,7 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ResetDepthAndOffset
 		}
 		else return _nextBranch( current , d , off );
 	};
-#ifdef USE_ALLOCATOR_POINTERS
-	for( Pointer( RegularTreeNode ) node=_nextNode( NullPointer( RegularTreeNode ) , d , off ) ; node!=NullPointer( RegularTreeNode ) ; node = _nextNode( node , d , off ) )
-#else // !USE_ALLOCATOR_POINTERS
 	for( RegularTreeNode* node=_nextNode( NULL , d , off ) ; node ; node = _nextNode( node , d , off ) )
-#endif // USE_ALLOCATOR_POINTERS
 	{
 		node->_depth = (DepthAndOffsetType)d;
 		for( int _d=0 ; _d<Dim ; _d++ ) node->_offset[_d] = (DepthAndOffsetType)off[_d];
@@ -201,34 +149,20 @@ bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren( Alloc
 bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren_s( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
 #endif // SECURE_INIT_ONLY
 {
-#ifdef USE_ALLOCATOR_POINTERS
-	Pointer( RegularTreeNode ) _children;
-#else // !USE_ALLOCATOR_POINTERS
 	RegularTreeNode *_children;
-#endif // USE_ALLOCATOR_POINTERS
 
 	// Allocate the children
 	if( nodeAllocator ) _children = nodeAllocator->newElements( 1<<Dim );
-#ifdef USE_ALLOCATOR_POINTERS
-	else                _children = NewPointer< RegularTreeNode>( 1<<Dim );
-#else // !USE_ALLOCATOR_POINTERS
 	else                _children = new RegularTreeNode[ 1<<Dim ];
-#endif // USE_ALLOCATOR_POINTERS
 	if( !_children ) ERROR_OUT( "Failed to initialize children" );
 
 	// If we are the first to set the child, initialize
 	if( SetAtomic( children , _children , (RegularTreeNode *)NULL ) )
 	{
-if( children!=_children ) fprintf( stderr , "uhoh\n" );
 		for( int idx=0 ; idx<(1<<Dim) ; idx++ )
 		{
-#ifdef USE_ALLOCATOR_POINTERS
-			children[idx].parent = GetPointer( this , 1 );
-			children[idx].children = NullPointer( RegularTreeNode );
-#else // !USE_ALLOCATOR_POINTERS
 			children[idx].parent = this;
 			children[idx].children = NULL;
-#endif // USE_ALLOCATOR_POINTERS
 			if( Initializer ) Initializer( children[idx] );
 			children[idx]._depth = _depth+1;
 			for( int d=0 ; d<Dim ; d++ ) children[idx]._offset[d] = (_offset[d]<<1) | ( (idx>>d) & 1 );
@@ -239,11 +173,7 @@ if( children!=_children ) fprintf( stderr , "uhoh\n" );
 	else
 	{
 		if( nodeAllocator ) ;
-#ifdef USE_ALLOCATOR_POINTERS
-		else DeletePointer( _children );
-#else // !USE_ALLOCATOR_POINTERS
 		else delete[] _children;
-#endif // USE_ALLOCATOR_POINTERS
 		return false;
 	}
 }
@@ -256,24 +186,14 @@ int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren( Alloca
 	if( nodeAllocator ) children = nodeAllocator->newElements( 1<<Dim );
 	else
 	{
-#ifdef USE_ALLOCATOR_POINTERS
-		if( children ) DeletePointer( children );
-		children = NewPointer< RegularTreeNode >( 1<<Dim );
-#else // !USE_ALLOCATOR_POINTERS
 		if( children ) delete[] children;
 		children = new RegularTreeNode[ 1<<Dim ];
-#endif // USE_ALLOCATOR_POINTERS
 	}
 	if( !children ) ERROR_OUT( "Failed to initialize children" );
 	for( int idx=0 ; idx<(1<<Dim) ; idx++ )
 	{
-#ifdef USE_ALLOCATOR_POINTERS
-		children[idx].parent = GetPointer( this , 1 );
-		children[idx].children = NullPointer( RegularTreeNode );
-#else // !USE_ALLOCATOR_POINTERS
 		children[idx].parent = this;
 		children[idx].children = NULL;
-#endif // USE_ALLOCATOR_POINTERS
 		if( Initializer ) Initializer( children[idx] );
 		children[idx]._depth = _depth+1;
 		for( int d=0 ; d<Dim ; d++ ) children[idx]._offset[d] = (_offset[d]<<1) | ( (idx>>d) & 1 );
@@ -283,11 +203,7 @@ int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren( Alloca
 #endif // SECURE_INIT_ONLY
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< class MergeFunctor >
-#ifdef USE_ALLOCATOR_POINTERS
-void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::merge( Pointer( RegularTreeNode ) node , MergeFunctor& f )
-#else // !USE_ALLOCATOR_POINTERS
 void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::merge( RegularTreeNode* node , MergeFunctor& f )
-#endif // USE_ALLOCATOR_POINTERS
 {
 	if( node )
 	{
@@ -296,13 +212,8 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::merge( RegularTreeN
 		else if( node->children )
 		{
 			children = node->children;
-#ifdef USE_ALLOCATOR_POINTERS
-			for( int c=0 ; c<(1<<Dim) ; c++ ) children[c].parent = GetPointer( this , 1 );
-			node->children = NullPointer( RegularTreeNode );
-#else // !USE_ALLOCATOR_POINTERS
 			for( int c=0 ; c<(1<<Dim) ; c++ ) children[c].parent = this;
 			node->children = NULL;
-#endif // USE_ALLOCATOR_POINTERS
 		}
 	}
 }
@@ -393,102 +304,6 @@ size_t RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::maxDepthLeaves( i
 		return c;
 	}
 }
-#ifdef USE_ALLOCATOR_POINTERS
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-ConstPointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::root( void ) const
-{
-	ConstPointer( RegularTreeNode ) temp = GetPointer( this , 1 );
-	while( temp->parent ) temp = temp->parent;
-	return temp;
-}
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-ConstPointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::nextBranch( ConstPointer( RegularTreeNode ) current ) const
-{
-	if( !current->parent || current==this ) return NullPointer( RegularTreeNode );
-	if( current-current->parent->children==(1<<Dim)-1 ) return nextBranch( current->parent );
-	else return current+1;
-}
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-Pointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::nextBranch( Pointer( RegularTreeNode ) current )
-{
-	if( !current->parent || current==this ) return NullPointer( RegularTreeNode );
-	if( current-current->parent->children==(1<<Dim)-1 ) return nextBranch( current->parent );
-	else return current+1;
-}
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-ConstPointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::prevBranch( ConstPointer( RegularTreeNode ) current ) const
-{
-	if( !current->parent || current==this ) return NullPointer( RegularTreeNode );
-	if( current-current->parent->children==0 ) return prevBranch( current->parent );
-	else return current-1;
-}
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-Pointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::prevBranch( Pointer( RegularTreeNode ) current )
-{
-	if( !current->parent || current==this ) return NullPointer( RegularTreeNode );
-	if( current-current->parent->children==0 ) return prevBranch( current->parent );
-	else return current-1;
-}
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-ConstPointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::nextLeaf( ConstPointer( RegularTreeNode ) current ) const
-{
-	if( !current )
-	{
-		ConstPointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) temp = GetPointer( this , 1 );
-		while( temp->children ) temp = temp->children;
-		return temp;
-	}
-	if( current->children ) return current->nextLeaf();
-	ConstPointer( RegularTreeNode ) temp = nextBranch( current );
-	if( !temp ) return NullPointer( RegularTreeNode );
-	else return temp->nextLeaf();
-}
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-Pointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::nextLeaf( Pointer( RegularTreeNode ) current )
-{
-	if( !current )
-	{
-		Pointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) temp = GetPointer( this , 1 );
-		while( temp->children ) temp = temp->children;
-		return temp;
-	}
-	if( current->children ) return current->nextLeaf();
-	Pointer( RegularTreeNode ) temp = nextBranch( current) ;
-	if( !temp ) return NullPointer( RegularTreeNode );
-	else return temp->nextLeaf();
-}
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-template< typename NodeTerminationLambda >
-ConstPointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::nextNode( NodeTerminationLambda &ntl , ConstPointer( RegularTreeNode ) current ) const
-{
-	if( !current ) return GetPointer( this , 1 );
-	else if( current->children && !ntl(current) ) return current->children;
-	else return nextBranch( current );
-}
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-template< typename NodeTerminationLambda >
-Pointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::nextNode( NodeTerminationLambda &ntl , Pointer( RegularTreeNode ) current )
-{
-	if( !current ) return GetPointer( this , 1 );
-	else if( current->children && !ntl(current) ) return current->children;
-	else return nextBranch( current );
-}
-
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-ConstPointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::nextNode( ConstPointer( RegularTreeNode ) current ) const
-{
-	if( !current ) return GetPointer( this , 1 );
-	else if( current->children ) return current->children;
-	else return nextBranch( current );
-}
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-Pointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::nextNode( Pointer( RegularTreeNode ) current )
-{
-	if( !current ) return GetPointer( this , 1 );
-	else if( current->children ) return current->children;
-	else return nextBranch( current );
-}
-#else // !USE_ALLOCATOR_POINTERS
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 const RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::root( void ) const
 {
@@ -580,7 +395,6 @@ RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , N
 	else if( current->children ) return current->children;
 	else return nextBranch( current );
 }
-#endif // USE_ALLOCATOR_POINTERS
 
 
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
@@ -635,20 +449,12 @@ template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::read( FILE* fp , Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
 {
 	if( fread( this , sizeof( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read node" );
-#ifdef USE_ALLOCATOR_POINTERS
-	parent = NullPointer( RegularTreeNode );
-#else // !USE_ALLOCATOR_POINTERS
 	parent = NULL;
-#endif // USE_ALLOCATOR_POINTERS
 	if( children )
 	{
 		children = NULL;
 		initChildren( nodeAllocator , Initializer );
-#ifdef USE_ALLOCATOR_POINTERS
-		for( int i=0 ; i<(1<<Dim) ; i++ ) children[i].read( fp , nodeAllocator , Initializer ) , children[i].parent = GetPointer( this , 1 );
-#else // !USE_ALLOCATOR_POINTERS
 		for( int i=0 ; i<(1<<Dim) ; i++ ) children[i].read( fp , nodeAllocator , Initializer ) , children[i].parent = this;
-#endif // USE_ALLOCATOR_POINTERS
 	}
 	return true;
 }
@@ -710,89 +516,6 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPa
 	if( d<0 ) return;
 	neighbors = new NeighborType[d+1];
 }
-#ifdef USE_ALLOCATOR_POINTERS
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
-template< bool CreateNodes , unsigned int ... _PLeftRadii , unsigned int ... _PRightRadii , unsigned int ... _CLeftRadii , unsigned int ... _CRightRadii >
-unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_NeighborsLoop( UIntPack< _PLeftRadii ... > pLeftRadii , UIntPack< _PRightRadii ... > pRightRadii , UIntPack< _CLeftRadii ... > cLeftRadii , UIntPack< _CRightRadii ... > cRightRadii , ConstWindowSlice< Pointer( RegularTreeNode ) , UIntPack< ( _PLeftRadii + _PRightRadii + 1 ) ... > > pNeighbors , WindowSlice< Pointer( RegularTreeNode ) , UIntPack< ( _CLeftRadii + _CRightRadii + 1 ) ... > > cNeighbors , int cIdx , Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
-{
-	static_assert( Dim==sizeof ... ( _PLeftRadii ) && Dim==sizeof ... ( _PRightRadii ) && Dim==sizeof ... ( _CLeftRadii ) && Dim==sizeof ... ( _CRightRadii ) , "[ERROR] Dimensions don't match" );
-	int c[Dim];
-	for( int d=0 ; d<Dim ; d++ ) c[d] = ( cIdx>>d ) & 1;
-	return _Run< CreateNodes , UIntPack< _PLeftRadii ... > , UIntPack< _PRightRadii ... > , UIntPack< _CLeftRadii ... > , UIntPack< _CRightRadii ... > >::Run( pNeighbors , cNeighbors , c , 0 , nodeAllocator , Initializer );
-}
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
-template< bool CreateNodes , unsigned int ... _PLeftRadii , unsigned int ... _PRightRadii , unsigned int ... _CLeftRadii , unsigned int ... _CRightRadii >
-unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_NeighborsLoop( UIntPack< _PLeftRadii ... > pLeftRadii , UIntPack< _PRightRadii ... > pRightRadii , UIntPack< _CLeftRadii ... > cLeftRadii , UIntPack< _CRightRadii ... > cRightRadii , WindowSlice< Pointer( RegularTreeNode ) , UIntPack< ( _PLeftRadii + _PRightRadii + 1 ) ... > > pNeighbors , WindowSlice< Pointer( RegularTreeNode ) , UIntPack< ( _CLeftRadii + _CRightRadii + 1 ) ... > > cNeighbors , int cIdx , Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
-{
-	return _NeighborsLoop< CreateNodes >( UIntPack< _PLeftRadii ... >() , UIntPack< _PRightRadii ... >() , UIntPack< _CLeftRadii ... >() , UIntPack< _CRightRadii ... >() , ( ConstWindowSlice< Pointer( RegularTreeNode ) , UIntPack< ( _PLeftRadii + _PRightRadii + 1 ) ... > > )pNeighbors , cNeighbors , cIdx , nodeAllocator , Initializer );
-}
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
-template< bool CreateNodes , unsigned int _PLeftRadius , unsigned int ... _PLeftRadii , unsigned int _PRightRadius , unsigned int ... _PRightRadii , unsigned int _CLeftRadius , unsigned int ... _CLeftRadii , unsigned int _CRightRadius , unsigned int ... _CRightRadii >
-unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_Run< CreateNodes , UIntPack< _PLeftRadius , _PLeftRadii ... > , UIntPack< _PRightRadius , _PRightRadii ... > , UIntPack< _CLeftRadius , _CLeftRadii ... > , UIntPack< _CRightRadius , _CRightRadii ... > >::Run( ConstWindowSlice< Pointer( RegularTreeNode ) , UIntPack< _PLeftRadius + _PRightRadius + 1 , ( _PLeftRadii + _PRightRadii + 1 ) ... > > pNeighbors , WindowSlice< Pointer( RegularTreeNode ) , UIntPack< _CLeftRadius + _CRightRadius + 1 , ( _CLeftRadii + _CRightRadii + 1 ) ... > > cNeighbors , int* c , int cornerIndex , Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
-{
-	static const int D = sizeof ... ( _PLeftRadii ) + 1;
-	unsigned int count=0;
-	for( int i=-(int)_CLeftRadius ; i<=(int)_CRightRadius ; i++ )
-	{
-		int _i = (i+c[Dim-D]) + ( _CLeftRadius<<1 ) , pi = ( _i>>1 ) - _CLeftRadius + _PLeftRadius  , ci = i + _CLeftRadius;
-		count += _Run< CreateNodes , UIntPack< _PLeftRadii ... > , UIntPack< _PRightRadii ... > , UIntPack< _CLeftRadii ... > , UIntPack< _CRightRadii ... > >::Run( pNeighbors[pi] , cNeighbors[ci] , c , cornerIndex | ( ( _i&1)<<(Dim-D) ) , nodeAllocator , Initializer );
-	}
-	return count;
-}
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
-template< bool CreateNodes , unsigned int _PLeftRadius , unsigned int _PRightRadius , unsigned int _CLeftRadius , unsigned int _CRightRadius >
-unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_Run< CreateNodes , UIntPack< _PLeftRadius > , UIntPack< _PRightRadius > , UIntPack< _CLeftRadius > , UIntPack< _CRightRadius > >::Run( ConstWindowSlice< Pointer( RegularTreeNode ) , UIntPack< _PLeftRadius+_PRightRadius+1 > > pNeighbors , WindowSlice< Pointer( RegularTreeNode ) , UIntPack< _CLeftRadius+_CRightRadius+1 > > cNeighbors , int* c , int cornerIndex , Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
-{
-	static const int D = 1;
-	unsigned int count=0;
-	for( int i=-(int)_CLeftRadius ; i<=(int)_CRightRadius ; i++ )
-	{
-		int _i = (i+c[Dim-1]) + ( _CLeftRadius<<1 ) , pi = ( _i>>1 ) - _CLeftRadius + _PLeftRadius  , ci = i + _CLeftRadius;
-		if( CreateNodes )
-		{
-			if( pNeighbors[pi] )
-			{
-				if( !pNeighbors[pi]->children )
-#ifdef NEW_THREADS
-#ifdef NEW_CODE
-				{
-#ifdef SECURE_INIT_ONLY
-					pNeighbors[pi]->initChildren( nodeAllocator , Initializer );
-#else // !SECURE_INIT_ONLY
-					pNeighbors[pi]->initChildren_s( nodeAllocator , Initializer );
-#endif // SECURE_INIT_ONLY
-				}
-#else // !NEW_CODE
-				{
-					static std::mutex m;
-					std::lock_guard< std::mutex > lock(m);
-					if( !pNeighbors[pi]->children ) pNeighbors[pi]->initChildren( nodeAllocator , Initializer );
-				}
-#endif // NEW_CODE
-#else // !NEW_THREADS
-#pragma omp critical ( RegularTreeNode__NeighborKey__Run )
-				{
-					if( !pNeighbors[pi]->children ) pNeighbors[pi]->initChildren( nodeAllocator , Initializer );
-				}
-#endif // NEW_THREADS
-				cNeighbors[ci] = pNeighbors[pi]->children + ( cornerIndex | ( ( _i&1)<<(Dim-1) ) );
-				count++;
-			}
-			else cNeighbors[ci] = NULL;
-		}
-		else
-		{
-			if( pNeighbors[pi] && pNeighbors[pi]->children ) cNeighbors[ci] = pNeighbors[pi]->children + ( cornerIndex | ( ( _i&1)<<(Dim-1) ) ) , count++;
-			else cNeighbors[ci] = NULL;
-		}
-	}
-	return count;
-}
-#else // !USE_ALLOCATOR_POINTERS
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< bool CreateNodes , unsigned int ... _PLeftRadii , unsigned int ... _PRightRadii , unsigned int ... _CLeftRadii , unsigned int ... _CRightRadii >
@@ -874,7 +597,7 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey
 	}
 	return count;
 }
-#endif // USE_ALLOCATOR_POINTERS
+
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< bool CreateNodes >
@@ -903,11 +626,7 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< bool CreateNodes >
-#ifdef USE_ALLOCATOR_POINTERS
-typename RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::template Neighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getNeighbors( Pointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) node , Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
-#else // !USE_ALLOCATOR_POINTERS
 typename RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::template Neighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getNeighbors( RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* node , Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
-#endif // USE_ALLOCATOR_POINTERS
 {
 	NeighborType& neighbors = this->neighbors[node->depth()];
 	// This is required in case the neighbors have been constructed between the last call to getNeighbors and this one
@@ -930,11 +649,7 @@ typename RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::template Neighb
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< bool CreateNodes , unsigned int ... _LeftRadii , unsigned int ... _RightRadii >
-#ifdef USE_ALLOCATOR_POINTERS
-void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getNeighbors( UIntPack< _LeftRadii ... > , UIntPack< _RightRadii ... > , Pointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) node , Neighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors , Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
-#else // !USE_ALLOCATOR_POINTERS
 void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getNeighbors( UIntPack< _LeftRadii ... > , UIntPack< _RightRadii ... > , RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* node , Neighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors , Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
-#endif // USE_ALLOCATOR_POINTERS
 {
 	static const unsigned int _CenterIndex = WindowIndex< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > , UIntPack< _LeftRadii ... > >::Index;
 	neighbors.clear();
@@ -968,11 +683,7 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPa
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< bool CreateNodes , unsigned int ... _LeftRadii , unsigned int ... _RightRadii >
-#ifdef USE_ALLOCATOR_POINTERS
-void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getNeighbors( UIntPack< _LeftRadii ... > , UIntPack< _RightRadii ... > , Pointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) node , Neighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& pNeighbors , Neighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors , Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
-#else // !USE_ALLOCATOR_POINTERS
 void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getNeighbors( UIntPack< _LeftRadii ... > , UIntPack< _RightRadii ... > , RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* node , Neighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& pNeighbors , Neighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors , Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
-#endif // USE_ALLOCATOR_POINTERS
 {
 	UIntPack<  _LeftRadii ... >  leftRadii;
 	UIntPack< _RightRadii ... > rightRadii;
@@ -1023,25 +734,6 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< U
 	neighbors = new NeighborType[d+1];
 }
 
-#ifdef USE_ALLOCATOR_POINTERS
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
-template< unsigned int ... _PLeftRadii , unsigned int ... _PRightRadii , unsigned int ... _CLeftRadii , unsigned int ... _CRightRadii >
-unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_NeighborsLoop( UIntPack< _PLeftRadii ... > pLeftRadii , UIntPack< _PRightRadii ... > pRightRadii , UIntPack< _CLeftRadii ... > cLeftRadii , UIntPack< _CRightRadii ... > cRightRadii , ConstWindowSlice< ConstPointer( RegularTreeNode ) , UIntPack< ( _PLeftRadii + _PRightRadii + 1 ) ... > > pNeighbors , WindowSlice< ConstPointer( RegularTreeNode ) , UIntPack< ( _CLeftRadii + _CRightRadii + 1 ) ... > > cNeighbors , int cIdx )
-{
-	static_assert( Dim==sizeof ... ( _PLeftRadii ) && Dim==sizeof ... ( _PRightRadii ) && Dim==sizeof ... ( _CLeftRadii ) && Dim==sizeof ... ( _CRightRadii ) , "[ERROR] Dimensions don't match" );
-	int c[Dim];
-	for( int d=0 ; d<Dim ; d++ ) c[d] = ( cIdx>>d ) & 1;
-	return _Run< UIntPack< _PLeftRadii ... > , UIntPack< _PRightRadii ... > , UIntPack< _CLeftRadii ... > , UIntPack< _CRightRadii ... > >::Run( pNeighbors , cNeighbors , c , 0 );
-}
-template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
-template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
-template< unsigned int ... _PLeftRadii , unsigned int ... _PRightRadii , unsigned int ... _CLeftRadii , unsigned int ... _CRightRadii >
-unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_NeighborsLoop( UIntPack< _PLeftRadii ... > pLeftRadii , UIntPack< _PRightRadii ... > pRightRadii , UIntPack< _CLeftRadii ... > cLeftRadii , UIntPack< _CRightRadii ... > cRightRadii , WindowSlice< ConstPointer( RegularTreeNode ) , UIntPack< ( _PLeftRadii + _PRightRadii + 1 ) ... > > pNeighbors , WindowSlice< ConstPointer( RegularTreeNode ) , UIntPack< ( _CLeftRadii + _CRightRadii + 1 ) ... > > cNeighbors , int cIdx )
-{
-	return _NeighborsLoop( UIntPack< _PLeftRadii ... >() , UIntPack< _PRightRadii ... >() , UIntPack< _CLeftRadii ... >() , UIntPack< _CRightRadii ... >() , ( ConstWindowSlice< ConstPointer( RegularTreeNode ) , UIntPack< ( _PLeftRadii + _PRightRadii + 1 ) ... > > )pNeighbors , cNeighbors , cIdx );
-}
-#else // !USE_ALLOCATOR_POINTERS
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< unsigned int ... _PLeftRadii , unsigned int ... _PRightRadii , unsigned int ... _CLeftRadii , unsigned int ... _CRightRadii >
@@ -1059,16 +751,11 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighb
 {
 	return _NeighborsLoop( UIntPack< _PLeftRadii ... >() , UIntPack< _PRightRadii ... >() , UIntPack< _CLeftRadii ... >() , UIntPack< _CRightRadii ... >() , ( ConstWindowSlice< const RegularTreeNode* , UIntPack< ( _PLeftRadii + _PRightRadii + 1 ) ... > > )pNeighbors , cNeighbors , cIdx );
 }
-#endif // USE_ALLOCATOR_POINTERS
 
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< unsigned int _PLeftRadius , unsigned int ... _PLeftRadii , unsigned int _PRightRadius , unsigned int ... _PRightRadii , unsigned int _CLeftRadius , unsigned int ... _CLeftRadii , unsigned int _CRightRadius , unsigned int ... _CRightRadii >
-#ifdef USE_ALLOCATOR_POINTERS
-unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_Run< UIntPack< _PLeftRadius , _PLeftRadii ... > , UIntPack< _PRightRadius , _PRightRadii ... > , UIntPack< _CLeftRadius , _CLeftRadii ... > , UIntPack< _CRightRadius , _CRightRadii ... > >::Run( ConstWindowSlice< ConstPointer( RegularTreeNode ) , UIntPack< _PLeftRadius + _PRightRadius + 1 , ( _PLeftRadii + _PRightRadii + 1 ) ... > > pNeighbors , WindowSlice< ConstPointer( RegularTreeNode ) , UIntPack< _CLeftRadius + _CRightRadius + 1 , ( _CLeftRadii + _CRightRadii + 1 ) ... > > cNeighbors , int* c , int cornerIndex )
-#else // !USE_ALLOCATOR_POINTERS
 unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_Run< UIntPack< _PLeftRadius , _PLeftRadii ... > , UIntPack< _PRightRadius , _PRightRadii ... > , UIntPack< _CLeftRadius , _CLeftRadii ... > , UIntPack< _CRightRadius , _CRightRadii ... > >::Run( ConstWindowSlice< const RegularTreeNode* , UIntPack< _PLeftRadius + _PRightRadius + 1 , ( _PLeftRadii + _PRightRadii + 1 ) ... > > pNeighbors , WindowSlice< const RegularTreeNode* , UIntPack< _CLeftRadius + _CRightRadius + 1 , ( _CLeftRadii + _CRightRadii + 1 ) ... > > cNeighbors , int* c , int cornerIndex )
-#endif // USE_ALLOCATOR_POINTERS
 {
 	static const int D = sizeof ... ( _PLeftRadii ) + 1;
 	unsigned int count=0;
@@ -1082,11 +769,7 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighb
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< unsigned int _PLeftRadius , unsigned int _PRightRadius , unsigned int _CLeftRadius , unsigned int _CRightRadius  >
-#ifdef USE_ALLOCATOR_POINTERS
-unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_Run< UIntPack< _PLeftRadius > , UIntPack< _PRightRadius > , UIntPack< _CLeftRadius > , UIntPack< _CRightRadius > >::Run( ConstWindowSlice< ConstPointer( RegularTreeNode ) , UIntPack< _PLeftRadius+_PRightRadius+1 > > pNeighbors , WindowSlice< ConstPointer( RegularTreeNode ) , UIntPack< _CLeftRadius+_CRightRadius+1 > > cNeighbors , int* c , int cornerIndex )
-#else // !USE_ALLOCATOR_POINTERS
 unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_Run< UIntPack< _PLeftRadius > , UIntPack< _PRightRadius > , UIntPack< _CLeftRadius > , UIntPack< _CRightRadius > >::Run( ConstWindowSlice< const RegularTreeNode* , UIntPack< _PLeftRadius+_PRightRadius+1 > > pNeighbors , WindowSlice< const RegularTreeNode* , UIntPack< _CLeftRadius+_CRightRadius+1 > > cNeighbors , int* c , int cornerIndex )
-#endif // USE_ALLOCATOR_POINTERS
 {
 	static const int D = 1;
 	unsigned int count=0;
@@ -1112,11 +795,7 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighb
 
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
-#ifdef USE_ALLOCATOR_POINTERS
-typename RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::template ConstNeighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getNeighbors( ConstPointer( RegularTreeNode ) node )
-#else // !USE_ALLOCATOR_POINTERS
 typename RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::template ConstNeighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getNeighbors( const RegularTreeNode* node )
-#endif // USE_ALLOCATOR_POINTERS
 {
 	ConstNeighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& neighbors = this->neighbors[ node->depth() ];
 	if( node!=neighbors.neighbors.data[ CenterIndex ] )
@@ -1131,11 +810,7 @@ typename RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::template ConstN
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< unsigned int ... _LeftRadii , unsigned int ... _RightRadii >
-#ifdef USE_ALLOCATOR_POINTERS
-void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getNeighbors( UIntPack< _LeftRadii ... > , UIntPack< _RightRadii ... > , ConstPointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) node , ConstNeighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors )
-#else // !USE_ALLOCATOR_POINTERS
 void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getNeighbors( UIntPack< _LeftRadii ... > , UIntPack< _RightRadii ... > , const RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* node , ConstNeighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors )
-#endif // USE_ALLOCATOR_POINTERS
 {
 	static const unsigned int _CenterIndex = WindowIndex< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > , UIntPack< _LeftRadii ... > >::Index;
 
@@ -1169,11 +844,7 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< U
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 template< unsigned int ... _LeftRadii , unsigned int ... _RightRadii >
-#ifdef USE_ALLOCATOR_POINTERS
-void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getNeighbors( UIntPack< _LeftRadii ... > , UIntPack< _RightRadii ... > , ConstPointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) node , ConstNeighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& pNeighbors , ConstNeighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors )
-#else // !USE_ALLOCATOR_POINTERS
 void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ConstNeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getNeighbors( UIntPack< _LeftRadii ... > , UIntPack< _RightRadii ... > , const RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* node , ConstNeighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& pNeighbors , ConstNeighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors )
-#endif // USE_ALLOCATOR_POINTERS
 {
 	UIntPack<  _LeftRadii ... >  leftRadii;
 	UIntPack< _RightRadii ... > rightRadii;

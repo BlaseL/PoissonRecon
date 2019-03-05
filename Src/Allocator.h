@@ -29,9 +29,6 @@ DAMAGE.
 #ifndef ALLOCATOR_INCLUDED
 #define ALLOCATOR_INCLUDED
 #include <vector>
-#ifdef USE_ALLOCATOR_POINTERS
-#include "Array.h"
-#endif // USE_ALLOCATOR_POINTERS
 
 #ifdef NEW_CODE
 struct AllocatorState
@@ -62,11 +59,7 @@ class SingleThreadedAllocator
 #ifdef NEW_CODE
 	size_t _blockSize;
 	AllocatorState _state;
-#ifdef USE_ALLOCATOR_POINTERS
-	std::vector< Pointer( T ) > _memory;
-#else // !USE_ALLOCATOR_POINTERS
 	std::vector< T* > _memory;
-#endif // USE_ALLOCATOR_POINTERS
 #else // !NEW_CODE
 	int blockSize;
 	int index , remains;
@@ -86,20 +79,12 @@ public:
 	void reset( void )
 	{
 #ifdef NEW_CODE
-#ifdef USE_ALLOCATOR_POINTERS
-		for( size_t i=0 ; i<_memory.size() ; i++ ) DeletePointer( _memory[i] );
-#else // !USE_ALLOCATOR_POINTERS
 		for( size_t i=0 ; i<_memory.size() ; i++ ) delete[] _memory[i];
-#endif // USE_ALLOCATOR_POINTERS
 		_memory.clear();
 		_blockSize = 0;
 		_state = AllocatorState();
 #else // !NEW_CODE
-#ifdef USE_ALLOCATOR_POINTERS
-		for( size_t i=0 ; i<memory.size() ; i++ ) DeletePointer( _memory[i] );
-#else // !USE_ALLOCATOR_POINTERS
 		for( size_t i=0 ; i<memory.size() ; i++ ) delete[] memory[i];
-#endif // USE_ALLOCATOR_POINTERS
 		memory.clear();
 		blockSize=index=remains=0;
 #endif // NEW_CODE
@@ -245,78 +230,44 @@ public:
 	  * the allocator was initialized, the request for memory will fail.
 	  */
 #ifdef NEW_CODE
-#ifdef USE_ALLOCATOR_POINTERS
-	Pointer( T ) newElements( size_t elements=1 )
-#else // !USE_ALLOCATOR_POINTERS
 	T* newElements( size_t elements=1 )
-#endif // USE_ALLOCATOR_POINTERS
 	{
-#ifdef USE_ALLOCATOR_POINTERS
-		Pointer( T ) mem;
-		if( !elements ) return NullPointer( T );
-#else // !USE_ALLOCATOR_POINTERS
 		T* mem;
 		if( !elements ) return NULL;
-#endif // USE_ALLOCATOR_POINTERS
 		if( elements>_blockSize ) ERROR_OUT( "elements bigger than block-size: " , elements , " > " , _blockSize );
 		if( _state.remains<elements )
 		{
 			if( _state.index==_memory.size()-1 )
 			{
-#ifdef USE_ALLOCATOR_POINTERS
-				mem = NewPointer< T >( _blockSize );
-#else // !USE_ALLOCATOR_POINTERS
 				mem = new T[ _blockSize ];
-#endif // USE_ALLOCATOR_POINTERS
 				if( !mem ) ERROR_OUT( "Failed to allocate memory" );
 				_memory.push_back( mem );
 			}
 			_state.index++;
 			_state.remains = _blockSize;
 		}
-#ifdef USE_ALLOCATOR_POINTERS
-		mem = GetPointer( &( _memory[ _state.index ][ _blockSize-_state.remains ] ) , elements );
-#else // !USE_ALLOCATOR_POINTERS
 		mem = &( _memory[ _state.index ][ _blockSize-_state.remains ] );
-#endif // USE_ALLOCATOR_POINTERS
 		_state.remains -= elements;
 		return mem;
 	}
 #else // !NEW_CODE
-#ifdef USE_ALLOCATOR_POINTERS
-	Pointer( T ) newElements( int elements=1 )
-#else // !USE_ALLOCATOR_POINTERS
 	T* newElements( int elements=1 )
-#endif // USE_ALLOCATOR_POINTERS
 	{
-#ifdef USE_ALLOCATOR_POINTERS
-		Pointer( T ) mem;
-		if( !elements ) return NullPointer( T );
-#else // !USE_ALLOCATOR_POINTERS
 		T* mem;
 		if( !elements ) return NULL;
-#endif // USE_ALLOCATOR_POINTERS
 		if( elements>blockSize ) ERROR_OUT( "elements bigger than block-size: " , elements , " > " , blockSize );
 		if( remains<elements )
 		{
 			if( index==memory.size()-1 )
 			{
-#ifdef USE_ALLOCATOR_POINTERS
-				mem = NewPointer< T >( blockSize );
-#else // !USE_ALLOCATOR_POINTERS
 				mem = new T[blockSize];
-#endif // USE_ALLOCATOR_POINTERS
 				if( !mem ) ERROR_OUT( "Failed to allocate memory" );
 				memory.push_back( mem );
 			}
 			index++;
 			remains=blockSize;
 		}
-#ifdef USE_ALLOCATOR_POINTERS
-		mem = GetPointer( &(memory[index][blockSize-remains]) , elements );
-#else // !USE_ALLOCATOR_POINTERS
 		mem = &(memory[index][blockSize-remains]);
-#endif // USE_ALLOCATOR_POINTERS
 		remains -= elements;
 		return mem;
 	}

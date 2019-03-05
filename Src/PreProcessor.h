@@ -36,14 +36,14 @@ DAMAGE.
 						
 #define NEW_THREADS								// Enabling this flag augments the OpenMP implementation of parallelism with C++11's
 #undef SHOW_WARNINGS							// Display compilation warnings
-#define ARRAY_DEBUG								// If enabled, array access is tested for validity
+#undef ARRAY_DEBUG								// If enabled, array access is tested for validity
 #define FAST_COMPILE							// If enabled, only a single version of the reconstruction code is compiled
 
 #define USE_FEWER_THREADS						// Use fewer threads if necessary
 #define USE_THREAD_MINUS_ONE					// Do some of the processing the current thread
 
-#undef USE_ALLOCATOR_POINTERS					// Use the Pointer wrapper for the allocator
 #define SECURE_INIT_ONLY
+#define THREAD_SANITIZER
 
 #ifdef BIG_DATA
 #define USE_DEEP_TREE_NODES						// Chances are that if you are using big data, you want to support a tree with depth>15.

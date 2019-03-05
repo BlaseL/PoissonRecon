@@ -48,19 +48,11 @@ template< unsigned int Degree > double GetScaleValue( void )
 }
 template< unsigned int Dim , class Real >
 template< unsigned int WeightDegree >
-#ifdef USE_ALLOCATOR_POINTERS
-#ifdef NEW_CODE
-void FEMTree< Dim , Real >::_addWeightContribution( Allocator< FEMTreeNode > *nodeAllocator , DensityEstimator< WeightDegree >& densityWeights , Pointer( FEMTreeNode ) node , Point< Real , Dim > position , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , Real weight )
-#else // !NEW_CODE
-void FEMTree< Dim , Real >::_addWeightContribution( DensityEstimator< WeightDegree >& densityWeights , Pointer( FEMTreeNode ) node , Point< Real , Dim > position , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , Real weight )
-#endif // NEW_CODE
-#else // !USE_ALLOCATOR_POINTERS
 #ifdef NEW_CODE
 void FEMTree< Dim , Real >::_addWeightContribution( Allocator< FEMTreeNode > *nodeAllocator , DensityEstimator< WeightDegree >& densityWeights , FEMTreeNode* node , Point< Real , Dim > position , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , Real weight )
 #else // !NEW_CODE
 void FEMTree< Dim , Real >::_addWeightContribution( DensityEstimator< WeightDegree >& densityWeights , FEMTreeNode* node , Point< Real , Dim > position , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , Real weight )
 #endif // NEW_CODE
-#endif // USE_ALLOCATOR_POINTERS
 {
 	static const double ScaleValue = GetScaleValue< WeightDegree >();
 	double values[ Dim ][ BSplineSupportSizes< WeightDegree >::SupportSize ];
@@ -94,11 +86,7 @@ void FEMTree< Dim , Real >::_addWeightContribution( DensityEstimator< WeightDegr
 
 template< unsigned int Dim , class Real >
 template< unsigned int WeightDegree , class PointSupportKey >
-#ifdef USE_ALLOCATOR_POINTERS
-Real FEMTree< Dim , Real >::_getSamplesPerNode( const DensityEstimator< WeightDegree >& densityWeights , ConstPointer( FEMTreeNode ) node , Point< Real , Dim > position , PointSupportKey& weightKey ) const
-#else // !USE_ALLOCATOR_POINTERS
 Real FEMTree< Dim , Real >::_getSamplesPerNode( const DensityEstimator< WeightDegree >& densityWeights , const FEMTreeNode* node , Point< Real , Dim > position , PointSupportKey& weightKey ) const
-#endif // USE_ALLOCATOR_POINTERS
 {
 	Real weight = 0;
 	typedef typename PointSupportKey::NeighborType Neighbors;
@@ -122,11 +110,7 @@ Real FEMTree< Dim , Real >::_getSamplesPerNode( const DensityEstimator< WeightDe
 }
 template< unsigned int Dim , class Real >
 template< unsigned int WeightDegree , class PointSupportKey >
-#ifdef USE_ALLOCATOR_POINTERS
-void FEMTree< Dim , Real >::_getSampleDepthAndWeight( const DensityEstimator< WeightDegree >& densityWeights , ConstPointer( FEMTreeNode ) node , Point< Real , Dim > position , PointSupportKey& weightKey , Real& depth , Real& weight ) const
-#else // !USE_ALLOCATOR_POINTERS
 void FEMTree< Dim , Real >::_getSampleDepthAndWeight( const DensityEstimator< WeightDegree >& densityWeights , const FEMTreeNode* node , Point< Real , Dim > position , PointSupportKey& weightKey , Real& depth , Real& weight ) const
-#endif // USE_ALLOCATOR_POINTERS
 {
 	const FEMTreeNode* temp = node;
 	while( _localDepth( temp )>densityWeights.kernelDepth() ) temp = temp->parent;

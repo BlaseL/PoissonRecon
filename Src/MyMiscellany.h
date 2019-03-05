@@ -293,7 +293,7 @@ inline void StackTrace( void )
 
 		char syscom[1024];
 		sprintf( syscom , "addr2line %p -e PoissonRecon/Bin/Linux/PoissonRecon" , trace[i] ); //last parameter is the name of this app
-		system( syscom );
+		if( !system( syscom ) ) WARN( "failed to issue system command" );
 
 		// find parantheses and +address offset surrounding mangled name
 		for( char *p=messages[i] ; *p ; ++p )
@@ -343,7 +343,7 @@ inline void StackTrace( void )
 }
 inline void SignalHandler( int signal )
 {
-	printf( "Signal: %d\n" );
+	printf( "Signal: %d\n" , signal );
 	StackTrace();
 	exit( 0 );
 }
@@ -388,6 +388,7 @@ namespace hh
 		}
 		~ThreadPoolIndexedTask( void )
 		{
+printf( "ThreadPoolIndexedTask dtor called\n" );
 #ifdef USE_THREAD_MINUS_ONE
 			if( _threads.size() )
 #endif // USE_THREAD_MINUS_ONE
