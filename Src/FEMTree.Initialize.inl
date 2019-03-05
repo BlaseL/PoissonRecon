@@ -234,7 +234,7 @@ int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPoint
 		}
 		pointStream.reset();
 	}
-printf( "Returning 0\n" );
+printf( "Returning 0...\n" );
 	if( outOfBoundPoints  ) WARN( "Found out-of-bound points: " , outOfBoundPoints );
 	if( badData           ) WARN( "Found bad data: " , badData );
 printf( "Returning 1...\n" );

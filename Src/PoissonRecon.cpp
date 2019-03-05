@@ -883,6 +883,13 @@ void Execute( int argc , char* argv[] )
 
 int main( int argc , char* argv[] )
 {
+#if 1
+#if defined(_WIN32) || defined( _WIN64 )
+#else // !WINDOWS
+	WARN( "using seg-fault handler" );
+	signal( SIGSEGV , SignalHandler );
+#endif // WINDOWS
+#endif
 	Timer timer;
 #ifdef ARRAY_DEBUG
 	WARN( "Array debugging enabled" );

@@ -264,13 +264,15 @@ namespace MKExceptions
 #ifdef NEW_CODE
 
 #if defined(_WIN32) || defined( _WIN64 )
-void StackTrace( void )
+inline void StackTrace( void )
 {
 }
 #else // !WINDOWS
 #include <execinfo.h>
 #include <unistd.h>
 #include <cxxabi.h>
+#include <signal.h>
+
 inline void StackTrace( void )
 {
 	// Code borrowed from:
@@ -319,6 +321,13 @@ inline void StackTrace( void )
 
 	free( messages );
 }
+inline void SignalHandler( int signal )
+{
+	printf( "Signal: %d\n" );
+	StackTrace();
+	exit( 0 );
+}
+
 #endif // WINDOWS
 
 
