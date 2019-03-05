@@ -32,8 +32,8 @@ endif
 CFLAGS_DEBUG = -DDEBUG -g3
 LFLAGS_DEBUG =
 
-CFLAGS_RELEASE = -O3 -DRELEASE -funroll-loops -ffast-math -g -rdynamic
-LFLAGS_RELEASE = -O3 -g -rdynamic
+CFLAGS_RELEASE = -O3 -DRELEASE -funroll-loops -ffast-math -g -rdynamic -fsanitize=thread
+LFLAGS_RELEASE = -O3 -g -rdynamic -fsanitize=thread
 
 SRC = Src/
 BIN = Bin/Linux/

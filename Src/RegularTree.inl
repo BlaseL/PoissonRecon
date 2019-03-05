@@ -215,10 +215,11 @@ bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren_s( All
 	// If we are the first to set the child, initialize
 	if( SetAtomic( children , _children , (RegularTreeNode *)NULL ) )
 	{
+if( children!=_children ) fprintf( stderr , "uhoh\n" );
 		for( int idx=0 ; idx<(1<<Dim) ; idx++ )
 		{
 #ifdef USE_ALLOCATOR_POINTERS
-			children[idx].parent = GetPointer( this , 1<<Dim );
+			children[idx].parent = GetPointer( this , 1 );
 			children[idx].children = NullPointer( RegularTreeNode );
 #else // !USE_ALLOCATOR_POINTERS
 			children[idx].parent = this;
@@ -261,7 +262,7 @@ int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren( Alloca
 	for( int idx=0 ; idx<(1<<Dim) ; idx++ )
 	{
 #ifdef USE_ALLOCATOR_POINTERS
-		children[idx].parent = GetPointer( this , 1<<Dim );
+		children[idx].parent = GetPointer( this , 1 );
 		children[idx].children = NullPointer( RegularTreeNode );
 #else // !USE_ALLOCATOR_POINTERS
 		children[idx].parent = this;
@@ -289,7 +290,7 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::merge( RegularTreeN
 		{
 			children = node->children;
 #ifdef USE_ALLOCATOR_POINTERS
-			for( int c=0 ; c<(1<<Dim) ; c++ ) children[c].parent = GetPointer( this , 1<<Dim );
+			for( int c=0 ; c<(1<<Dim) ; c++ ) children[c].parent = GetPointer( this , 1 );
 			node->children = NullPointer( RegularTreeNode );
 #else // !USE_ALLOCATOR_POINTERS
 			for( int c=0 ; c<(1<<Dim) ; c++ ) children[c].parent = this;
@@ -389,7 +390,7 @@ size_t RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::maxDepthLeaves( i
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 ConstPointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::root( void ) const
 {
-	ConstPointer( RegularTreeNode ) temp = GetPointer( this , 1<<Dim );
+	ConstPointer( RegularTreeNode ) temp = GetPointer( this , 1 );
 	while( temp->parent ) temp = temp->parent;
 	return temp;
 }
@@ -426,7 +427,7 @@ ConstPointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) RegularTr
 {
 	if( !current )
 	{
-		ConstPointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) temp = GetPointer( this , 1<<Dim );
+		ConstPointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) temp = GetPointer( this , 1 );
 		while( temp->children ) temp = temp->children;
 		return temp;
 	}
@@ -440,7 +441,7 @@ Pointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) RegularTreeNod
 {
 	if( !current )
 	{
-		Pointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) temp = GetPointer( this , 1<<Dim );
+		Pointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) temp = GetPointer( this , 1 );
 		while( temp->children ) temp = temp->children;
 		return temp;
 	}
@@ -453,7 +454,7 @@ template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< typename NodeTerminationLambda >
 ConstPointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::nextNode( NodeTerminationLambda &ntl , ConstPointer( RegularTreeNode ) current ) const
 {
-	if( !current ) return GetPointer( this , 1<<Dim );
+	if( !current ) return GetPointer( this , 1 );
 	else if( current->children && !ntl(current) ) return current->children;
 	else return nextBranch( current );
 }
@@ -461,7 +462,7 @@ template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< typename NodeTerminationLambda >
 Pointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::nextNode( NodeTerminationLambda &ntl , Pointer( RegularTreeNode ) current )
 {
-	if( !current ) return GetPointer( this , 1<<Dim );
+	if( !current ) return GetPointer( this , 1 );
 	else if( current->children && !ntl(current) ) return current->children;
 	else return nextBranch( current );
 }
@@ -469,14 +470,14 @@ Pointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) RegularTreeNod
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 ConstPointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::nextNode( ConstPointer( RegularTreeNode ) current ) const
 {
-	if( !current ) return GetPointer( this , 1<<Dim );
+	if( !current ) return GetPointer( this , 1 );
 	else if( current->children ) return current->children;
 	else return nextBranch( current );
 }
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 Pointer( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::nextNode( Pointer( RegularTreeNode ) current )
 {
-	if( !current ) return GetPointer( this , 1<<Dim );
+	if( !current ) return GetPointer( this , 1 );
 	else if( current->children ) return current->children;
 	else return nextBranch( current );
 }
@@ -637,7 +638,7 @@ bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::read( FILE* fp , Al
 		children = NULL;
 		initChildren( nodeAllocator , Initializer );
 #ifdef USE_ALLOCATOR_POINTERS
-		for( int i=0 ; i<(1<<Dim) ; i++ ) children[i].read( fp , nodeAllocator , Initializer ) , children[i].parent = GetPointer( this , 1<<Dim );
+		for( int i=0 ; i<(1<<Dim) ; i++ ) children[i].read( fp , nodeAllocator , Initializer ) , children[i].parent = GetPointer( this , 1 );
 #else // !USE_ALLOCATOR_POINTERS
 		for( int i=0 ; i<(1<<Dim) ; i++ ) children[i].read( fp , nodeAllocator , Initializer ) , children[i].parent = this;
 #endif // USE_ALLOCATOR_POINTERS

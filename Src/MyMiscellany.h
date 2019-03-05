@@ -275,6 +275,9 @@ inline void StackTrace( void )
 
 inline void StackTrace( void )
 {
+	static std::mutex mutex;
+	std::lock_guard< std::mutex > lock(mutex);
+
 	// Code borrowed from:
 	// https://stackoverflow.com/questions/77005/how-to-automatically-generate-a-stacktrace-when-my-program-crashes
 	// and
@@ -314,13 +317,25 @@ inline void StackTrace( void )
 			char * real_name = abi::__cxa_demangle(mangled_name, 0, 0, &status);
 
 			// if demangling is successful, output the demangled function name
-			if( !status ) std::cerr << "\t(" << i << ") " << messages[i] << " : " << real_name << "+" << offset_begin << offset_end  << std::endl;
+			if( !status )
+			{
+				std::cerr << "\t(" << i << ") " << messages[i] << " : " << real_name << "+" << offset_begin << offset_end  << std::endl;
+				std::cout << "\t(" << i << ") " << messages[i] << " : " << real_name << "+" << offset_begin << offset_end  << std::endl;
+			}
 			// otherwise, output the mangled function name
-			else          std::cerr << "\t(" << i << ") " << messages[i] << " : " << mangled_name << "+" << offset_begin << offset_end << std::endl;
+			else
+			{
+				std::cerr << "\t(" << i << ") " << messages[i] << " : " << mangled_name << "+" << offset_begin << offset_end << std::endl;
+				std::cout << "\t(" << i << ") " << messages[i] << " : " << mangled_name << "+" << offset_begin << offset_end << std::endl;
+			}
 			free( real_name );
 		}
 		// otherwise, print the whole line
-		else std::cerr << "\t(" << i << ") " << messages[i] << std::endl;
+		else
+		{
+			std::cerr << "\t(" << i << ") " << messages[i] << std::endl;
+			std::cout << "\t(" << i << ") " << messages[i] << std::endl;
+		}
 	}
 
 	free( messages );

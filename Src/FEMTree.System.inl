@@ -4348,7 +4348,11 @@ void FEMTree< Dim , Real >::addInterpolationConstraints( DenseNodeData< T , UInt
 							(
 								IsotropicUIntPack< Dim , 0 >() , SupportSizes() ,
 								[&]( int d , int i ){ s[d] = i; } ,
+#ifdef USE_ALLOCATOR_POINTERS
+								[&]( ConstPointer( FEMTreeNode ) _node )
+#else // !USE_ALLOCATOR_POINTERS
 								[&]( const FEMTreeNode* _node )
+#endif // USE_ALLOCATOR_POINTERS
 							{
 								if( _isValidFEM1Node( _node ) )
 								{

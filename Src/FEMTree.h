@@ -436,26 +436,46 @@ struct _SparseOrDenseNodeData< Data , UIntPack< FEMSigs ... > >
 	virtual const Data& operator[] ( size_t idx ) const = 0;
 	virtual Data& operator[] ( size_t idx ) = 0;
 
+#ifdef USE_ALLOCATOR_POINTERS
+	// Method for accessing (and inserting if necessary) using a node
+	virtual Data& operator[]( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > ) node ) = 0;
+	// Methods for accessing using a node
+	virtual Data* operator()( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > ) node ) = 0;
+	virtual const Data* operator()( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > ) node ) const = 0;
+#else // !USE_ALLOCATOR_POINTERS
 	// Method for accessing (and inserting if necessary) using a node
 	virtual Data& operator[]( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > *node ) = 0;
 	// Methods for accessing using a node
 	virtual Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > *node ) = 0;
 	virtual const Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ) const = 0;
+#endif // USE_ALLOCATOR_POINTERS
 #else // !NEW_CODE
 	virtual const Data& operator[] ( int idx ) const = 0;
 	virtual Data& operator[] ( int idx ) = 0;
 
+#ifdef USE_ALLOCATOR_POINTERS
+	// Method for accessing (and inserting if necessary) using a node
+	virtual Data& operator[]( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData > ) node ) = 0;
+	// Methods for accessing using a node
+	virtual Data* operator()( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData > ) node ) = 0;
+	virtual const Data* operator()( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData > ) node ) const = 0;
+#else // !USE_ALLOCATOR_POINTERS
 	// Method for accessing (and inserting if necessary) using a node
 	virtual Data& operator[]( const RegularTreeNode< Dim , FEMTreeNodeData > *node ) = 0;
 	// Methods for accessing using a node
 	virtual Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData > *node ) = 0;
 	virtual const Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) const = 0;
+#endif // USE_ALLOCATOR_POINTERS
 #endif // NEW_CODE
 
 
 #ifdef NEW_CODE
 	// Method for getting the actual index associated with a node
+#ifdef USE_ALLOCATOR_POINTERS
+	virtual node_index_type index( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > ) node ) const = 0;
+#else // !USE_ALLOCATOR_POINTERS
 	virtual node_index_type index( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ) const = 0;
+#endif // USE_ALLOCATOR_POINTERS
 #endif // NEW_CODE
 };
 
@@ -476,13 +496,25 @@ struct SparseNodeData< Data , UIntPack< FEMSigs ... > > : public _SparseOrDenseN
 
 	void reserve( size_t sz ){ if( sz>_indices.size() ) _indices.resize( sz , -1 ); }
 #ifdef NEW_CODE
+#ifdef USE_ALLOCATOR_POINTERS
+	Data* operator()( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > ) node ){ return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(node_index_type)_indices.size() || _indices[ node->nodeData.nodeIndex ]==-1 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
+	const Data* operator()( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > ) node ) const { return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(node_index_type)_indices.size() || _indices[ node->nodeData.nodeIndex ]==-1 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
+	Data& operator[]( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > ) node )
+#else // !USE_ALLOCATOR_POINTERS
 	Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ){ return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(node_index_type)_indices.size() || _indices[ node->nodeData.nodeIndex ]==-1 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
 	const Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ) const { return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(node_index_type)_indices.size() || _indices[ node->nodeData.nodeIndex ]==-1 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
 	Data& operator[]( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node )
+#endif // USE_ALLOCATOR_POINTERS
 #else // !NEW_CODE
+#ifdef USE_ALLOCATOR_POINTERS
+	Data* operator()( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData > ) node ){ return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(int)_indices.size() || _indices[ node->nodeData.nodeIndex ]<0 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
+	const Data* operator()( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData > ) node ) const { return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(int)_indices.size() || _indices[ node->nodeData.nodeIndex ]<0 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
+	Data& operator[]( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData > ) node )
+#else // !USE_ALLOCATOR_POINTERS
 	Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData >* node ){ return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(int)_indices.size() || _indices[ node->nodeData.nodeIndex ]<0 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
 	const Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) const { return ( node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(int)_indices.size() || _indices[ node->nodeData.nodeIndex ]<0 ) ? NULL : &_data[ _indices[ node->nodeData.nodeIndex ] ]; }
 	Data& operator[]( const RegularTreeNode< Dim , FEMTreeNodeData >* node )
+#endif // USE_ALLOCATOR_POINTERS
 #endif // NEW_CODE
 	{
 #ifdef NEW_THREADS
@@ -530,13 +562,21 @@ struct SparseNodeData< Data , UIntPack< FEMSigs ... > > : public _SparseOrDenseN
 #endif // NEW_CODE
 	}
 #ifdef NEW_CODE
+#ifdef USE_ALLOCATOR_POINTERS
+	node_index_type index( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > ) node ) const
+#else // !USE_ALLOCATOR_POINTERS
 	node_index_type index( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > *node ) const
+#endif // USE_ALLOCATOR_POINTERS
 	{
 		if( !node || node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(node_index_type)_indices.size() ) return -1;
 		else return _indices[ node->nodeData.nodeIndex ];
 	}
 #else // !NEW_CODE
+#ifdef USE_ALLOCATOR_POINTERS
+	int index( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData > ) node ) const
+#else // !USE_ALLOCATOR_POINTERS
 	int index( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) const
+#endif // USE_ALLOCATOR_POINTERS
 	{
 		if( !node || node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(int)_indices.size() ) return -1;
 		else return _indices[ node->nodeData.nodeIndex ];
@@ -607,15 +647,29 @@ struct DenseNodeData< Data , UIntPack< FEMSigs ... > > : public _SparseOrDenseNo
 #endif // NEW_CODE
 	size_t size( void ) const { return _sz; }
 #ifdef NEW_CODE
+#ifdef USE_ALLOCATOR_POINTERS
+	Data& operator[]( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > ) node ) { return _data[ node->nodeData.nodeIndex ]; }
+	Data* operator()( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > ) node ) { return ( !node || node->nodeData.nodeIndex>=(node_index_type)_sz ) ? NULL : &_data[ node->nodeData.nodeIndex ]; }
+	const Data* operator()( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > ) node ) const { return ( !node || node->nodeData.nodeIndex>=(node_index_type)_sz ) ? NULL : &_data[ node->nodeData.nodeIndex ]; }
+	node_index_type index( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > ) node ) const { return ( !node || node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(node_index_type)_sz ) ? -1 : node->nodeData.nodeIndex; }
+#else // !USE_ALLOCATOR_POINTERS
 	Data& operator[]( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ) { return _data[ node->nodeData.nodeIndex ]; }
 	Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ) { return ( node==NULL || node->nodeData.nodeIndex>=(node_index_type)_sz ) ? NULL : &_data[ node->nodeData.nodeIndex ]; }
 	const Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ) const { return ( node==NULL || node->nodeData.nodeIndex>=(node_index_type)_sz ) ? NULL : &_data[ node->nodeData.nodeIndex ]; }
 	node_index_type index( const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* node ) const { return ( !node || node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(node_index_type)_sz ) ? -1 : node->nodeData.nodeIndex; }
+#endif // USE_ALLOCATOR_POINTERS
 #else // !NEW_CODE
+#ifdef USE_ALLOCATOR_POINTERS
+	Data& operator[]( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData > ) node ) { return _data[ node->nodeData.nodeIndex ]; }
+	Data* operator()( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData > ) node ) { return ( node==NULL || node->nodeData.nodeIndex>=(int)_sz ) ? NULL : &_data[ node->nodeData.nodeIndex ]; }
+	const Data* operator()( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData > ) node ) const { return ( node==NULL || node->nodeData.nodeIndex>=(int)_sz ) ? NULL : &_data[ node->nodeData.nodeIndex ]; }
+	int index( ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData > ) node ) const { return ( !node || node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(int)this->_data.size() ) ? -1 : node->nodeData.nodeIndex; }
+#else // !USE_ALLOCATOR_POINTERS
 	Data& operator[]( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) { return _data[ node->nodeData.nodeIndex ]; }
 	Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) { return ( node==NULL || node->nodeData.nodeIndex>=(int)_sz ) ? NULL : &_data[ node->nodeData.nodeIndex ]; }
 	const Data* operator()( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) const { return ( node==NULL || node->nodeData.nodeIndex>=(int)_sz ) ? NULL : &_data[ node->nodeData.nodeIndex ]; }
 	int index( const RegularTreeNode< Dim , FEMTreeNodeData >* node ) const { return ( !node || node->nodeData.nodeIndex<0 || node->nodeData.nodeIndex>=(int)this->_data.size() ) ? -1 : node->nodeData.nodeIndex; }
+#endif // USE_ALLOCATOR_POINTERS
 #endif // NEW_CODE
 	Pointer( Data ) operator()( void ) { return _data; }
 	ConstPointer( Data ) operator()( void ) const { return ( ConstPointer( Data ) )_data; }
@@ -1699,7 +1753,11 @@ public:
 
 	template< unsigned int ... FEMSigs > bool isValidFEMNode( UIntPack< FEMSigs ... > , const FEMTreeNode* node ) const;
 	bool isValidSpaceNode( const FEMTreeNode* node ) const;
+#ifdef USE_ALLOCATOR_POINTERS
+	ConstPointer( FEMTreeNode ) leaf( Point< Real , Dim > p ) const;
+#else // !USE_ALLOCATOR_POINTERS
 	const FEMTreeNode* leaf( Point< Real , Dim > p ) const;
+#endif // USE_ALLOCATOR_POINTERS
 #ifdef NEW_CODE
 protected:
 	FEMTreeNode* _leaf( Allocator< FEMTreeNode > * nodeAllocator , Point< Real , Dim > p , LocalDepth maxDepth=-1 );

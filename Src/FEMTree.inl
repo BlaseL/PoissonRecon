@@ -176,7 +176,11 @@ template< unsigned int Dim , class Real > void FEMTree< Dim , Real >::write( FIL
 
 template< unsigned int Dim , class Real >
 #ifdef NEW_CODE
+#ifdef USE_ALLOCATOR_POINTERS
+ConstPointer( RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type > ) FEMTree< Dim , Real >::leaf( Point< Real , Dim > p ) const
+#else // !USE_ALLOCATOR_POINTERS
 const RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* FEMTree< Dim , Real >::leaf( Point< Real , Dim > p ) const
+#endif // USE_ALLOCATOR_POINTERS
 #else // !NEW_CODE
 const RegularTreeNode< Dim , FEMTreeNodeData >* FEMTree< Dim , Real >::leaf( Point< Real , Dim > p ) const
 #endif // NEW_CODE
