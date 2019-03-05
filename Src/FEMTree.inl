@@ -422,7 +422,8 @@ typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree >* FEMT
 	std::vector< int > sampleMap( nodeCount() , -1 );
 #endif // NEW_CODE
 #ifdef NEW_THREADS
-	ThreadPool::Parallel_for( 0 , samples.size() , [&]( unsigned int , size_t i ){ if( samples[i].sample.weight>0 ) sampleMap[ samples[i].node->nodeData.nodeIndex ] = (node_index_type)i; } );
+//	ThreadPool::Parallel_for( 0 , samples.size() , [&]( unsigned int , size_t i ){ if( samples[i].sample.weight>0 ) sampleMap[ samples[i].node->nodeData.nodeIndex ] = (node_index_type)i; } );
+	ThreadPool::Parallel_for( 0 , samples.size() , [&]( unsigned int , size_t i ){ if( samples[i].sample.weight>0 ) SetAtomic( sampleMap[ samples[i].node->nodeData.nodeIndex ] , (node_index_type)i , sampleMap[ samples[i].node->nodeData.nodeIndex ] ); } );
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE
