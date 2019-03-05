@@ -272,6 +272,7 @@ inline void StackTrace( void )
 #include <unistd.h>
 #include <cxxabi.h>
 #include <signal.h>
+#include <mutex>
 
 inline void StackTrace( void )
 {
