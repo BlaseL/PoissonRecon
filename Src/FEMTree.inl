@@ -837,7 +837,11 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const H
 #else // !NEW_CODE
 			neighborKey.template getNeighbors< true >( node , nodeAllocator , _NodeInitializer( *this ) );
 #endif // NEW_CODE
+#ifdef USE_ALLOCATOR_POINTERS
+			Pointer( Pointer( FEMTreeNode ) ) nodes = neighborKey.neighbors[ _localToGlobal(d) ].neighbors().data;
+#else // !USE_ALLOCATOR_POINTERS
 			Pointer( FEMTreeNode* ) nodes = neighborKey.neighbors[ _localToGlobal(d) ].neighbors().data;
+#endif // USE_ALLOCATOR_POINTERS
 			unsigned int size = neighborKey.neighbors[ _localToGlobal(d) ].neighbors.Size;
 			for( unsigned int i=0 ; i<size ; i++ ) SetGhostFlag< Dim >( nodes[i] , false );
 		}
@@ -856,7 +860,11 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const H
 #else // !NEW_THREADS
 	_setSpaceValidityFlags();
 #endif // NEW_THREADS
+#ifdef USE_ALLOCATOR_POINTERS
+	for( Pointer( FEMTreeNode ) node=_tree->nextNode() ; node ; node=_tree->nextNode( node ) ) if( !IsActiveNode< Dim >( node ) ) node->nodeData.nodeIndex = -1;
+#else // !USE_ALLOCATOR_POINTERS
 	for( FEMTreeNode* node=_tree->nextNode() ; node ; node=_tree->nextNode( node ) ) if( !IsActiveNode< Dim >( node ) ) node->nodeData.nodeIndex = -1;
+#endif // USE_ALLOCATOR_POINTERS
 	_reorderDenseOrSparseNodeData( &map[0] , _sNodes.size() , data ... );
 	MemoryUsage();
 }

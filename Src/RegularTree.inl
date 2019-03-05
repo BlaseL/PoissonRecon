@@ -197,7 +197,11 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::setFullDepth( int m
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren_s( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
 {
+#ifdef USE_ALLOCATOR_POINTERS
+	Pointer( RegularTreeNode ) _children;
+#else // !USE_ALLOCATOR_POINTERS
 	RegularTreeNode *_children;
+#endif // USE_ALLOCATOR_POINTERS
 
 	// Allocate the children
 	if( nodeAllocator ) _children = nodeAllocator->newElements( 1<<Dim );

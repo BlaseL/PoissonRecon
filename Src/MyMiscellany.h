@@ -277,15 +277,19 @@ inline void StackTrace( void )
 {
 	// Code borrowed from:
 	// https://stackoverflow.com/questions/77005/how-to-automatically-generate-a-stacktrace-when-my-program-crashes
-	void * array[50];
-	int size = backtrace( array , 50 );
+	// and
+	// https://stackoverflow.com/questions/15129089/is-there-a-way-to-dump-stack-trace-with-line-number-from-a-linux-release-binary/15130037
+	void * trace[128];
+	int size = backtrace( trace , 128 );
 
-//	array[1] = caller_address;
-
-	char ** messages = backtrace_symbols( array , size );
+	char ** messages = backtrace_symbols( trace , size );
 	for( int i=1 ; i< size && messages!=NULL ; ++i )
 	{
 		char *mangled_name=0 , *offset_begin=0 , *offset_end=0;
+
+		char syscom[1024];
+		sprintf( syscom , "addr2line %p -e PoissonRecon/Bin/Linux/PoissonRecon" , trace[i] ); //last parameter is the name of this app
+		system( syscom );
 
 		// find parantheses and +address offset surrounding mangled name
 		for( char *p=messages[i] ; *p ; ++p )

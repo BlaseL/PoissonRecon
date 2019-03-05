@@ -4319,7 +4319,11 @@ void FEMTree< Dim , Real >::addInterpolationConstraints( DenseNodeData< T , UInt
 #else // !NEW_THREADS
 						PointEvaluatorState< UIntPack< FEMSigs ... > , IsotropicUIntPack< Dim , PointD > > eState;
 #endif // NEW_THREADS
+#ifdef USE_ALLOCATOR_POINTERS
+						Pointer( FEMTreeNode ) node = _sNodes.treeNodes[i];
+#else // !USE_ALLOCATOR_POINTERS
 						FEMTreeNode* node = _sNodes.treeNodes[i];
+#endif // USE_ALLOCATOR_POINTERS
 
 #ifdef NEW_THREADS
 						PointSupportKey& neighborKey = neighborKeys[ thread ];

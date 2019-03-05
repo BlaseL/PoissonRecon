@@ -132,7 +132,11 @@ protected:
 #endif // NEW_CODE
 	int _levels;
 public:
+#ifdef USE_ALLOCATOR_POINTERS
+	Pointer( Pointer( TreeNode ) ) treeNodes;
+#else // !USE_ALLOCATOR_POINTERS
 	Pointer( TreeNode* ) treeNodes;
+#endif // USE_ALLOCATOR_POINTERS
 #ifdef NEW_CODE
 	node_index_type begin( int depth ) const { return _sliceStart[depth][0]; }
 	node_index_type   end( int depth ) const { return _sliceStart[depth][(size_t)1<<depth]; }
@@ -1709,7 +1713,11 @@ public:
 	template< typename T , unsigned int PointD >
 	struct InterpolationInfo
 	{
+#ifdef USE_ALLOCATOR_POINTERS
+		virtual void range( ConstPointer( FEMTreeNode ) node , size_t& begin , size_t& end ) const = 0;
+#else // !USE_ALLOCATOR_POINTERS
 		virtual void range( const FEMTreeNode* node , size_t& begin , size_t& end ) const = 0;
+#endif // USE_ALLOCATOR_POINTERS
 		virtual Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx ) const = 0;
 		virtual Point< T , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< T , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const = 0;
 		virtual Point< double , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< double , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const = 0;
@@ -1722,7 +1730,11 @@ public:
 	template< unsigned int PointD >
 	struct InterpolationInfo< double , PointD >
 	{
+#ifdef USE_ALLOCATOR_POINTERS
+		virtual void range( ConstPointer( FEMTreeNode ) node , size_t& begin , size_t& end ) const = 0;
+#else // !USE_ALLOCATOR_POINTERS
 		virtual void range( const FEMTreeNode* node , size_t& begin , size_t& end ) const = 0;
+#endif // USE_ALLOCATOR_POINTERS
 		virtual Point< double , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx ) const = 0;
 		virtual Point< double , CumulativeDerivatives< Dim , PointD >::Size > operator() ( size_t pointIdx , const Point< double , CumulativeDerivatives< Dim , PointD >::Size >& dValues ) const = 0;
 		virtual const DualPointInfo< Dim , Real , double , PointD >& operator[]( size_t pointIdx ) const = 0;
@@ -1735,7 +1747,11 @@ public:
 	template< typename T , unsigned int PointD , typename ConstraintDual , typename SystemDual >
 	struct ApproximatePointInterpolationInfo : public InterpolationInfo< T , PointD >
 	{
+#ifdef USE_ALLOCATOR_POINTERS
+		void range( ConstPointer( FEMTreeNode ) node , size_t &begin , size_t &end ) const
+#else // !USE_ALLOCATOR_POINTERS
 		void range( const FEMTreeNode *node , size_t &begin , size_t &end ) const
+#endif // USE_ALLOCATOR_POINTERS
 		{
 #ifdef NEW_CODE
 			node_index_type idx = _iData.index( node );
@@ -1772,7 +1788,11 @@ public:
 	struct ApproximatePointInterpolationInfo< double , PointD , ConstraintDual , SystemDual > : public InterpolationInfo< double , PointD >
 	{
 		typedef double T;
+#ifdef USE_ALLOCATOR_POINTERS
+		void range( ConstPointer( FEMTreeNode ) node , size_t& begin , size_t& end ) const
+#else // !USE_ALLOCATOR_POINTERS
 		void range( const FEMTreeNode* node , size_t& begin , size_t& end ) const
+#endif // USE_ALLOCATOR_POINTERS
 		{
 #ifdef NEW_CODE
 			node_index_type idx = _iData.index( node );
@@ -1806,7 +1826,11 @@ public:
 	template< typename T , typename Data , unsigned int PointD , typename ConstraintDual , typename SystemDual >
 	struct ApproximatePointAndDataInterpolationInfo : public InterpolationInfo< T , PointD >
 	{
+#ifdef USE_ALLOCATOR_POINTERS
+		void range( ConstPointer( FEMTreeNode ) node , size_t& begin , size_t& end ) const
+#else // !USE_ALLOCATOR_POINTERS
 		void range( const FEMTreeNode* node , size_t& begin , size_t& end ) const
+#endif // USE_ALLOCATOR_POINTERS
 		{
 #ifdef NEW_CODE
 			node_index_type idx = _iData.index( node );
@@ -1842,7 +1866,11 @@ public:
 	struct ApproximatePointAndDataInterpolationInfo< double , Data , PointD , ConstraintDual , SystemDual > : public InterpolationInfo< double , PointD >
 	{
 		typedef double T;
+#ifdef USE_ALLOCATOR_POINTERS
+		void range( ConstPointer( FEMTreeNode ) node , size_t& begin , size_t& end ) const
+#else // !USE_ALLOCATOR_POINTERS
 		void range( const FEMTreeNode* node , size_t& begin , size_t& end ) const
+#endif // USE_ALLOCATOR_POINTERS
 		{
 #ifdef NEW_CODE
 			node_index_type idx = _iData.index( node );
@@ -1877,7 +1905,11 @@ public:
 	template< typename T , unsigned int PointD , typename ConstraintDual , typename SystemDual >
 	struct ApproximateChildPointInterpolationInfo : public InterpolationInfo< T , PointD >
 	{
+#ifdef USE_ALLOCATOR_POINTERS
+		void range( ConstPointer( FEMTreeNode ) node , size_t& begin , size_t& end ) const
+#else // !USE_ALLOCATOR_POINTERS
 		void range( const FEMTreeNode* node , size_t& begin , size_t& end ) const
+#endif // USE_ALLOCATOR_POINTERS
 		{
 #ifdef NEW_CODE
 			node_index_type idx = _iData.index( node );
@@ -1915,7 +1947,11 @@ public:
 	struct ApproximateChildPointInterpolationInfo< double , PointD , ConstraintDual , SystemDual > : public InterpolationInfo< double , PointD >
 	{
 		typedef double T;
+#ifdef USE_ALLOCATOR_POINTERS
+		void range( ConstPointer( FEMTreeNode ) node , size_t& begin , size_t& end ) const
+#else // !USE_ALLOCATOR_POINTERS
 		void range( const FEMTreeNode* node , size_t& begin , size_t& end ) const
+#endif // USE_ALLOCATOR_POINTERS
 		{
 #ifdef NEW_CODE
 			node_index_type idx = _iData.index( node );
@@ -1951,7 +1987,11 @@ public:
 	template< typename T , typename Data , unsigned int PointD , typename ConstraintDual , typename SystemDual >
 	struct ApproximateChildPointAndDataInterpolationInfo : public InterpolationInfo< T , PointD >
 	{
+#ifdef USE_ALLOCATOR_POINTERS
+		void range( ConstPointer( FEMTreeNode ) node , size_t& begin , size_t& end ) const
+#else // !USE_ALLOCATOR_POINTERS
 		void range( const FEMTreeNode* node , size_t& begin , size_t& end ) const
+#endif // USE_ALLOCATOR_POINTERS
 		{
 #ifdef NEW_CODE
 			node_index_type idx = _iData.index( node );
@@ -1989,7 +2029,11 @@ public:
 	struct ApproximateChildPointAndDataInterpolationInfo< double , Data , PointD , ConstraintDual , SystemDual > : public InterpolationInfo< double , PointD >
 	{
 		typedef double T;
+#ifdef USE_ALLOCATOR_POINTERS
+		void range( ConstPointer( FEMTreeNode ) node , size_t& begin , size_t& end ) const
+#else // !USE_ALLOCATOR_POINTERS
 		void range( const FEMTreeNode* node , size_t& begin , size_t& end ) const
+#endif // USE_ALLOCATOR_POINTERS
 		{
 #ifdef NEW_CODE
 			node_index_type idx = _iData.index( node );
@@ -2025,7 +2069,11 @@ public:
 	template< typename T , unsigned int PointD , typename ConstraintDual , typename SystemDual >
 	struct ExactPointInterpolationInfo : public InterpolationInfo< T , PointD >
 	{
+#ifdef USE_ALLOCATOR_POINTERS
+		void range( ConstPointer( FEMTreeNode ) node , size_t &begin , size_t &end ) const { begin = _sampleSpan[ node->nodeData.nodeIndex ].first , end = _sampleSpan[ node->nodeData.nodeIndex ].second; }
+#else // !USE_ALLOCATOR_POINTERS
 		void range( const FEMTreeNode *node , size_t &begin , size_t &end ) const { begin = _sampleSpan[ node->nodeData.nodeIndex ].first , end = _sampleSpan[ node->nodeData.nodeIndex ].second; }
+#endif // USE_ALLOCATOR_POINTERS
 		bool constrainsDCTerm( void ) const { return _constrainsDCTerm; }
 #ifdef NEW_CODE
 		const DualPointInfo< Dim , Real , T , PointD >& operator[]( size_t pointIdx ) const { return _iData[ pointIdx ]; }
@@ -2059,7 +2107,11 @@ public:
 	struct ExactPointInterpolationInfo< double , PointD , ConstraintDual , SystemDual > : public InterpolationInfo< double , PointD >
 	{
 		typedef double T;
+#ifdef USE_ALLOCATOR_POINTERS
+		void range( ConstPointer( FEMTreeNode ) node , size_t& begin , size_t& end ) const { begin = _sampleSpan[ node->nodeData.nodeIndex ].first , end = _sampleSpan[ node->nodeData.nodeIndex ].second; }
+#else // !USE_ALLOCATOR_POINTERS
 		void range( const FEMTreeNode* node , size_t& begin , size_t& end ) const { begin = _sampleSpan[ node->nodeData.nodeIndex ].first , end = _sampleSpan[ node->nodeData.nodeIndex ].second; }
+#endif // USE_ALLOCATOR_POINTERS
 		bool constrainsDCTerm( void ) const { return _constrainsDCTerm; }
 #ifdef NEW_CODE
 		const DualPointInfo< Dim , Real , T , PointD >& operator[]( size_t pointIdx ) const { return _iData[ pointIdx ]; }
@@ -2115,7 +2167,11 @@ public:
 		using _ExactPointAndDataInterpolationInfo< T , Data , PointD , ConstraintDual , SystemDual >::_iData;
 		using _ExactPointAndDataInterpolationInfo< T , Data , PointD , ConstraintDual , SystemDual >::_constraintDual;
 		using _ExactPointAndDataInterpolationInfo< T , Data , PointD , ConstraintDual , SystemDual >::_systemDual;
+#ifdef USE_ALLOCATOR_POINTERS
+		void range( ConstPointer( FEMTreeNode ) node , size_t& begin , size_t& end ) const { begin = _sampleSpan[ node->nodeData.nodeIndex ].first , end = _sampleSpan[ node->nodeData.nodeIndex ].second; }
+#else // !USE_ALLOCATOR_POINTERS
 		void range( const FEMTreeNode* node , size_t& begin , size_t& end ) const { begin = _sampleSpan[ node->nodeData.nodeIndex ].first , end = _sampleSpan[ node->nodeData.nodeIndex ].second; }
+#endif // USE_ALLOCATOR_POINTERS
 		bool constrainsDCTerm( void ) const { return _constrainsDCTerm; }
 #ifdef NEW_CODE
 		const DualPointInfo< Dim , Real , T , PointD >& operator[]( size_t pointIdx ) const { return _iData[ pointIdx ].pointInfo; }
@@ -2137,7 +2193,11 @@ public:
 		using _ExactPointAndDataInterpolationInfo< double , Data , PointD , ConstraintDual , SystemDual >::_sampleSpan;
 		using _ExactPointAndDataInterpolationInfo< double , Data , PointD , ConstraintDual , SystemDual >::_constrainsDCTerm;
 		using _ExactPointAndDataInterpolationInfo< double , Data , PointD , ConstraintDual , SystemDual >::_iData;
+#ifdef USE_ALLOCATOR_POINTERS
+		void range( ConstPointer( FEMTreeNode ) node , size_t& begin , size_t& end ) const { begin = _sampleSpan[ node->nodeData.nodeIndex ].first , end = _sampleSpan[ node->nodeData.nodeIndex ].second; }
+#else // !USE_ALLOCATOR_POINTERS
 		void range( const FEMTreeNode* node , size_t& begin , size_t& end ) const { begin = _sampleSpan[ node->nodeData.nodeIndex ].first , end = _sampleSpan[ node->nodeData.nodeIndex ].second; }
+#endif // USE_ALLOCATOR_POINTERS
 		bool constrainsDCTerm( void ) const { return _constrainsDCTerm; }
 #ifdef NEW_CODE
 		const DualPointInfo< Dim , Real , double , PointD >& operator[]( size_t pointIdx ) const { return _iData[ pointIdx ].pointInfo; }
@@ -2266,10 +2326,17 @@ public:
 	};
 
 protected:
+#ifdef USE_ALLOCATOR_POINTERS
+	bool _isValidSpaceNode( ConstPointer( FEMTreeNode ) node ) const { return !GetGhostFlag< Dim >( node ) && ( node->nodeData.flags & FEMTreeNodeData::SPACE_FLAG     ); }
+	bool _isValidFEM1Node ( ConstPointer( FEMTreeNode ) node ) const { return !GetGhostFlag< Dim >( node ) && ( node->nodeData.flags & FEMTreeNodeData::FEM_FLAG_1     ); }
+	bool _isValidFEM2Node ( ConstPointer( FEMTreeNode ) node ) const { return !GetGhostFlag< Dim >( node ) && ( node->nodeData.flags & FEMTreeNodeData::FEM_FLAG_2     ); }
+	bool _isRefinableNode ( ConstPointer( FEMTreeNode ) node ) const { return !GetGhostFlag< Dim >( node ) && ( node->nodeData.flags & FEMTreeNodeData::REFINABLE_FLAG ); }
+#else // !USE_ALLOCATOR_POINTERS
 	bool _isValidSpaceNode( const FEMTreeNode* node ) const { return !GetGhostFlag< Dim >( node ) && ( node->nodeData.flags & FEMTreeNodeData::SPACE_FLAG     ); }
 	bool _isValidFEM1Node ( const FEMTreeNode* node ) const { return !GetGhostFlag< Dim >( node ) && ( node->nodeData.flags & FEMTreeNodeData::FEM_FLAG_1     ); }
 	bool _isValidFEM2Node ( const FEMTreeNode* node ) const { return !GetGhostFlag< Dim >( node ) && ( node->nodeData.flags & FEMTreeNodeData::FEM_FLAG_2     ); }
 	bool _isRefinableNode ( const FEMTreeNode* node ) const { return !GetGhostFlag< Dim >( node ) && ( node->nodeData.flags & FEMTreeNodeData::REFINABLE_FLAG ); }
+#endif // USE_ALLOCATOR_POINTERS
 
 #ifdef USE_ALLOCATOR_POINTERS
 	Pointer( FEMTreeNode ) _tree;
