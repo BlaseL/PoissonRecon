@@ -97,7 +97,7 @@ cmdLineParameter< int >
 #ifdef NEW_THREADS
 	ParallelType( "parallel" , (int)ThreadPool::OPEN_MP ) ,
 	ScheduleType( "schedule" , (int)ThreadPool::DefaultSchedule ) ,
-	ThreadChunkSize( "tChunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
+	ThreadChunkSize( "chunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
 	Threads( "threads" , (int)std::thread::hardware_concurrency() );
 #else // !NEW_THREADS
 	Threads( "threads" , omp_get_num_procs() );
@@ -872,6 +872,11 @@ void Execute( int argc , char* argv[] )
 int main( int argc , char* argv[] )
 {
 	Timer timer;
+#ifdef USE_SEG_FAULT_HANDLER
+	WARN( "using seg-fault handler" );
+	StackTracer::exec = argv[0];
+	signal( SIGSEGV , SignalHandler );
+#endif // USE_SEG_FAULT_HANDLER
 #ifdef ARRAY_DEBUG
 	WARN( "Array debugging enabled" );
 #endif // ARRAY_DEBUG

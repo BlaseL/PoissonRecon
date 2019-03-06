@@ -262,92 +262,99 @@ namespace MKExceptions
 #endif // ERROR_OUT
 
 #ifdef NEW_CODE
-
 #include <signal.h>
 #if defined(_WIN32) || defined( _WIN64 )
-inline void StackTrace( void )
-{
-}
 #else // !WINDOWS
 #include <execinfo.h>
 #include <unistd.h>
 #include <cxxabi.h>
 #include <mutex>
-
-inline void StackTrace( void )
+#endif // WINDOWS
+struct StackTracer
 {
-	static std::mutex mutex;
-	std::lock_guard< std::mutex > lock(mutex);
-
-	// Code borrowed from:
-	// https://stackoverflow.com/questions/77005/how-to-automatically-generate-a-stacktrace-when-my-program-crashes
-	// and
-	// https://stackoverflow.com/questions/15129089/is-there-a-way-to-dump-stack-trace-with-line-number-from-a-linux-release-binary/15130037
-	void * trace[128];
-	int size = backtrace( trace , 128 );
-
-	char ** messages = backtrace_symbols( trace , size );
-	for( int i=1 ; i< size && messages!=NULL ; ++i )
+	static const char *exec;
+#if defined(_WIN32) || defined( _WIN64 )
+	static void Trace( void )
 	{
-		char *mangled_name=0 , *offset_begin=0 , *offset_end=0;
+	}
+#else // !WINDOWS
+	static void Trace( void )
+	{
+		static std::mutex mutex;
+		std::lock_guard< std::mutex > lock(mutex);
 
-		char syscom[1024];
-		sprintf( syscom , "addr2line %p -e PoissonRecon/Bin/Linux/PoissonRecon" , trace[i] ); //last parameter is the name of this app
-		if( !system( syscom ) ) ;
+		// Code borrowed from:
+		// https://stackoverflow.com/questions/77005/how-to-automatically-generate-a-stacktrace-when-my-program-crashes
+		// and
+		// https://stackoverflow.com/questions/15129089/is-there-a-way-to-dump-stack-trace-with-line-number-from-a-linux-release-binary/15130037
+		void * trace[128];
+		int size = backtrace( trace , 128 );
 
-		// find parantheses and +address offset surrounding mangled name
-		for( char *p=messages[i] ; *p ; ++p )
+		char ** messages = backtrace_symbols( trace , size );
+		for( int i=1 ; i< size && messages!=NULL ; ++i )
 		{
-			if     ( *p=='(' ) mangled_name = p; 
-			else if( *p=='+' ) offset_begin = p;
-			else if( *p==')' )
+			char *mangled_name=0 , *offset_begin=0 , *offset_end=0;
+
+			char syscom[1024];
+			sprintf( syscom , "addr2line %p -e %s" , trace[i] , exec ); //last parameter is the name of this app
+			if( !system( syscom ) ) ;
+
+			// find parantheses and +address offset surrounding mangled name
+			for( char *p=messages[i] ; *p ; ++p )
 			{
-				offset_end = p;
-				break;
+				if     ( *p=='(' ) mangled_name = p; 
+				else if( *p=='+' ) offset_begin = p;
+				else if( *p==')' )
+				{
+					offset_end = p;
+					break;
+				}
 			}
-		}
 
-		// if the line could be processed, attempt to demangle the symbol
-		if( mangled_name && offset_begin && offset_end && mangled_name<offset_begin )
-		{
-			*mangled_name++ = '\0';
-			*offset_begin++ = '\0';
-			*offset_end++ = '\0';
-
-			int status;
-			char * real_name = abi::__cxa_demangle(mangled_name, 0, 0, &status);
-
-			// if demangling is successful, output the demangled function name
-			if( !status )
+			// if the line could be processed, attempt to demangle the symbol
+			if( mangled_name && offset_begin && offset_end && mangled_name<offset_begin )
 			{
-				std::cerr << "\t(" << i << ") " << messages[i] << " : " << real_name << "+" << offset_begin << offset_end  << std::endl;
-				std::cout << "\t(" << i << ") " << messages[i] << " : " << real_name << "+" << offset_begin << offset_end  << std::endl;
+				*mangled_name++ = '\0';
+				*offset_begin++ = '\0';
+				*offset_end++ = '\0';
+
+				int status;
+				char * real_name = abi::__cxa_demangle(mangled_name, 0, 0, &status);
+
+				// if demangling is successful, output the demangled function name
+				if( !status )
+				{
+					std::cerr << "\t(" << i << ") " << messages[i] << " : " << real_name << "+" << offset_begin << offset_end  << std::endl;
+					std::cout << "\t(" << i << ") " << messages[i] << " : " << real_name << "+" << offset_begin << offset_end  << std::endl;
+				}
+				// otherwise, output the mangled function name
+				else
+				{
+					std::cerr << "\t(" << i << ") " << messages[i] << " : " << mangled_name << "+" << offset_begin << offset_end << std::endl;
+					std::cout << "\t(" << i << ") " << messages[i] << " : " << mangled_name << "+" << offset_begin << offset_end << std::endl;
+				}
+				free( real_name );
 			}
-			// otherwise, output the mangled function name
+			// otherwise, print the whole line
 			else
 			{
-				std::cerr << "\t(" << i << ") " << messages[i] << " : " << mangled_name << "+" << offset_begin << offset_end << std::endl;
-				std::cout << "\t(" << i << ") " << messages[i] << " : " << mangled_name << "+" << offset_begin << offset_end << std::endl;
+				std::cerr << "\t(" << i << ") " << messages[i] << std::endl;
+				std::cout << "\t(" << i << ") " << messages[i] << std::endl;
 			}
-			free( real_name );
 		}
-		// otherwise, print the whole line
-		else
-		{
-			std::cerr << "\t(" << i << ") " << messages[i] << std::endl;
-			std::cout << "\t(" << i << ") " << messages[i] << std::endl;
-		}
-	}
 
-	free( messages );
-}
+		free( messages );
+	}
 #endif // WINDOWS
+};
+const char *StackTracer::exec;
+
 inline void SignalHandler( int signal )
 {
 	printf( "Signal: %d\n" , signal );
-	StackTrace();
+	StackTracer::Trace();
 	exit( 0 );
-}
+};
 
 
 template< typename Value > bool SetAtomic( volatile Value *value , Value newValue , Value oldValue );

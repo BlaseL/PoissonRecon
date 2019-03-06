@@ -81,7 +81,7 @@ class Array
 		if( idx<min || idx>=max )
 		{
 #ifdef NEW_CODE
-			StackTrace();
+			StackTracer::Trace();
 #endif // NEW_CODE
 			ERROR_OUT( "Array index out-of-bounds: " , min , " <= " , idx , " < " , max , "\nFile: " , _fileName , "; Line: " , _line , "; Function: " , _functionName );
 		}
@@ -89,7 +89,7 @@ class Array
 		if( idx<min || idx>=max )
 		{
 #ifdef NEW_CODE
-			StackTrace();
+			StackTracer::Trace();
 #endif // NEW_CODE
 			ERROR_OUT( "Array index out-of-bounds: " , min , " <= " , idx , " < " , max );
 		}

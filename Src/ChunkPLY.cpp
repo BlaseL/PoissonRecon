@@ -477,6 +477,14 @@ void Execute( void )
 int main( int argc , char* argv[] )
 {
 	cmdLineParse( argc-1 , &argv[1] , params );
+#ifdef USE_SEG_FAULT_HANDLER
+	WARN( "using seg-fault handler" );
+	StackTracer::exec = argv[0];
+	signal( SIGSEGV , SignalHandler );
+#endif // USE_SEG_FAULT_HANDLER
+#ifdef ARRAY_DEBUG
+	WARN( "Array debugging enabled" );
+#endif // ARRAY_DEBUG
 
 	if( !In.set )
 	{

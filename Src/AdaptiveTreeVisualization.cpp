@@ -61,7 +61,7 @@ cmdLineParameter< int >
 #ifdef NEW_THREADS
 	ParallelType( "parallel" , (int)ThreadPool::OPEN_MP ) ,
 	ScheduleType( "schedule" , (int)ThreadPool::DefaultSchedule ) ,
-	ThreadChunkSize( "tChunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
+	ThreadChunkSize( "chunkSize" , (int)ThreadPool::DefaultChunkSize ) ,
 	Threads( "threads" , (int)std::thread::hardware_concurrency() );
 #else // !NEW_THREADS
 	Threads( "threads" , omp_get_num_procs() );

@@ -34,16 +34,19 @@ DAMAGE.
 												// The executable ChunkPLY can help by partitioning the mesh into more manageable chunks
 												// (each of which is small enough to be represented using 32-bit indexing.)
 						
-#define NEW_THREADS								// Enabling this flag augments the OpenMP implementation of parallelism with C++11's
-#undef SHOW_WARNINGS							// Display compilation warnings
-#define ARRAY_DEBUG								// If enabled, array access is tested for validity
 #define FAST_COMPILE							// If enabled, only a single version of the reconstruction code is compiled
+#undef SHOW_WARNINGS							// Display compilation warnings
+#undef ARRAY_DEBUG								// If enabled, array access is tested for validity
+#undef USE_SEG_FAULT_HANDLER					// Tries to dump a stack trace in the case of a segfault (gcc only)
+
+#define NEW_THREADS								// Enabling this flag augments the OpenMP implementation of parallelism with C++11's
 
 #define USE_FEWER_THREADS						// Use fewer threads if necessary
 #define USE_THREAD_MINUS_ONE					// Do some of the processing the current thread
 #define PARALLEL_TREE_CONSTRUCTION				// Enabling this flag supports thread safe initializing of child nodes in the tree
 
 #define SECURE_INIT_ONLY
+
 
 #ifdef BIG_DATA
 #define USE_DEEP_TREE_NODES						// Chances are that if you are using big data, you want to support a tree with depth>15.
