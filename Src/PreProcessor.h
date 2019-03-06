@@ -43,7 +43,7 @@ DAMAGE.
 #define USE_THREAD_MINUS_ONE					// Do some of the processing the current thread
 
 #define SECURE_INIT_ONLY
-#define THREAD_SANITIZER
+#undef THREAD_SANITIZER
 
 #ifdef BIG_DATA
 #define USE_DEEP_TREE_NODES						// Chances are that if you are using big data, you want to support a tree with depth>15.

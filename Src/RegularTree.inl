@@ -159,13 +159,26 @@ bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren_s( All
 	// If we are the first to set the child, initialize
 	if( SetAtomic( children , _children , (RegularTreeNode *)NULL ) )
 	{
+if( children!=_children )
+{
+	printf( "uhoh\n" );
+	fprintf( stderr , "uhoh\n" );
+}
 		for( int idx=0 ; idx<(1<<Dim) ; idx++ )
 		{
 			children[idx].parent = this;
 			children[idx].children = NULL;
 			if( Initializer ) Initializer( children[idx] );
 			children[idx]._depth = _depth+1;
-			for( int d=0 ; d<Dim ; d++ ) children[idx]._offset[d] = (_offset[d]<<1) | ( (idx>>d) & 1 );
+			for( int d=0 ; d<Dim ; d++ )
+			{
+if( children!=_children )
+{
+	printf( "uhoh: %d\n" , d );
+	fprintf( stderr , "uhoh: %d\n" , d );
+}
+				children[idx]._offset[d] = (_offset[d]<<1) | ( (idx>>d) & 1 );
+			}
 		}
 		return true;
 	}
