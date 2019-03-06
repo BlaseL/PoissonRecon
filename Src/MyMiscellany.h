@@ -817,7 +817,7 @@ bool SetAtomic32( Value &value , Value newValue , Value oldValue )
 #else // !_WIN32 && !_WIN64
 	uint32_t &_oldValue = *(uint32_t *)&oldValue;
 	uint32_t &_newValue = *(uint32_t *)&newValue;
-	return __sync_val_compare_and_swap( (uint32_t *)&value , _oldValue , _newValue )==_oldValue;
+	return __sync_bool_compare_and_swap ( (uint32_t *)&value , _oldValue , _newValue );
 #endif // _WIN32 || _WIN64
 }
 template< typename Value >
@@ -830,7 +830,7 @@ bool SetAtomic64( Value &value , Value newValue , Value oldValue )
 #else // !_WIN32 && !_WIN64
 	uint64_t &_oldValue = *(uint64_t *)&oldValue;
 	uint64_t &_newValue = *(uint64_t *)&newValue;
-	return __sync_val_compare_and_swap( (uint64_t *)&value , _oldValue , _newValue )==_oldValue;
+	return __sync_bool_compare_and_swap ( (uint64_t *)&value , _oldValue , _newValue );
 #endif // _WIN32 || _WIN64
 }
 
