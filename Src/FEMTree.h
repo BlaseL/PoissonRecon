@@ -506,16 +506,17 @@ struct SparseNodeData< Data , UIntPack< FEMSigs ... > > : public _SparseOrDenseN
 
 		// If the node hasn't been allocated yet
 #ifdef NEW_CODE
-		if( _indices[ node->nodeData.nodeIndex ]==-1 )
+		volatile node_index_type &_index = _indices[ node->nodeData.nodeIndex ];
+		if( _index==-1 )
 		{
 #ifdef NEW_THREADS
 			std::lock_guard< std::mutex > lock( _insertionMutex );
 #else // !NEW_THREADS
 #pragma omp critical( SparseNodeData__operator )
 #endif // NEW_THREADS
-			if( _indices[ node->nodeData.nodeIndex ]==-1 ) _indices[ node->nodeData.nodeIndex ] = (node_index_type)_data.push();
+			if( _index==-1 ) _index = (node_index_type)_data.push();
 		}
-		return _data[ _indices[ node->nodeData.nodeIndex ] ];
+		return _data[ _index ];
 #else // !NEW_CODE
 		if( _indices[ node->nodeData.nodeIndex ]==-1 )
 		{
@@ -1648,12 +1649,7 @@ protected:
 #else // !NEW_CODE
 	std::atomic< int > _nodeCount;
 #endif // NEW_CODE
-	void _nodeInitializer( FEMTreeNode& node )
-	{
-static std::mutex mutex;
-std::lock_guard< std::mutex > lock(mutex);
-		node.nodeData.nodeIndex = _nodeCount++;
-	}
+	void _nodeInitializer( FEMTreeNode& node ){ node.nodeData.nodeIndex = _nodeCount++; }
 
 	struct _NodeInitializer
 	{

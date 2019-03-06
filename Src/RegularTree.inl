@@ -149,39 +149,25 @@ bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren( Alloc
 bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren_s( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
 #endif // SECURE_INIT_ONLY
 {
+	RegularTreeNode * volatile & children = this->children;
 	RegularTreeNode *_children;
 
 	// Allocate the children
 	if( nodeAllocator ) _children = nodeAllocator->newElements( 1<<Dim );
 	else                _children = new RegularTreeNode[ 1<<Dim ];
 	if( !_children ) ERROR_OUT( "Failed to initialize children" );
+	for( int idx=0 ; idx<(1<<Dim) ; idx++ )
+	{
+		_children[idx].parent = this;
+		_children[idx].children = NULL;
+		_children[idx]._depth = _depth+1;
+		for( int d=0 ; d<Dim ; d++ ) _children[idx]._offset[d] = (_offset[d]<<1) | ( (idx>>d) & 1 );
+		// [WARNING] We are assuming that it's OK to initialize nodes that may not be used.
+		if( Initializer ) for( int idx=0 ; idx<(1<<Dim) ; idx++ ) Initializer( _children[idx] );
+	}
 
 	// If we are the first to set the child, initialize
-	if( SetAtomic( children , _children , (RegularTreeNode *)NULL ) )
-	{
-if( children!=_children )
-{
-	printf( "uhoh\n" );
-	fprintf( stderr , "uhoh\n" );
-}
-		for( int idx=0 ; idx<(1<<Dim) ; idx++ )
-		{
-			children[idx].parent = this;
-			children[idx].children = NULL;
-			children[idx]._depth = _depth+1;
-			if( Initializer ) Initializer( children[idx] );
-			for( int d=0 ; d<Dim ; d++ )
-			{
-if( children!=_children )
-{
-	printf( "uhoh: %d\n" , d );
-	fprintf( stderr , "uhoh: %d\n" , d );
-}
-				children[idx]._offset[d] = (_offset[d]<<1) | ( (idx>>d) & 1 );
-			}
-		}
-		return true;
-	}
+	if( SetAtomic( &children , _children , (RegularTreeNode *)NULL ) ) return true;
 	// Otherwise clean up
 	else
 	{
@@ -408,7 +394,6 @@ RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , N
 	else if( current->children ) return current->children;
 	else return nextBranch( current );
 }
-
 
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::printRange(void) const

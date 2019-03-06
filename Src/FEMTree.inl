@@ -419,9 +419,6 @@ typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree >* FEMT
 #endif // NEW_CODE
 #ifdef NEW_THREADS
 	ThreadPool::Parallel_for( 0 , samples.size() , [&]( unsigned int , size_t i ){ if( samples[i].sample.weight>0 ) sampleMap[ samples[i].node->nodeData.nodeIndex ] = (node_index_type)i; } );
-#ifdef THREAD_SANITIZER
-	_mm_mfence();
-#endif // THREAD_SANITIZER
 #else // !NEW_THREADS
 #pragma omp parallel for
 #ifdef NEW_CODE

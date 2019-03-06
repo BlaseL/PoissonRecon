@@ -327,8 +327,11 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode& root , Simplex< 
 		{
 #ifdef NEW_THREADS
 			{
+#ifdef SECURE_INIT_ONLY
+#else // !SECURE_INIT_ONLY
 				static std::mutex m;
 				std::lock_guard< std::mutex > lock( m );
+#endif // SECURE_INIT_ONLY
 				if( !node->children ) node->initChildren( nodeAllocator , NodeInitializer );
 			}
 #else // !NEW_THREADS
@@ -461,8 +464,11 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode* node , Simplex< 
 #endif // NEW_CODE
 #ifdef NEW_THREADS
 		{
+#ifdef SECURE_INIT_ONLY
+#else // !SECURE_INIT_ONLY
 			static std::mutex m;
 			std::lock_guard< std::mutex > lock(m);
+#endif // SECURE_INIT_ONLY
 			if( !node->children ) node->initChildren( nodeAllocator , NodeInitializer );
 		}
 #else // !NEW_THREADS

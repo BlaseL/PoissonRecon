@@ -263,6 +263,7 @@ namespace MKExceptions
 
 #ifdef NEW_CODE
 
+#include <signal.h>
 #if defined(_WIN32) || defined( _WIN64 )
 inline void StackTrace( void )
 {
@@ -271,7 +272,6 @@ inline void StackTrace( void )
 #include <execinfo.h>
 #include <unistd.h>
 #include <cxxabi.h>
-#include <signal.h>
 #include <mutex>
 
 inline void StackTrace( void )
@@ -341,6 +341,7 @@ inline void StackTrace( void )
 
 	free( messages );
 }
+#endif // WINDOWS
 inline void SignalHandler( int signal )
 {
 	printf( "Signal: %d\n" , signal );
@@ -348,11 +349,9 @@ inline void SignalHandler( int signal )
 	exit( 0 );
 }
 
-#endif // WINDOWS
 
-
-template< typename Value > bool SetAtomic( Value& value , const Value &newValue , const Value &oldValue );
-template< typename Data > void AddAtomic( Data& a , const Data& b );
+template< typename Value > bool SetAtomic( volatile Value *value , Value newValue , Value oldValue );
+template< typename Data > void AddAtomic( Data& a , Data b );
 
 #ifdef NEW_THREADS
 ////////////////////
@@ -603,9 +602,9 @@ struct ThreadPool
 #if 1
 #ifdef USE_THREAD_MINUS_ONE
 			unsigned int targetTasks = 0;
-			if( !SetAtomic( _RemainingTasks , threads-1 , targetTasks ) )
+			if( !SetAtomic( &_RemainingTasks , threads-1 , targetTasks ) )
 #else // !USE_THREAD_MINUS_ONE
-			if( !SetAtomic( _RemainingTasks , threads , 0 ) )
+			if( !SetAtomic( &_RemainingTasks , threads , 0 ) )
 #endif // USE_THREAD_MINUS_ONE
 #else
 			if( _RemainingTasks )
@@ -755,7 +754,7 @@ private:
 	static bool _Close;
 #ifdef USE_FEWER_THREADS
 	static unsigned int _TotalTasks;
-	static unsigned int _RemainingTasks;
+	static volatile unsigned int _RemainingTasks;
 	static unsigned int _NextTask;
 #else // !USE_FEWER_THREADS
 	static unsigned int _WorkToBeDone;
@@ -772,7 +771,7 @@ ThreadPool::ScheduleType ThreadPool::DefaultSchedule = ThreadPool::DYNAMIC;
 bool ThreadPool::_Close;
 #ifdef USE_FEWER_THREADS
 unsigned int ThreadPool::_TotalTasks;
-unsigned int ThreadPool::_RemainingTasks;
+volatile unsigned int ThreadPool::_RemainingTasks;
 unsigned int ThreadPool::_NextTask;
 #else // !USE_FEWER_THREADS
 unsigned int ThreadPool::_WorkToBeDone;
@@ -801,49 +800,49 @@ const std::vector< std::string >ThreadPool::ScheduleNames = { "static" , "dynami
 
 #ifdef NEW_CODE
 #include <mutex>
+
 #ifdef NEW_THREADS
 #if defined( _WIN32 ) || defined( _WIN64 )
 #include <windows.h>
 #endif // _WIN32 || _WIN64
 #endif // NEW_THREADS
-
 template< typename Value >
-bool SetAtomic32( Value &value , Value newValue , Value oldValue )
+bool SetAtomic32( volatile Value *value , Value newValue , Value oldValue )
 {
 #if defined( _WIN32 ) || defined( _WIN64 )
 	long &_oldValue = *(long *)&oldValue;
 	long &_newValue = *(long *)&newValue;
-	return InterlockedCompareExchange( (long*)&value , _newValue , _oldValue )==_oldValue;
+	return InterlockedCompareExchange( (long*)value , _newValue , _oldValue )==_oldValue;
 #else // !_WIN32 && !_WIN64
 	uint32_t &_oldValue = *(uint32_t *)&oldValue;
 	uint32_t &_newValue = *(uint32_t *)&newValue;
-//	return __sync_bool_compare_and_swap( (uint32_t *)&value , _oldValue , _newValue );
-	return __atomic_compare_exchange_n( (uint32_t *)&value , (uint32_t *)&oldValue , _newValue , false , __ATOMIC_RELAXED , __ATOMIC_RELAXED );
+//	return __sync_bool_compare_and_swap( (uint32_t *)value , _oldValue , _newValue );
+	return __atomic_compare_exchange_n( (uint32_t *)value , (uint32_t *)&oldValue , _newValue , false , __ATOMIC_SEQ_CST , __ATOMIC_SEQ_CST );
 #endif // _WIN32 || _WIN64
 }
 template< typename Value >
-bool SetAtomic64( Value &value , Value newValue , Value oldValue )
+bool SetAtomic64( volatile Value *value , Value newValue , Value oldValue )
 {
 #if defined( _WIN32 ) || defined( _WIN64 )
 	__int64 &_oldValue = *(__int64 *)&oldValue;
 	__int64 &_newValue = *(__int64 *)&newValue;
-	return InterlockedCompareExchange64( (__int64*)&value , _newValue , _oldValue )==_oldValue;
+	return InterlockedCompareExchange64( (__int64*)value , _newValue , _oldValue )==_oldValue;
 #else // !_WIN32 && !_WIN64
 	uint64_t &_oldValue = *(uint64_t *)&oldValue;
 	uint64_t &_newValue = *(uint64_t *)&newValue;
 //	return __sync_bool_compare_and_swap ( (uint64_t *)&value , _oldValue , _newValue );
-	return __atomic_compare_exchange_n( (uint64_t *)&value , (uint64_t *)&oldValue , _newValue , false , __ATOMIC_RELAXED , __ATOMIC_RELAXED );
+	return __atomic_compare_exchange_n( (uint64_t *)value , (uint64_t *)&oldValue , _newValue , false , __ATOMIC_SEQ_CST , __ATOMIC_SEQ_CST );
 #endif // _WIN32 || _WIN64
 }
 
 template< typename Number >
-void AddAtomic32( Number &a , const Number &b )
+void AddAtomic32( Number &a , Number b )
 {
 #ifdef NEW_THREADS
-#if 1
+#if 0
 	Number current = a;
 	Number sum = current+b;
-	while( !SetAtomic32( a , sum , current ) ) current = a , sum = a+b;
+	while( !SetAtomic32( &a , sum , current ) ) current = a , sum = a+b;
 #else
 #if defined( _WIN32 ) || defined( _WIN64 )
 	Number current = a;
@@ -866,13 +865,13 @@ void AddAtomic32( Number &a , const Number &b )
 }
 
 template< typename Number >
-void AddAtomic64( Number &a , const Number &b )
+void AddAtomic64( Number &a , Number b )
 {
 #ifdef NEW_THREADS
 #if 1
 	Number current = a;
 	Number sum = current+b;
-	while( !SetAtomic64( a , sum , current ) ) current = a , sum = a+b;
+	while( !SetAtomic64( &a , sum , current ) ) current = a , sum = a+b;
 #else
 #if defined( _WIN32 ) || defined( _WIN64 )
 	Number current = a;
@@ -895,7 +894,7 @@ void AddAtomic64( Number &a , const Number &b )
 }
 
 template< typename Value >
-bool SetAtomic( Value& value , const Value &newValue , const Value &oldValue )
+bool SetAtomic( volatile Value *value , Value newValue , Value oldValue )
 {
 	switch( sizeof(Value) )
 	{
@@ -905,13 +904,13 @@ bool SetAtomic( Value& value , const Value &newValue , const Value &oldValue )
 		WARN_ONCE( "should not use this function: " , sizeof(Value) );
 		static std::mutex setAtomicMutex;
 		std::lock_guard< std::mutex > lock( setAtomicMutex );
-		if( value==oldValue ){ value = newValue ; return true; }
+		if( *value==oldValue ){ *value = newValue ; return true; }
 		else return false;
 	}
 }
 
 template< typename Data >
-void AddAtomic( Data& a , const Data& b )
+void AddAtomic( Data& a , Data b )
 {
 	switch( sizeof(Data) )
 	{
@@ -929,55 +928,7 @@ void AddAtomic( Data& a , const Data& b )
 #endif // NEW_THREADS
 	}
 }
-
-
-#if 0
-void AddAtomic( float& a , const float& b )
-{
-#ifdef NEW_THREADS
-#if defined( _WIN32 ) || defined( _WIN64 )
-	float current = a;
-	float sum = current+b;
-	long &_current = *(long *)&current;
-	long &_sum = *(long *)&sum;
-	while( InterlockedCompareExchange( (long*)&a , _sum , _current )!=_current ) current = a , sum = a+b;
-#else // !_WIN32 && !_WIN64
-	float current = a;
-	float sum = current+b;
-	uint32_t &_current = *(uint32_t *)&current;
-	uint32_t &_sum = *(uint32_t *)&sum;
-	while( __sync_val_compare_and_swap( (uint32_t *)&a , _current , _sum )!=_current ) current = a , sum = a+b;
-#endif // _WIN32 || _WIN64
-#else // !NEW_THREADS
-#pragma omp atomic
-	a += b;
-#endif // NEW_THREADS
-}
-
-void AddAtomic( double& a , const double& b )
-{
-#ifdef NEW_THREADS
-#if defined( _WIN32 ) || defined( _WIN64 )
-	double current = a;
-	double sum = current+b;
-	__int64 &_current = *(__int64 *)&current;
-	__int64 &_sum = *(__int64 *)&sum;
-	while( InterlockedCompareExchange64( (__int64*)&a , _sum , _current )!=_current ) current = a , sum = a+b;
-#else // !_WIN32 && !_WIN64
-	double current = a;
-	double sum = current+b;
-	uint64_t &_current = *(uint64_t *)&current;
-	uint64_t &_sum = *(uint64_t *)&sum;
-	while( __sync_val_compare_and_swap( (uint64_t*)&a , _current , _sum )!=_current ) current = a , sum = a+b;
-#endif // _WIN32 || _WIN64
-#else // !NEW_THREADS
-#pragma omp atomic
-	a += b;
-#endif // NEW_THREADS
-}
 #endif // NEW_CODE
-
-#endif
 /////////////////////////
 // NumberWrapper Stuff //
 /////////////////////////

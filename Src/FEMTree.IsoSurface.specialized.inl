@@ -1412,10 +1412,12 @@ protected:
 								typename HyperCube::Cube< Dim >::template Element< 1 > e( zDir , _e.index );
 #ifdef NEW_CODE
 								node_index_type vIndex = eIndices[_e.index];
+								volatile char &edgeSet = sValues.edgeSet[vIndex];
+								if( !edgeSet )
 #else // !NEW_CODE
 								int vIndex = eIndices[_e.index];
-#endif // NEW_CODE
 								if( !sValues.edgeSet[vIndex] )
+#endif // NEW_CODE
 								{
 									Vertex vertex;
 #ifdef NEW_CODE
@@ -1433,13 +1435,18 @@ protected:
 #ifdef NEW_THREADS
 									{
 										std::lock_guard< std::mutex > lock( _pointInsertionMutex );
+#ifdef NEW_CODE
+										if( !edgeSet )
+#else // !NEW_CODE
 										if( !sValues.edgeSet[vIndex] )
+#endif // NEW_CODE
 										{
 											mesh.addOutOfCorePoint( vertex );
-											sValues.edgeSet[ vIndex ] = 1;
 #ifdef NEW_CODE
+											edgeSet = 1;
 											hashed_vertex = std::pair< node_index_type , Vertex >( vOffset , vertex );
 #else // !NEW_CODE
+											sValues.edgeSet[ vIndex ] = 1;
 											hashed_vertex = std::pair< int , Vertex >( vOffset , vertex );
 #endif // NEW_CODE
 											sValues.edgeKeys[ vIndex ] = key;
@@ -1589,10 +1596,12 @@ protected:
 							{
 #ifdef NEW_CODE
 								node_index_type vIndex = eIndices[_c.index];
+								volatile char &edgeSet = xValues.edgeSet[vIndex];
+								if( !edgeSet )
 #else // !NEW_CODE
 								int vIndex = eIndices[_c.index];
-#endif // NEW_CODE
 								if( !xValues.edgeSet[vIndex] )
+#endif // NEW_CODE
 								{
 									Vertex vertex;
 #ifdef NEW_CODE
@@ -1610,13 +1619,18 @@ protected:
 #ifdef NEW_THREADS
 									{
 										std::lock_guard< std::mutex > lock( _pointInsertionMutex );
+#ifdef NEW_CODE
+										if( !edgeSet )
+#else // !NEW_CODE
 										if( !xValues.edgeSet[vIndex] )
+#endif // NEW_CODE
 										{
 											mesh.addOutOfCorePoint( vertex );
-											xValues.edgeSet[ vIndex ] = 1;
 #ifdef NEW_CODE
+											edgeSet = 1;
 											hashed_vertex = std::pair< node_index_type , Vertex >( vOffset , vertex );
 #else // !NEW_CODE
+											xValues.edgeSet[ vIndex ] = 1;
 											hashed_vertex = std::pair< int , Vertex >( vOffset , vertex );
 #endif // NEW_CODE
 											xValues.edgeKeys[ vIndex ] = key;

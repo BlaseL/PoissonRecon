@@ -665,6 +665,7 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 			messageWriter( "Point weight / Estimated Area: %g / %g\n" , pointWeightSum , pointCount*pointWeightSum );
 		}
 
+
 		if( !Density.set ) delete density , density = NULL;
 		if( DataX.value<=0 || ( !Colors.set && !Normals.set ) ) delete sampleData , sampleData = NULL;
 
@@ -880,12 +881,9 @@ void Execute( int argc , char* argv[] )
 int main( int argc , char* argv[] )
 {
 #if 1
-#if defined(_WIN32) || defined( _WIN64 )
-#else // !WINDOWS
 	WARN( "using seg-fault handler" );
 	signal( SIGSEGV , SignalHandler );
-	signal( SIGINT , SignalHandler );
-#endif // WINDOWS
+//	signal( SIGINT , SignalHandler );
 #endif
 	Timer timer;
 #ifdef ARRAY_DEBUG
