@@ -817,7 +817,8 @@ bool SetAtomic32( Value &value , Value newValue , Value oldValue )
 #else // !_WIN32 && !_WIN64
 	uint32_t &_oldValue = *(uint32_t *)&oldValue;
 	uint32_t &_newValue = *(uint32_t *)&newValue;
-	return __sync_bool_compare_and_swap ( (uint32_t *)&value , _oldValue , _newValue );
+//	return __sync_bool_compare_and_swap( (uint32_t *)&value , _oldValue , _newValue );
+	return __atomic_compare_exchange_n( (uint32_t *)&value , (uint32_t *)&oldValue , _newValue , false , __ATOMIC_RELAXED , __ATOMIC_RELAXED );
 #endif // _WIN32 || _WIN64
 }
 template< typename Value >
@@ -830,7 +831,8 @@ bool SetAtomic64( Value &value , Value newValue , Value oldValue )
 #else // !_WIN32 && !_WIN64
 	uint64_t &_oldValue = *(uint64_t *)&oldValue;
 	uint64_t &_newValue = *(uint64_t *)&newValue;
-	return __sync_bool_compare_and_swap ( (uint64_t *)&value , _oldValue , _newValue );
+//	return __sync_bool_compare_and_swap ( (uint64_t *)&value , _oldValue , _newValue );
+	return __atomic_compare_exchange_n( (uint64_t *)&value , (uint64_t *)&oldValue , _newValue , false , __ATOMIC_RELAXED , __ATOMIC_RELAXED );
 #endif // _WIN32 || _WIN64
 }
 
@@ -838,6 +840,11 @@ template< typename Number >
 void AddAtomic32( Number &a , const Number &b )
 {
 #ifdef NEW_THREADS
+#if 1
+	Number current = a;
+	Number sum = current+b;
+	while( !SetAtomic32( a , sum , current ) ) current = a , sum = a+b;
+#else
 #if defined( _WIN32 ) || defined( _WIN64 )
 	Number current = a;
 	Number sum = current+b;
@@ -851,6 +858,7 @@ void AddAtomic32( Number &a , const Number &b )
 	uint32_t &_sum = *(uint32_t *)&sum;
 	while( __sync_val_compare_and_swap( (uint32_t *)&a , _current , _sum )!=_current ) current = a , sum = a+b;
 #endif // _WIN32 || _WIN64
+#endif
 #else // !NEW_THREADS
 #pragma omp atomic
 	a += b;
@@ -861,6 +869,11 @@ template< typename Number >
 void AddAtomic64( Number &a , const Number &b )
 {
 #ifdef NEW_THREADS
+#if 1
+	Number current = a;
+	Number sum = current+b;
+	while( !SetAtomic64( a , sum , current ) ) current = a , sum = a+b;
+#else
 #if defined( _WIN32 ) || defined( _WIN64 )
 	Number current = a;
 	Number sum = current+b;
@@ -874,6 +887,7 @@ void AddAtomic64( Number &a , const Number &b )
 	uint64_t &_sum = *(uint64_t *)&sum;
 	while( __sync_val_compare_and_swap( (uint64_t *)&a , _current , _sum )!=_current ) current = a , sum = a+b;
 #endif // _WIN32 || _WIN64
+#endif
 #else // !NEW_THREADS
 #pragma omp atomic
 	a += b;

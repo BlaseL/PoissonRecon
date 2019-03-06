@@ -168,10 +168,8 @@ if( children!=_children )
 		{
 			children[idx].parent = this;
 			children[idx].children = NULL;
-			if( Initializer ) Initializer( children[idx] );
-
-
 			children[idx]._depth = _depth+1;
+			if( Initializer ) Initializer( children[idx] );
 			for( int d=0 ; d<Dim ; d++ )
 			{
 if( children!=_children )
