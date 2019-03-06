@@ -293,7 +293,7 @@ inline void StackTrace( void )
 
 		char syscom[1024];
 		sprintf( syscom , "addr2line %p -e PoissonRecon/Bin/Linux/PoissonRecon" , trace[i] ); //last parameter is the name of this app
-		if( !system( syscom ) ) WARN( "failed to issue system command" );
+		if( !system( syscom ) ) ;
 
 		// find parantheses and +address offset surrounding mangled name
 		for( char *p=messages[i] ; *p ; ++p )
