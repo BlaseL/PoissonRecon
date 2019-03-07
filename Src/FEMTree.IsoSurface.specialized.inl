@@ -59,6 +59,7 @@ protected:
 	static std::mutex _pointInsertionMutex;
 #endif // NEW_THREADS
 #ifdef NEW_CODE
+	static std::atomic< size_t > _BadRootCount;
 	//////////
 	// _Key //
 	//////////
@@ -2387,7 +2388,11 @@ protected:
 		}
 		if( averageRoot<=0 || averageRoot>=1 )
 		{
+#ifdef NEW_CODE
+			_BadRootCount++;
+#else // !NEW_CODE
 			WARN( "Bad average root: " , averageRoot , "\t(" , x0 ," " , x1 ,") (" , isoValue , ")" );
+#endif // NEW_CODE
 			if( averageRoot<0 ) averageRoot = 0;
 			if( averageRoot>1 ) averageRoot = 1;
 		}
@@ -2467,9 +2472,13 @@ protected:
 		}
 		if( averageRoot<=0 || averageRoot>=1 )
 		{
+#ifdef NEW_CODE
+			_BadRootCount++;
+#else // !NEW_CODE
 			WARN( "Bad average root: " , averageRoot , "\t(" , x0 ," " , x1 ,") (" , isoValue , ")" );
 			if( averageRoot<0 ) averageRoot = 0;
 			if( averageRoot>1 ) averageRoot = 1;
+#endif // NEW_CODE
 		}
 		position[2] = Real( start + width*averageRoot );
 		Real depth = (Real)1.;
@@ -2661,6 +2670,9 @@ public:
 	static IsoStats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , CoredMeshData< Vertex >& mesh , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex , bool nonLinearFit , bool addBarycenter , bool polygonMesh , bool flipOrientation )
 #endif // NEW_CODE
 	{
+#ifdef NEW_CODE
+		_BadRootCount = 0u;
+#endif // NEW_CODE
 		IsoStats isoStats;
 		static_assert( sizeof...(FEMSigs)==Dim , "[ERROR] Number of signatures should match dimension" );
 		tree._setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
@@ -2812,12 +2824,19 @@ public:
 		}
 		FEMTree< Dim , Real >::MemoryUsage();
 		if( pointEvaluator ) delete pointEvaluator;
+#ifdef NEW_CODE
+		size_t badRootCount = _BadRootCount;
+		if( badRootCount!=0 ) WARN( "bad average roots: " , badRootCount );
+#endif // NEW_CODE
 		return isoStats;
 	}
 };
 #ifdef NEW_THREADS
 template< class Real , class Vertex > std::mutex IsoSurfaceExtractor< 3 , Real , Vertex >::_pointInsertionMutex;
 #endif // NEW_THREADS
+#ifdef NEW_CODE
+template< class Real , class Vertex > std::atomic< size_t > IsoSurfaceExtractor< 3 , Real , Vertex >::_BadRootCount;
+#endif // NEW_CODE
 
 
 template< class Real , class Vertex > template< unsigned int D , unsigned int K >
