@@ -113,8 +113,8 @@ template< typename Real , typename ... VertexData >
 PlyVertexWithData< float , DIMENSION , MultiPointStreamData< float , PointStreamValue< float > , VertexData ... > > InterpolateVertices( const PlyVertexWithData< float , DIMENSION , MultiPointStreamData< float , PointStreamValue< float > , VertexData ... > >& v1 , const PlyVertexWithData< float , DIMENSION , MultiPointStreamData< float , PointStreamValue< float > , VertexData ... > >& v2 , Real value )
 {
 #ifdef NEW_POINT_STREAM
-	if( v1.data.data<0>()==v2.data.data<0>() ) return (v1+v2)/Real(2.);
-	Real dx = ( v1.data.data<0>()-value ) / ( v1.data.data<0>()-v2.data.data<0>() );
+	if( v1.data.template data<0>()==v2.data.template data<0>() ) return (v1+v2)/Real(2.);
+	Real dx = ( v1.data.template data<0>()-value ) / ( v1.data.template data<0>()-v2.data.template data<0>() );
 #else // !NEW_POINT_STREAM
 	if( std::get<0>( v1.data.data ).data==std::get<0>( v2.data.data ).data ) return (v1+v2)/Real(2.);
 	Real dx = ( std::get<0>( v1.data.data ).data-value ) / ( std::get<0>( v1.data.data ).data-std::get<0>( v2.data.data ).data );
@@ -145,14 +145,14 @@ void SmoothValues( std::vector< PlyVertexWithData< float , DIMENSION , MultiPoin
 #endif // NEW_CODE
 			count[v1]++ , count[v2]++;
 #ifdef NEW_POINT_STREAM
-			sums[v1] += vertices[v2].data.data<0>() , sums[v2] += vertices[v1].data.data<0>();
+			sums[v1] += vertices[v2].data.template data<0>() , sums[v2] += vertices[v1].data.template data<0>();
 #else // !NEW_POINT_STREAM
 			sums[v1] += std::get< 0 >( vertices[v2].data.data ).data , sums[v2] += std::get< 0 >( vertices[v1].data.data ).data;
 #endif // NEW_POINT_STREAM
 		}
 	}
 #ifdef NEW_POINT_STREAM
-	for( size_t i=0 ; i<vertices.size() ; i++ ) vertices[i].data.data<0>() = ( sums[i] + vertices[i].data.data<0>() ) / ( count[i] + 1 );
+	for( size_t i=0 ; i<vertices.size() ; i++ ) vertices[i].data.template data<0>() = ( sums[i] + vertices[i].data.template data<0>() ) / ( count[i] + 1 );
 #else // !NEW_POINT_STREAM
 	for( size_t i=0 ; i<vertices.size() ; i++ ) std::get< 0 >( vertices[i].data.data ).data = ( sums[i] + std::get< 0 >( vertices[i].data.data ).data ) / ( count[i] + 1 );
 #endif // NEW_POINT_STREAM
@@ -188,7 +188,7 @@ void SplitPolygon
 	for( int j=0 ; j<sz ; j++ )
 	{
 #ifdef NEW_POINT_STREAM
-		gt[j] = ( vertices[ polygon[j] ].data.data<0>()>trimValue );
+		gt[j] = ( vertices[ polygon[j] ].data.template data<0>()>trimValue );
 #else // !NEW_POINT_STREAM
 		gt[j] = ( std::get<0>( vertices[ polygon[j] ].data.data ).data>trimValue );
 #endif // NEW_POINT_STREAM
@@ -484,8 +484,8 @@ int Execute( void )
 	for( int i=0 ; i<Smooth.value ; i++ ) SmoothValues< float >( vertices , polygons );
 #endif // NEW_CODE
 #ifdef NEW_POINT_STREAM
-	min = max = vertices[0].data.data<0>();
-	for( size_t i=0 ; i<vertices.size() ; i++ ) min = std::min< float >( min , vertices[i].data.data<0>() ) , max = std::max< float >( max , vertices[i].data.data<0>() );
+	min = max = vertices[0].data.template data<0>();
+	for( size_t i=0 ; i<vertices.size() ; i++ ) min = std::min< float >( min , vertices[i].data.template data<0>() ) , max = std::max< float >( max , vertices[i].data.template data<0>() );
 #else // !NEW_POINT_STREAM
 	min = max = std::get< 0 >( vertices[0].data.data ).data;
 	for( size_t i=0 ; i<vertices.size() ; i++ ) min = std::min< float >( min , std::get< 0 >( vertices[i].data.data ).data ) , max = std::max< float >( max , std::get< 0 >( vertices[i].data.data ).data );
