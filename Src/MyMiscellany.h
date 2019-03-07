@@ -604,20 +604,12 @@ struct ThreadPool
 		}
 		else if( _ParallelType==THREAD_POOL )
 		{
-#ifdef USE_FEWER_THREADS
-#if 1
-#ifdef USE_THREAD_MINUS_ONE
 			unsigned int targetTasks = 0;
+#ifdef USE_THREAD_MINUS_ONE
 			if( !SetAtomic( &_RemainingTasks , threads-1 , targetTasks ) )
 #else // !USE_THREAD_MINUS_ONE
-			if( !SetAtomic( &_RemainingTasks , threads , 0 ) )
+			if( !SetAtomic( &_RemainingTasks , threads , targetTasks ) )
 #endif // USE_THREAD_MINUS_ONE
-#else
-			if( _RemainingTasks )
-#endif
-#else // !USE_FEWER_THREADS
-			if( _WorkToBeDone )
-#endif // USE_FEWER_THREADS
 			{
 				WARN( "nested for loop, reverting to serial" );
 				for( size_t i=begin ; i<end ; i++ ) iterationFunction( 0 , i );
@@ -627,32 +619,23 @@ struct ThreadPool
 #ifdef USE_FEWER_THREADS
 				std::unique_lock< std::mutex > lock( _Mutex );
 #ifdef USE_THREAD_MINUS_ONE
-#if 1
 				_TotalTasks = threads-1;
-#else
-				_TotalTasks = _RemainingTasks = threads-1;
-#endif
 				_NextTask = 0;
 				for( unsigned int t=0 ; t<threads-1 ; t++ ) _WaitingForWorkOrClose.notify_one();
 				lock.unlock();
 				_ThreadFunction( threads-1 );
 				lock.lock();
 #else // !USE_THREAD_MINUS_ONE
-#if 1
 				_TotalTasks = threads;
-#else
-				_TotalTasks = _RemainingTasks = threads;
-#endif
 				_NextTask = 0;
 				for( unsigned int t=0 ; t<threads ; t++ ) _WaitingForWorkOrClose.notify_one();
 #endif // USE_THREAD_MINUS_ONE
 				_DoneWithWork.wait( lock , [&]( void ){ return _RemainingTasks==0; } );
 #else // !USE_FEWER_THREADS
-				_WorkToBeDone = (unsigned int)_threads.size();
 				_WaitingForWorkOrClose.notify_all();
 				{
-					std::unique_lock< std::mutex > lock( _mutex );
-					_DoneWithWork.wait( lock , [&]( void ){ return _WorkToBeDone==0; } );
+					std::unique_lock< std::mutex > lock( _Mutex );
+					_DoneWithWork.wait( lock , [&]( void ){ return _RemainingTasks==0; } );
 				}
 #endif // USE_FEWER_THREADS
 			}
@@ -681,11 +664,7 @@ struct ThreadPool
 		_Threads.resize( numThreads );
 		if( _ParallelType==THREAD_POOL )
 		{
-#ifdef USE_FEWER_THREADS
 			_RemainingTasks = 0;
-#else // !USE_FEWER_THREADS
-			_WorkToBeDone = 0;
-#endif // USE_FEWER_THREADS
 			_Close = false;
 #ifdef USE_FEWER_THREADS
 			for( unsigned int t=0 ; t<numThreads ; t++ ) _Threads[t] = std::thread( _ThreadInitFunction );
@@ -728,11 +707,7 @@ private:
 		while( !_Close )
 		{
 #ifdef USE_FEWER_THREADS
-#if 1
 			if( _NextTask<_TotalTasks )
-#else
-			while( _NextTask<_TotalTasks )
-#endif
 			{
 				unsigned int currentTask = _NextTask++;
 				lock.unlock();
@@ -750,8 +725,8 @@ private:
 
 			// Notify and wait for the next job
 			lock.lock();
-			_WorkToBeDone--;
-			if( !_WorkToBeDone ) _DoneWithWork.notify_all();
+			_RemainingTasks--;
+			if( !_RemainingTasks ) _DoneWithWork.notify_all();
 			_WaitingForWorkOrClose.wait( lock );
 #endif // USE_FEWER_THREADS
 		}
@@ -760,11 +735,9 @@ private:
 	static bool _Close;
 #ifdef USE_FEWER_THREADS
 	static unsigned int _TotalTasks;
-	static volatile unsigned int _RemainingTasks;
 	static unsigned int _NextTask;
-#else // !USE_FEWER_THREADS
-	static unsigned int _WorkToBeDone;
 #endif // USE_FEWER_THREADS
+	static volatile unsigned int _RemainingTasks;
 	static std::mutex _Mutex;
 	static std::condition_variable _WaitingForWorkOrClose , _DoneWithWork;
 	static std::vector< std::thread > _Threads;
@@ -777,11 +750,9 @@ ThreadPool::ScheduleType ThreadPool::DefaultSchedule = ThreadPool::DYNAMIC;
 bool ThreadPool::_Close;
 #ifdef USE_FEWER_THREADS
 unsigned int ThreadPool::_TotalTasks;
-volatile unsigned int ThreadPool::_RemainingTasks;
 unsigned int ThreadPool::_NextTask;
-#else // !USE_FEWER_THREADS
-unsigned int ThreadPool::_WorkToBeDone;
 #endif // USE_FEWER_THREADS
+volatile unsigned int ThreadPool::_RemainingTasks;
 std::mutex ThreadPool::_Mutex;
 std::condition_variable ThreadPool::_WaitingForWorkOrClose;
 std::condition_variable ThreadPool::_DoneWithWork;

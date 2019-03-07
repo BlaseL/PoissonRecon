@@ -189,11 +189,11 @@ Point< double , CDim > FEMIntegrator::Constraint< UIntPack< TSignatures ... > , 
 /////////////
 template< unsigned int Dim , class Real >
 template< unsigned int ... FEMSigs >
-#ifdef NEW_CODE
+#ifdef NEW_CODE_SPARSE_MATRIX
 void FEMTree< Dim , Real >::setMultiColorIndices( UIntPack< FEMSigs ... > , int depth , std::vector< std::vector< size_t > >& indices ) const
-#else // !NEW_CODE
+#else // !NEW_CODE_SPARSE_MATRIX
 void FEMTree< Dim , Real >::setMultiColorIndices( UIntPack< FEMSigs ... > , int depth , std::vector< std::vector< int > >& indices ) const
-#endif // NEW_CODE
+#endif // NEW_CODE_SPARSE_MATRIX
 {
 	_setMultiColorIndices( UIntPack< FEMSigs ... >() , _sNodesBegin(depth) , _sNodesEnd(depth) , indices );
 }
@@ -201,12 +201,24 @@ template< unsigned int Dim , class Real >
 template< unsigned int ... FEMSigs >
 #ifdef NEW_CODE
 #ifdef NEW_THREADS
+#ifdef NEW_CODE_SPARSE_MATRIX
 void FEMTree< Dim , Real >::_setMultiColorIndices( UIntPack< FEMSigs ... > , node_index_type start , node_index_type end , std::vector< std::vector< size_t > >& indices ) const
+#else // !NEW_CODE_SPARSE_MATRIX
+void FEMTree< Dim , Real >::_setMultiColorIndices( UIntPack< FEMSigs ... > , node_index_type start , node_index_type end , std::vector< std::vector< int > >& indices ) const
+#endif // NEW_CODE_SPARSE_MATRIX
 #else // !NEW_THREADS
+#ifdef NEW_CODE_SPARSE_MATRIX
 void FEMTree< Dim , Real >::_setMultiColorIndices( UIntPack< FEMSigs ... > , node_index_type start , node_index_type end , std::vector< std::vector< size_t > >& indices ) const
+#else // !NEW_CODE_SPARSE_MATRIX
+void FEMTree< Dim , Real >::_setMultiColorIndices( UIntPack< FEMSigs ... > , node_index_type start , node_index_type end , std::vector< std::vector< int > >& indices ) const
+#endif // NEW_CODE_SPARSE_MATRIX
 #endif // NEW_THREADS
 #else // !NEW_CODE
+#ifdef NEW_CODE_SPARSE_MATRIX
+void FEMTree< Dim , Real >::_setMultiColorIndices( UIntPack< FEMSigs ... > , int start , int end , std::vector< std::vector< size_t > >& indices ) const
+#else // !NEW_CODE_SPARSE_MATRIX
 void FEMTree< Dim , Real >::_setMultiColorIndices( UIntPack< FEMSigs ... > , int start , int end , std::vector< std::vector< int > >& indices ) const
+#endif // NEW_CODE_SPARSE_MATRIX
 #endif // NEW_CODE
 {
 	_setFEM1ValidityFlags( UIntPack< FEMSigs ... >() );
@@ -329,16 +341,12 @@ int FEMTree< Dim , Real >::_solveFullSystemGS( UIntPack< FEMSigs ... > , const t
 
 		systemTime += Time()-t;
 		// The list of multi-colored indices  for each in-memory slice
-#ifdef NEW_CODE
+#ifdef NEW_CODE_SPARSE_MATRIX
 		std::vector< std::vector< size_t > > mcIndices;
-#else // !NEW_CODE
+#else // !NEW_CODE_SPARSE_MATRIX
 		std::vector< std::vector< int > > mcIndices;
-#endif // NEW_CODE
-#ifdef NEW_THREADS
+#endif // NEW_CODE_SPARSE_MATRIX
 		_setMultiColorIndices( UIntPack< FEMSigs ... >() , _sNodesBegin( depth ) , _sNodesEnd( depth ) , mcIndices );
-#else // !NEW_THREADS
-		_setMultiColorIndices( UIntPack< FEMSigs ... >() , _sNodesBegin( depth ) , _sNodesEnd( depth ) , mcIndices );
-#endif // NEW_THREADS
 
 		ConstPointer( T ) B = _constraints;
 		Pointer( T ) X = GetPointer( &solution[0] + _sNodesBegin( depth ) , _sNodesSize( depth ) );
@@ -383,11 +391,7 @@ int FEMTree< Dim , Real >::_solveFullSystemGS( UIntPack< FEMSigs ... > , const t
 
 		t = Time();
 		MemoryUsage();
-#ifdef NEW_THREADS
 		for( int i=0 ; i<iters ; i++ ) M.gsIteration( mcIndices , ( ConstPointer( Real ) )D , B , X , coarseToFine , true );
-#else // !NEW_THREADS
-		for( int i=0 ; i<iters ; i++ ) M.gsIteration( mcIndices , ( ConstPointer( Real ) )D , B , X , coarseToFine , true );
-#endif // NEW_THREADS
 		FreePointer( D );
 		solveTime += Time() - t;
 
@@ -562,11 +566,11 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 		std::vector< Pointer( T ) > _constraints( matrixBlocks );
 		for( int i=0 ; i<matrixBlocks ; i++ ) _D[i] = NullPointer( Real ) , _constraints[i] = NullPointer( T );
 		// The list of multi-colored indices  for each in-memory block
-#ifdef NEW_CODE
+#ifdef NEW_CODE_SPARSE_MATRIX
 		Pointer( std::vector< std::vector< size_t > > ) mcIndices = NewPointer< std::vector< std::vector< size_t > > >( solveBlocks );
-#else // !NEW_CODE
+#else // !NEW_CODE_SPARSE_MATRIX
 		Pointer( std::vector< std::vector< int > > ) mcIndices = NewPointer< std::vector< std::vector< int > > >( solveBlocks );
-#endif // NEW_CODE
+#endif // NEW_CODE_SPARSE_MATRIX
 		int dir = forward ? 1 : -1 , start = forward ? blockBegin : blockEnd-1 , end = forward ? blockEnd : blockBegin-1;
 		const BlockWindow FullWindow( blockBegin , blockEnd );
 		BlockWindow residualWindow( FullWindow.begin(forward) , FullWindow.begin(forward) - ( ColorModulus*iters - ( ColorModulus-1 ) ) * dir - 2*residualOffset*dir );
@@ -680,11 +684,7 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 				{
 					int b = frontSolveBlock , _b = MOD( b , matrixBlocks ) , __b = MOD( b , solveBlocks );
 					for( int i=0 ; i<int( mcIndices[__b].size() ) ; i++ ) mcIndices[__b][i].clear();
-#ifdef NEW_THREADS
 					_setMultiColorIndices( UIntPack< FEMSigs ... >() , _sNodesBegin( depth , BlockFirst( b ) ) , _sNodesEnd( depth , BlockLast( b ) ) , mcIndices[__b] );
-#else // !NEW_THREADS
-					_setMultiColorIndices( UIntPack< FEMSigs ... >() , _sNodesBegin( depth , BlockFirst( b ) ) , _sNodesEnd( depth , BlockLast( b ) ) , mcIndices[__b] );
-#endif // NEW_THREADS
 				}
 			}
 
@@ -694,11 +694,7 @@ int FEMTree< Dim , Real >::_solveSlicedSystemGS( UIntPack< FEMSigs ... > , const
 				int b = block , _b = MOD( b , matrixBlocks ) , __b = MOD( b , solveBlocks );
 				ConstPointer( T ) B = _constraints[_b];
 				Pointer( T ) X = XBlocks( depth , b , solution );
-#ifdef NEW_THREADS
 				_M[_b].gsIteration( mcIndices[__b] , ( ConstPointer( Real ) )_D[_b] , B , X , coarseToFine , true );
-#else // !NEW_THREADS
-				_M[_b].gsIteration( mcIndices[__b] , ( ConstPointer( Real ) )_D[_b] , B , X , coarseToFine , true );
-#endif // NEW_THREADS
 			}
 			solveTime += Time() - t;
 
@@ -890,11 +886,7 @@ int FEMTree< Dim , Real >::_solveSystemCG( UIntPack< FEMSigs ... > , const typen
 #endif // NEW_CODE
 		void operator()( ConstPointer( T ) in , Pointer( T ) out ) const
 		{
-#ifdef NEW_THREADS
 			_M.multiply( in , out );
-#else // !NEW_THREADS
-			_M.multiply( in , out );
-#endif // NEW_THREADS
 			if( _addDCTerm )
 			{
 				T average = {};
@@ -982,11 +974,11 @@ void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > , typename 
 #endif // NEW_CODE
 	std::vector< Pointer( Real ) > D( depth+1 );
 	std::vector< Pointer( T ) > B( depth+1 ) , X( depth+1 ) , MX( depth+1 );
-#ifdef NEW_CODE
+#ifdef NEW_CODE_SPARSE_MATRIX
 	std::vector< std::vector< std::vector< size_t > > > multiColorIndices( depth+1 );
-#else // !NEW_CODE
+#else // !NEW_CODE_SPARSE_MATRIX
 	std::vector< std::vector< std::vector< int > > > multiColorIndices( depth+1 );
-#endif // NEW_CODE
+#endif // NEW_CODE_SPARSE_MATRIX
 
 	systemTime = Time();
 #ifdef NEW_THREADS
@@ -1081,23 +1073,14 @@ void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > , typename 
 		for( int d=depth ; d>0 ; d-- )
 		{
 			ConstPointer( T ) __B = d==depth ? _B : B[d];
-#ifdef NEW_THREADS
 			for( int i=0 ; i<iters ; i++ ) M[d].gsIteration( multiColorIndices[d] , D[d] , __B , X[d] , true , true );
 			M[d].multiply( X[d] , MX[d] );
-#else // !NEW_THREADS
-			for( int i=0 ; i<iters ; i++ ) M[d].gsIteration( multiColorIndices[d] , D[d] , __B , X[d] , true , true );
-			M[d].multiply( X[d] , MX[d] );
-#endif // NEW_THREADS
 #ifdef NEW_CODE
 			for( matrix_index_type i=0 ; i<(matrix_index_type)M[d].rows() ; i++ ) MX[d][i] = __B[i] - MX[d][i];
 #else // !NEW_CODE
 			for( int i=0 ; i<M[d].rows() ; i++ ) MX[d][i] = __B[i] - MX[d][i];
 #endif // NEW_CODE
-#ifdef NEW_THREADS
 			R[d-1].multiply( MX[d] , B[d-1] );
-#else // !NEW_THREADS
-			R[d-1].multiply( MX[d] , B[d-1] );
-#endif // NEW_THREADS
 			memset( X[d-1] , 0 , sizeof( T )*M[d-1].rows() );
 		}
 
@@ -1169,13 +1152,8 @@ void FEMTree< Dim , Real >::_solveRegularMG( UIntPack< FEMSigs ... > , typename 
 		for( int d=1 ; d<=depth ; d++ )
 		{
 			ConstPointer( T ) __B = d==depth ? _B : B[d];
-#ifdef NEW_THREADS
 			P[d-1].multiply( X[d-1] , X[d] , MULTIPLY_ADD );
 			for( int i=0 ; i<iters ; i++ ) M[d].gsIteration( multiColorIndices[d] , D[d] , __B , X[d] , false , true );
-#else // !NEW_THREADS
-			P[d-1].multiply( X[d-1] , X[d] , MULTIPLY_ADD );
-			for( int i=0 ; i<iters ; i++ ) M[d].gsIteration( multiColorIndices[d] , D[d] , __B , X[d] , false , true );
-#endif // NEW_THREADS
 		}
 	}
 	if( computeNorms )

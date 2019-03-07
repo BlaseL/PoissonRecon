@@ -1685,8 +1685,13 @@ public:
 	const FEMTreeNode* leaf( Point< Real , Dim > p ) const;
 #ifdef NEW_CODE
 protected:
+#ifdef THREAD_SAFE_CHILD_INIT
+	template< bool ThreadSafe >
+	FEMTreeNode* _leaf( Allocator< FEMTreeNode > * nodeAllocator , Point< Real , Dim > p , LocalDepth maxDepth=-1 );
+#else // !THREAD_SAFE_CHILD_INIT
 	FEMTreeNode* _leaf( Allocator< FEMTreeNode > * nodeAllocator , Point< Real , Dim > p , LocalDepth maxDepth=-1 );
 	FEMTreeNode* _leaf_s( Allocator< FEMTreeNode > * nodeAllocator , Point< Real , Dim > p , LocalDepth maxDepth=-1 );
+#endif // THREAD_SAFE_CHILD_INIT
 public:
 #else // !NEW_CODE
 	FEMTreeNode* leaf( Point< Real , Dim > p , LocalDepth maxDepth=-1 );
@@ -2383,11 +2388,21 @@ protected:
 	}
 
 #ifdef NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+	template< bool ThreadSafe , unsigned int ... Degrees > void _setFullDepth( UIntPack< Degrees ... > , Allocator< FEMTreeNode > *nodeAllocator , FEMTreeNode* node , LocalDepth depth );
+	template< bool ThreadSafe , unsigned int ... Degrees > void _setFullDepth( UIntPack< Degrees ... > , Allocator< FEMTreeNode > *nodeAllocator , LocalDepth depth );
+#else // !THREAD_SAFE_CHILD_INIT
 	template< unsigned int ... Degrees > void _setFullDepth( UIntPack< Degrees ... > , Allocator< FEMTreeNode > *nodeAllocator , FEMTreeNode* node , LocalDepth depth );
 	template< unsigned int ... Degrees > void _setFullDepth( UIntPack< Degrees ... > , Allocator< FEMTreeNode > *nodeAllocator , LocalDepth depth );
+#endif // THREAD_SAFE_CHILD_INIT
 #else // !NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+	template< bool ThreadSafe , unsigned int ... Degrees > void _setFullDepth( UIntPack< Degrees ... > , FEMTreeNode* node , LocalDepth depth );
+	template< bool ThreadSafe , unsigned int ... Degrees > void _setFullDepth( UIntPack< Degrees ... > , LocalDepth depth );
+#else // !THREAD_SAFE_CHILD_INIT
 	template< unsigned int ... Degrees > void _setFullDepth( UIntPack< Degrees ... > , FEMTreeNode* node , LocalDepth depth );
 	template< unsigned int ... Degrees > void _setFullDepth( UIntPack< Degrees ... > , LocalDepth depth );
+#endif // THREAD_SAFE_CHILD_INIT
 #endif // NEW_CODE
 	template< unsigned int ... Degrees > LocalDepth _getFullDepth( UIntPack< Degrees ... > , const FEMTreeNode* node ) const;
 
@@ -2427,16 +2442,24 @@ protected:
 	// MultiGridFEMTreeData.System.inl //
 	/////////////////////////////////////
 public:
-#ifdef NEW_CODE
+#ifdef NEW_CODE_SPARSE_MATRIX
 	template< unsigned int ... FEMSigs > void setMultiColorIndices( UIntPack< FEMSigs ... > , int depth , std::vector< std::vector< size_t > >& indices ) const;
-#else // !NEW_CODE
+#else // !NEW_CODE_SPARSE_MATRIX
 	template< unsigned int ... FEMSigs > void setMultiColorIndices( UIntPack< FEMSigs ... > , int depth , std::vector< std::vector< int > >& indices ) const;
-#endif // NEW_CODE
+#endif // NEW_CODE_SPARSE_MATRIX
 protected:
 #ifdef NEW_CODE
+#ifdef NEW_CODE_SPARSE_MATRIX
 	template< unsigned int ... FEMSigs > void _setMultiColorIndices( UIntPack< FEMSigs ... > , node_index_type start , node_index_type end , std::vector< std::vector< size_t > >& indices ) const;
+#else // !NEW_CODE_SPARSE_MATRIX
+	template< unsigned int ... FEMSigs > void _setMultiColorIndices( UIntPack< FEMSigs ... > , node_index_type start , node_index_type end , std::vector< std::vector< int > >& indices ) const;
+#endif // NEW_CODE_SPARSE_MATRIX
 #else // !NEW_CODE
+#ifdef NEW_CODE_SPARSE_MATRIX
+	template< unsigned int ... FEMSigs > void _setMultiColorIndices( UIntPack< FEMSigs ... > , int start , int end , std::vector< std::vector< size_t > >& indices ) const;
+#else // !NEW_CODE_SPARSE_MATRIX
 	template< unsigned int ... FEMSigs > void _setMultiColorIndices( UIntPack< FEMSigs ... > , int start , int end , std::vector< std::vector< int > >& indices ) const;
+#endif // NEW_CODE_SPARSE_MATRIX
 #endif // NEW_CODE
 
 	struct _SolverStats
@@ -2667,7 +2690,11 @@ protected:
 	// Code for splatting point-sample data     //
 	// MultiGridFEMTreeData.WeightedSamples.inl //
 	//////////////////////////////////////////////
+#ifdef THREAD_SAFE_CHILD_INIT
+	template< bool ThreadSafe , unsigned int WeightDegree >
+#else // !THREAD_SAFE_CHILD_INIT
 	template< unsigned int WeightDegree >
+#endif // THREAD_SAFE_CHILD_INIT
 #ifdef NEW_CODE
 	void _addWeightContribution( Allocator< FEMTreeNode > *nodeAllocator , DensityEstimator< WeightDegree >& densityWeights , FEMTreeNode* node , Point< Real , Dim > position , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , Real weight=Real(1.0) );
 #else // !NEW_CODE
@@ -2681,13 +2708,25 @@ protected:
 	void _getSampleDepthAndWeight( const DensityEstimator< WeightDegree >& densityWeights , Point< Real , Dim > position , WeightKey& weightKey , Real& depth , Real& weight ) const;
 
 #ifdef NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+	template< bool CreateNodes , bool ThreadSafe ,                             class V , unsigned int ... DataSigs > void      _splatPointData( Allocator< FEMTreeNode > *nodeAllocator , FEMTreeNode* node ,                                                          Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data ,                                                                         PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey                                                                        );
+	template< bool CreateNodes , bool ThreadSafe , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real      _splatPointData( Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >& densityWeights ,                     Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , LocalDepth minDepth , LocalDepth maxDepth , int dim , Real depthBias );
+	template< bool CreateNodes , bool ThreadSafe , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real _multiSplatPointData( Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey ,                                             int dim                  );
+#else // !THREAD_SAFE_CHILD_INIT
 	template< bool CreateNodes ,                             class V , unsigned int ... DataSigs > void      _splatPointData( Allocator< FEMTreeNode > *nodeAllocator , FEMTreeNode* node ,                                                          Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data ,                                                                         PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey                                                                        );
 	template< bool CreateNodes , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real      _splatPointData( Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >& densityWeights ,                     Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , LocalDepth minDepth , LocalDepth maxDepth , int dim , Real depthBias );
 	template< bool CreateNodes , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real _multiSplatPointData( Allocator< FEMTreeNode > *nodeAllocator , const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey ,                                             int dim                  );
+#endif // THREAD_SAFE_CHILD_INIT
 #else // !NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+	template< bool CreateNodes , bool ThreadSafe ,                             class V , unsigned int ... DataSigs > void      _splatPointData( FEMTreeNode* node ,                                                          Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data ,                                                                         PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey                                                                        );
+	template< bool CreateNodes , bool ThreadSafe , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real      _splatPointData( const DensityEstimator< WeightDegree >& densityWeights ,                     Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , LocalDepth minDepth , LocalDepth maxDepth , int dim , Real depthBias );
+	template< bool CreateNodes , bool ThreadSafe , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real _multiSplatPointData( const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey ,                                             int dim                  );
+#else // !THREAD_SAFE_CHILD_INIT
 	template< bool CreateNodes ,                             class V , unsigned int ... DataSigs > void      _splatPointData( FEMTreeNode* node ,                                                          Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data ,                                                                         PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey                                                                        );
 	template< bool CreateNodes , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real      _splatPointData( const DensityEstimator< WeightDegree >& densityWeights ,                     Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey , LocalDepth minDepth , LocalDepth maxDepth , int dim , Real depthBias );
 	template< bool CreateNodes , unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real _multiSplatPointData( const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , PointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey ,                                             int dim                  );
+#endif // THREAD_SAFE_CHILD_INIT
 #endif // NEW_CODE
 	template< unsigned int WeightDegree , class V , unsigned int ... DataSigs > Real _nearestMultiSplatPointData( const DensityEstimator< WeightDegree >* densityWeights , FEMTreeNode* node , Point< Real , Dim > point , V v , SparseNodeData< V , UIntPack< DataSigs ... > >& data , PointSupportKey< IsotropicUIntPack< Dim , WeightDegree > >& weightKey , int dim=Dim );
 	template< class V , class Coefficients , unsigned int D , unsigned int ... DataSigs > V _evaluate( const Coefficients& coefficients , Point< Real , Dim > p , const PointEvaluator< UIntPack< DataSigs ... > , IsotropicUIntPack< Dim , D > >& pointEvaluator , const ConstPointSupportKey< UIntPack< FEMSignature< DataSigs >::Degree ... > >& dataKey ) const;
@@ -3568,10 +3607,21 @@ struct FEMTreeInitializer
 
 protected:
 #ifdef NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+	template< bool ThreadSafe >
+	static size_t _AddSimplex( FEMTreeNode& root , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< PointSample >& samples , std::vector< node_index_type >* nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+	template< bool ThreadSafe >
+	static size_t _AddSimplex( FEMTreeNode& root , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& simplices , std::vector< node_index_type >& nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+	template< bool ThreadSafe >
+	static size_t _AddSimplex( FEMTreeNode* node , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< PointSample >& samples , std::vector< node_index_type >* nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+	template< bool ThreadSafe >
+	static size_t _AddSimplex( FEMTreeNode* node , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& simplices , std::vector< node_index_type >& nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
 	static size_t _AddSimplex( FEMTreeNode& root , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< PointSample >& samples , std::vector< node_index_type >* nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
 	static size_t _AddSimplex( FEMTreeNode& root , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& simplices , std::vector< node_index_type >& nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
 	static size_t _AddSimplex( FEMTreeNode* node , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< PointSample >& samples , std::vector< node_index_type >* nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
 	static size_t _AddSimplex( FEMTreeNode* node , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& simplices , std::vector< node_index_type >& nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
 #else // !NEW_CODE
 	static int _AddSimplex( FEMTreeNode& root , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< PointSample >& samples , std::vector< int >* nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );
 	static int _AddSimplex( FEMTreeNode& root , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& simplices , std::vector< int >& nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer );

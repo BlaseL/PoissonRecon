@@ -1742,7 +1742,11 @@ protected:
 #else // !NEW_THREADS
 				int thread = omp_get_thread_num();
 #endif // NEW_THREADS
+#ifdef NEW_CODE
 				typename SliceData::SquareEdgeIndices& pIndices = pSliceData.edgeIndices( (node_index_type)i );
+#else // !NEW_CODE
+				typename SliceData::SquareEdgeIndices& pIndices = pSliceData.edgeIndices( i );
+#endif // NEW_CODE
 				// Copy the edges that overlap the coarser edges
 				for( typename HyperCube::Cube< Dim-1 >::template Element< 1 > _e ; _e<HyperCube::Cube< Dim-1 >::template ElementNum< 1 >() ; _e++ )
 				{
@@ -1835,7 +1839,11 @@ protected:
 #else // !NEW_THREADS
 				int thread = omp_get_thread_num();
 #endif // NEW_THREADS
+#ifdef NEW_CODE
 				typename SliceData::SquareCornerIndices& pIndices = pSliceData.edgeIndices( (node_index_type)i );
+#else // !NEW_CODE
+				typename SliceData::SquareCornerIndices& pIndices = pSliceData.edgeIndices( i );
+#endif // NEW_CODE
 				for( typename HyperCube::Cube< Dim-1 >::template Element< 0 > _c ; _c<HyperCube::Cube< Dim-1 >::template ElementNum< 0 >() ; _c++ )
 				{
 					typename HyperCube::Cube< Dim >::template Element< 1 > e( HyperCube::CROSS , _c.index );

@@ -45,7 +45,11 @@ int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& node , int maxDep
 	node.depthAndOffset( d , off );
 	if( node.depth()<maxDepth && Refine( d , off ) )
 	{
+#ifdef THREAD_SAFE_CHILD_INIT
+		node.initChildren< false >( nodeAllocator , NodeInitializer ) , count += 1<<Dim;
+#else // !THREAD_SAFE_CHILD_INIT
 		node.initChildren( nodeAllocator , NodeInitializer ) , count += 1<<Dim;
+#endif // THREAD_SAFE_CHILD_INIT
 		for( int c=0 ; c<(1<<Dim) ; c++ ) count += Initialize( node.children[c] , maxDepth , Refine , nodeAllocator , NodeInitializer );
 	}
 	return count;
@@ -68,7 +72,11 @@ int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPoint
 		int d = 0;
 		while( d<maxDepth )
 		{
+#ifdef THREAD_SAFE_CHILD_INIT
+			if( !node->children ) node->template initChildren< false >( nodeAllocator , NodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
 			if( !node->children ) node->initChildren( nodeAllocator , NodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
 			int cIndex = FEMTreeNode::ChildIndex( center , p );
 			node = node->children + cIndex;
 			d++;
@@ -145,7 +153,11 @@ int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , InputPoint
 		int d = 0;
 		while( d<maxDepth )
 		{
+#ifdef THREAD_SAFE_CHILD_INIT
+			if( !node->children ) node->template initChildren< false >( nodeAllocator , NodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
 			if( !node->children ) node->initChildren( nodeAllocator , NodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
 			int cIndex = FEMTreeNode::ChildIndex( center , p );
 			node = node->children + cIndex;
 			d++;
@@ -258,16 +270,31 @@ void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std
 		for( int k=0 ; k<Dim ; k++ ) s[k] = vertices[ simplices[i][k] ];
 #ifdef NEW_CODE
 #ifdef NEW_THREADS
+#ifdef THREAD_SAFE_CHILD_INIT
+		if( mergeNodeSamples ) _AddSimplex< true >( root , s , maxDepth , samples , &nodeToIndexMap , nodeAllocators.size() ? nodeAllocators[t] : NULL , NodeInitializer );
+		else                   _AddSimplex< true >( root , s , maxDepth , samples , NULL ,            nodeAllocators.size() ? nodeAllocators[t] : NULL , NodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
 		if( mergeNodeSamples ) _AddSimplex( root , s , maxDepth , samples , &nodeToIndexMap , nodeAllocators.size() ? nodeAllocators[t] : NULL , NodeInitializer );
 		else                   _AddSimplex( root , s , maxDepth , samples , NULL ,            nodeAllocators.size() ? nodeAllocators[t] : NULL , NodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
 #else // !NEW_THREADS
+#ifdef THREAD_SAFE_CHILD_INIT
+		if( mergeNodeSamples ) _AddSimplex< true >( root , s , maxDepth , samples , &nodeToIndexMap , nodeAllocator , NodeInitializer );
+		else                   _AddSimplex< true >( root , s , maxDepth , samples , NULL ,            nodeAllocator , NodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
 		if( mergeNodeSamples ) _AddSimplex( root , s , maxDepth , samples , &nodeToIndexMap , nodeAllocator , NodeInitializer );
 		else                   _AddSimplex( root , s , maxDepth , samples , NULL ,            nodeAllocator , NodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
 #endif // NEW_THREADS
 #else // !NEW_CODE
 		int sCount;
+#ifdef THREAD_SAFE_CHILD_INIT
+		if( mergeNodeSamples ) sCount = _AddSimplex< true >( root , s , maxDepth , samples , &nodeToIndexMap , nodeAllocator , NodeInitializer );
+		else                   sCount = _AddSimplex< true >( root , s , maxDepth , samples , NULL ,            nodeAllocator , NodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
 		if( mergeNodeSamples ) sCount = _AddSimplex( root , s , maxDepth , samples , &nodeToIndexMap , nodeAllocator , NodeInitializer );
 		else                   sCount = _AddSimplex( root , s , maxDepth , samples , NULL ,            nodeAllocator , NodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
 #endif // NEW_CODE
 	}
 #ifdef NEW_THREADS
@@ -278,6 +305,9 @@ void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std
 
 template< unsigned int Dim , class Real >
 #ifdef NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+template< bool ThreadSafe >
+#endif // THREAD_SAFE_CHILD_INIT
 size_t FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode& root , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< PointSample >& samples , std::vector< node_index_type >* nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
 #else // !NEW_CODE
 int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode& root , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< PointSample >& samples , std::vector< int >* nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
@@ -325,19 +355,20 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode& root , Simplex< 
 		int d=0;
 		while( d<maxDepth )
 		{
+#ifdef THREAD_SAFE_CHILD_INIT
+			if( !node->children ) node->template initChildren< ThreadSafe >( nodeAllocator , NodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
 #ifdef NEW_THREADS
 			{
-#ifdef SECURE_INIT_ONLY
-#else // !SECURE_INIT_ONLY
 				static std::mutex m;
 				std::lock_guard< std::mutex > lock( m );
-#endif // SECURE_INIT_ONLY
 				if( !node->children ) node->initChildren( nodeAllocator , NodeInitializer );
 			}
 #else // !NEW_THREADS
 #pragma omp critical
 			if( !node->children ) node->initChildren( nodeAllocator , NodeInitializer );
 #endif // NEW_THREADS
+#endif // THREAD_SAFE_CHILD_INIT
 			int cIndex = FEMTreeNode::ChildIndex( center , p );
 			node = node->children + cIndex;
 			d++;
@@ -374,12 +405,19 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode& root , Simplex< 
 		}
 
 		// Generate a point in the middle of the simplex
+#ifdef THREAD_SAFE_CHILD_INIT
+		for( int i=0 ; i<subSimplices.size() ; i++ ) sCount += _AddSimplex< ThreadSafe >( Leaf( subSimplices[i].center() , tDepth ) , subSimplices[i] , maxDepth , samples , nodeToIndexMap , nodeAllocator , NodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
 		for( int i=0 ; i<subSimplices.size() ; i++ ) sCount += _AddSimplex( Leaf( subSimplices[i].center() , tDepth ) , subSimplices[i] , maxDepth , samples , nodeToIndexMap , nodeAllocator , NodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
 	}
 	return sCount;
 }
 template< unsigned int Dim , class Real >
 #ifdef NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+template< bool ThreadSafe >
+#endif // THREAD_SAFE_CHILD_INIT
 size_t FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode* node , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< PointSample >& samples , std::vector< node_index_type >* nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
 #else // !NEW_CODE
 int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode* node , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< PointSample >& samples , std::vector< int >* nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
@@ -462,19 +500,20 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode* node , Simplex< 
 #else // !NEW_CODE
 		int sCount = 0;
 #endif // NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+		if( !node->children ) node->template initChildren< ThreadSafe >( nodeAllocator , NodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
 #ifdef NEW_THREADS
 		{
-#ifdef SECURE_INIT_ONLY
-#else // !SECURE_INIT_ONLY
 			static std::mutex m;
 			std::lock_guard< std::mutex > lock(m);
-#endif // SECURE_INIT_ONLY
 			if( !node->children ) node->initChildren( nodeAllocator , NodeInitializer );
 		}
 #else // !NEW_THREADS
 #pragma omp critical
 		if( !node->children ) node->initChildren( nodeAllocator , NodeInitializer );
 #endif // NEW_THREADS
+#endif // THREAD_SAFE_CHILD_INIT
 
 		// Split up the simplex and pass the parts on to the children
 		Point< Real , Dim > center;
@@ -495,9 +534,17 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode* node , Simplex< 
 			childSimplices = temp;
 		}
 #ifdef NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+		for( int c=0 ; c<(1<<Dim) ; c++ ) for( size_t i=0 ; i<childSimplices[c].size() ; i++ ) if( childSimplices[c][i].measure() ) sCount += _AddSimplex< ThreadSafe >( node->children+c , childSimplices[c][i] , maxDepth , samples , nodeToIndexMap , nodeAllocator , NodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
 		for( int c=0 ; c<(1<<Dim) ; c++ ) for( size_t i=0 ; i<childSimplices[c].size() ; i++ ) if( childSimplices[c][i].measure() ) sCount += _AddSimplex( node->children+c , childSimplices[c][i] , maxDepth , samples , nodeToIndexMap , nodeAllocator , NodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
 #else // !NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+		for( int c=0 ; c<(1<<Dim) ; c++ ) for( int i=0 ; i<childSimplices[c].size() ; i++ ) if( childSimplices[c][i].measure() ) sCount += _AddSimplex< ThreadSafe >( node->children+c , childSimplices[c][i] , maxDepth , samples , nodeToIndexMap , nodeAllocator , NodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
 		for( int c=0 ; c<(1<<Dim) ; c++ ) for( int i=0 ; i<childSimplices[c].size() ; i++ ) if( childSimplices[c][i].measure() ) sCount += _AddSimplex( node->children+c , childSimplices[c][i] , maxDepth , samples , nodeToIndexMap , nodeAllocator , NodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
 #endif // NEW_CODE
 		return sCount;
 	}
@@ -520,13 +567,20 @@ void FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , const std
 	{
 		Simplex< Real , Dim , Dim-1 > s;
 		for( int k=0 ; k<Dim ; k++ ) s[k] = vertices[ simplices[i][k] ];
+#ifdef THREAD_SAFE_CHILD_INIT
+		_AddSimplex< false >( root , s , maxDepth , nodeSimplices , nodeToIndexMap , nodeAllocator , NodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
 		_AddSimplex( root , s , maxDepth , nodeSimplices , nodeToIndexMap , nodeAllocator , NodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
 	}
 	FEMTree< Dim , Real >::MemoryUsage();
 }
 
 template< unsigned int Dim , class Real >
 #ifdef NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+template< bool ThreadSafe >
+#endif // THREAD_SAFE_CHILD_INIT
 size_t FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode& root , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& simplices , std::vector< node_index_type >& nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
 #else // !NEW_CODE
 int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode& root , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& simplices , std::vector< int >& nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
@@ -582,7 +636,11 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode& root , Simplex< 
 		int d=0;
 		while( d<maxDepth )
 		{
+#ifdef THREAD_SAFE_CHILD_INIT
+			if( !node->children ) node->template initChildren< ThreadSafe >( nodeAllocator , NodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
 			if( !node->children ) node->initChildren( nodeAllocator , NodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
 			int cIndex = FEMTreeNode::ChildIndex( center , p );
 			node = node->children + cIndex;
 			d++;
@@ -625,15 +683,26 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode& root , Simplex< 
 		// Add the simplex to the node
 		FEMTreeNode* subSimplexNode = Leaf( subSimplices[i].center() , tDepth );
 #ifdef NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+		for( size_t i=0 ; i<subSimplices.size() ; i++ ) sCount += _AddSimplex< ThreadSafe >( subSimplexNode , subSimplices[i] , maxDepth , simplices , nodeToIndexMap , nodeAllocator , NodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
 		for( size_t i=0 ; i<subSimplices.size() ; i++ ) sCount += _AddSimplex( subSimplexNode , subSimplices[i] , maxDepth , simplices , nodeToIndexMap , nodeAllocator , NodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
 #else // !NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+		for( int i=0 ; i<subSimplices.size() ; i++ ) sCount += _AddSimplex< ThreadSafe >( subSimplexNode , subSimplices[i] , maxDepth , simplices , nodeToIndexMap , nodeAllocator , NodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
 		for( int i=0 ; i<subSimplices.size() ; i++ ) sCount += _AddSimplex( subSimplexNode , subSimplices[i] , maxDepth , simplices , nodeToIndexMap , nodeAllocator , NodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
 #endif // NEW_CODE
 	}
 	return sCount;
 }
 template< unsigned int Dim , class Real >
 #ifdef NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+template< bool ThreadSafe >
+#endif // THREAD_SAFE_CHILD_INIT
 size_t FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode* node , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& simplices , std::vector< node_index_type >& nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
 #else // !NEW_CODE
 int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode* node , Simplex< Real , Dim , Dim-1 >& s , int maxDepth , std::vector< NodeSimplices< Dim , Real > >& simplices , std::vector< int >& nodeToIndexMap , Allocator< FEMTreeNode >* nodeAllocator , std::function< void ( FEMTreeNode& ) > NodeInitializer )
@@ -679,7 +748,11 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode* node , Simplex< 
 #else // !NEW_CODE
 		int sCount = 0;
 #endif // NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+		if( !node->children ) node->template initChildren< ThreadSafe >( nodeAllocator , NodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
 		if( !node->children ) node->initChildren( nodeAllocator , NodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
 
 		// Split up the simplex and pass the parts on to the children
 		Point< Real , Dim > center;
@@ -695,7 +768,11 @@ int FEMTreeInitializer< Dim , Real >::_AddSimplex( FEMTreeNode* node , Simplex< 
 			for( int c=0 ; c<(1<<d) ; c++ ) for( int i=0 ; i<childSimplices[c].size() ; i++ ) childSimplices[c][i].split( n , center[Dim-d-1] , temp[2*c] , temp[2*c+1] );
 			childSimplices = temp;
 		}
+#ifdef THREAD_SAFE_CHILD_INIT
+		for( int c=0 ; c<(1<<Dim) ; c++ ) for( int i=0 ; i<childSimplices[c].size() ; i++ ) sCount += _AddSimplex< ThreadSafe >( node->children+c , childSimplices[c][i] , maxDepth , simplices , nodeToIndexMap , nodeAllocator , NodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
 		for( int c=0 ; c<(1<<Dim) ; c++ ) for( int i=0 ; i<childSimplices[c].size() ; i++ ) sCount += _AddSimplex( node->children+c , childSimplices[c][i] , maxDepth , simplices , nodeToIndexMap , nodeAllocator , NodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
 		return sCount;
 	}
 }
@@ -714,7 +791,11 @@ int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , ConstPoint
 		FEMTreeNode* node = &root;
 		for( int d=0 ; d<maxDepth ; d++ )
 		{
+#ifdef THREAD_SAFE_CHILD_INIT
+			if( !node->children ) node->template initChildren< false >( nodeAllocator , NodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
 			if( !node->children ) node->initChildren( nodeAllocator , NodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
 			int cIndex = 0;
 			for( int dd=0 ; dd<Dim ; dd++ ) if( idx[dd]&(1<<(maxDepth-d-1)) ) cIndex |= 1<<dd;
 			node = node->children + cIndex;
@@ -782,7 +863,11 @@ unsigned int FEMTreeInitializer< Dim , Real >::Initialize( FEMTreeNode& root , D
 		FEMTreeNode* node = &root;
 		for( unsigned int d=0 ; d<maxDepth ; d++ )
 		{
+#ifdef THREAD_SAFE_CHILD_INIT
+			if( !node->children ) node->template initChildren< false >( nodeAllocator , NodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
 			if( !node->children ) node->initChildren( nodeAllocator , NodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
 			int cIndex = 0;
 			for( int dd=0 ; dd<Dim ; dd++ ) if( idx[dd]&(1<<(maxDepth-d-1)) ) cIndex |= 1<<dd;
 			node = node->children + cIndex;

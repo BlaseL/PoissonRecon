@@ -55,14 +55,14 @@ Point< Real , Dim > RandomSpherePoint( void )
 // Triangulation //
 ///////////////////
 template< class Real , unsigned int Dim >
-long long Triangulation< Real , Dim >::EdgeIndex( int p1 , int p2 )
+long long Triangulation< Real , Dim >::EdgeIndex( unsigned int p1 , unsigned int p2 )
 {
 	if( p1>p2 ) return ((long long)(p1)<<32) | ((long long)(p2));
 	else        return ((long long)(p2)<<32) | ((long long)(p1));
 }
 
 template< class Real , unsigned int Dim >
-int Triangulation< Real , Dim >::factor( int tIndex , int& p1 , int& p2 , int & p3 ) const
+unsigned int Triangulation< Real , Dim >::factor( unsigned int tIndex , unsigned int &p1 , unsigned int &p2 , unsigned int &p3 ) const
 {
 	if( triangles[tIndex].eIndex[0]<0 || triangles[tIndex].eIndex[1]<0 || triangles[tIndex].eIndex[2]<0 ) return 0;
 	if( edges[triangles[tIndex].eIndex[0]].tIndex[0]==tIndex ) p1=edges[triangles[tIndex].eIndex[0]].pIndex[0];
@@ -73,11 +73,11 @@ int Triangulation< Real , Dim >::factor( int tIndex , int& p1 , int& p2 , int & 
 	else                                                       p3=edges[triangles[tIndex].eIndex[2]].pIndex[1];
 	return 1;
 }
-template< class Real , unsigned int Dim > Real Triangulation< Real , Dim >::area( int p1 , int p2 , int p3 ) const { return Area( points[p1] , points[p2] , points[p3] ); }
+template< class Real , unsigned int Dim > Real Triangulation< Real , Dim >::area( unsigned int p1 , unsigned int p2 , unsigned int p3 ) const { return Area( points[p1] , points[p2] , points[p3] ); }
 template< class Real , unsigned int Dim >
-Real Triangulation< Real , Dim >::area( int tIndex ) const
+Real Triangulation< Real , Dim >::area( unsigned int tIndex ) const
 {
-	int p1 , p2 , p3;
+	unsigned int p1 , p2 , p3;
 	factor( tIndex , p1 , p2 , p3 );
 	return area(p1,p2,p3);
 }
@@ -89,10 +89,10 @@ Real Triangulation< Real , Dim >::area( void ) const
 	return a;
 }
 template< class Real , unsigned int Dim >
-int Triangulation< Real , Dim >::addTriangle( int p1 , int p2 , int p3 )
+unsigned int Triangulation< Real , Dim >::addTriangle( unsigned int p1 , unsigned int p2 , unsigned int p3 )
 {
 	std::unordered_map<long long, int>::iterator iter;
-	int tIdx , eIdx , p[] = { p1 , p2 , p3 };
+	unsigned int tIdx , eIdx , p[] = { p1 , p2 , p3 };
 	triangles.push_back( TriangulationTriangle() );
 	tIdx = (int)triangles.size()-1;
 
@@ -130,7 +130,7 @@ int Triangulation< Real , Dim >::addTriangle( int p1 , int p2 , int p3 )
 	return tIdx;
 }
 template< class Real , unsigned int Dim >
-int Triangulation< Real , Dim >::flipMinimize( int eIndex )
+unsigned int Triangulation< Real , Dim >::flipMinimize( unsigned int eIndex )
 {
 	Real oldArea,newArea;
 	int oldP[3] , oldQ[3] , newP[3] , newQ[3];
@@ -142,16 +142,16 @@ int Triangulation< Real , Dim >::flipMinimize( int eIndex )
 	if( !factor( edges[eIndex].tIndex[1] , oldQ[0] , oldQ[1] , oldQ[2] ) ) return 0;
 
 	oldArea = area( oldP[0] , oldP[1] , oldP[2] ) + area( oldQ[0] , oldQ[1] , oldQ[2] );
-	int idxP , idxQ;
+	unsigned int idxP , idxQ;
 	for( idxP=0 ; idxP<3 ; idxP++ )
 	{
-		int i;
+		unsigned int i;
 		for( i=0 ; i<3 ; i++ ) if( oldP[idxP]==oldQ[i] ) break;
 		if(i==3) break;
 	}
 	for( idxQ=0 ; idxQ<3 ; idxQ++ )
 	{
-		int i;
+		unsigned int i;
 		for( i=0 ; i<3 ; i++ ) if( oldP[i]==oldQ[idxQ] ) break;
 		if( i==3 ) break;
 	}
@@ -174,7 +174,7 @@ int Triangulation< Real , Dim >::flipMinimize( int eIndex )
 	// Insert the entry into the hash-table for the new edge
 	edgeMap[EdgeIndex(newP[0],newQ[0])] = eIndex;
 	// Update the triangle information
-	for( int i=0 ; i<3 ; i++ )
+	for( unsigned int i=0 ; i<3 ; i++ )
 	{
 		int idx;
 		idx = edgeMap[EdgeIndex(newQ[i],newQ[(i+1)%3])];
@@ -344,17 +344,18 @@ void CoredVectorMeshData< Vertex >::addPolygon_s( unsigned int thread , const st
 {
 	polygons[ thread ].push_back( polygon );
 }
-template< class Vertex >
 #else // !NEW_THREADS
+template< class Vertex >
 void CoredVectorMeshData< Vertex >::addPolygon_s( const std::vector< int >& polygon )
 {
 	polygons[ omp_get_thread_num() ].push_back( polygon );
 }
 #endif // NEW_THREADS
-template< class Vertex >
 #ifdef NEW_THREADS
+template< class Vertex >
 void CoredVectorMeshData< Vertex >::addPolygon_s( unsigned int thread , const std::vector< CoredVertexIndex >& vertices )
 #else // !NEW_THREADS
+template< class Vertex >
 void CoredVectorMeshData< Vertex >::addPolygon_s( const std::vector< CoredVertexIndex >& vertices )
 #endif // NEW_THREADS
 {
@@ -577,7 +578,7 @@ void CoredFileMeshData< Vertex >::resetIterator ( void )
 	for( unsigned int i=0 ; i<polygonFiles.size() ; i++ ) polygonFiles[i]->reset();
 }
 template< class Vertex >
-unsigned int CoredFileMeshData< Vertex >::addOutOfCorePoint( const Vertex& p )
+int CoredFileMeshData< Vertex >::addOutOfCorePoint( const Vertex& p )
 {
 	oocPointFile->write( &p , sizeof( Vertex ) );
 	oocPoints++;

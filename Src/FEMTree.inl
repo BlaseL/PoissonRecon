@@ -85,10 +85,18 @@ template< unsigned int Dim , class Real > FEMTree< Dim , Real >::FEMTree( int bl
 	_nodeCount = 0;
 #ifdef NEW_CODE
 	_tree = FEMTreeNode::NewBrood( nodeAllocators.size() ? nodeAllocators[0] : NULL , _NodeInitializer( *this ) );
+#ifdef THREAD_SAFE_CHILD_INIT
+	_tree->template initChildren< false >( nodeAllocators.size() ? nodeAllocators[0] : NULL , _NodeInitializer( *this ) ) , _spaceRoot = _tree->children;
+#else // !THREAD_SAFE_CHILD_INIT
 	_tree->initChildren( nodeAllocators.size() ? nodeAllocators[0] : NULL , _NodeInitializer( *this ) ) , _spaceRoot = _tree->children;
+#endif // THREAD_SAFE_CHILD_INIT
 #else // !NEW_CODE
 	_tree = FEMTreeNode::NewBrood( nodeAllocator , _NodeInitializer( *this ) );
+#ifdef THREAD_SAFE_CHILD_INIT
+	_tree->template initChildren< false >( nodeAllocator , _NodeInitializer( *this ) ) , _spaceRoot = _tree->children;
+#else // !THREAD_SAFE_CHILD_INIT
 	_tree->initChildren( nodeAllocator , _NodeInitializer( *this ) ) , _spaceRoot = _tree->children;
+#endif // THREAD_SAFE_CHILD_INIT
 #endif // NEW_CODE
 	int offset[Dim];
 	for( int d=0 ; d<Dim ; d++ ) offset[d] = 0;
@@ -157,7 +165,11 @@ FEMTree< Dim , Real >::FEMTree( FILE* fp , int blockSize )
 	else
 	{
 		_tree = FEMTreeNode::NewBrood( nodeAllocator , _NodeInitializer( *this ) );
+#ifdef THREAD_SAFE_CHILD_INIT
+		_tree->template initChildren< false >( nodeAllocator , _NodeInitializer( *this ) ) , _spaceRoot = _tree->children;
+#else // !THREAD_SAFE_CHILD_INIT
 		_tree->initChildren( nodeAllocator , _NodeInitializer( *this ) ) , _spaceRoot = _tree->children;
+#endif // THREAD_SAFE_CHILD_INIT
 		int offset[Dim];
 		for( int d=0 ; d<Dim ; d++ ) offset[d] = 0;
 #ifdef NEW_CODE
@@ -197,6 +209,35 @@ const RegularTreeNode< Dim , FEMTreeNodeData >* FEMTree< Dim , Real >::leaf( Poi
 	}
 	return node;
 }
+#ifdef THREAD_SAFE_CHILD_INIT
+template< unsigned int Dim , class Real >
+template< bool ThreadSafe >
+#ifdef NEW_CODE
+RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* FEMTree< Dim , Real >::_leaf( Allocator< FEMTreeNode > *nodeAllocator , Point< Real , Dim > p , LocalDepth maxDepth )
+#else // !NEW_CODE
+RegularTreeNode< Dim , FEMTreeNodeData >* FEMTree< Dim , Real >::leaf( Point< Real , Dim > p , LocalDepth maxDepth )
+#endif // NEW_CODE
+{
+	if( !_InBounds( p ) ) return NULL;
+	Point< Real , Dim > center;
+	for( int d=0 ; d<Dim ; d++ ) center[d] = (Real)0.5;
+	Real width = Real(1.0);
+	FEMTreeNode* node = _spaceRoot;
+	LocalDepth d = _localDepth( node );
+	while( ( d<0 && node->children ) || ( d>=0 && d<maxDepth ) )
+	{
+		if( !node->children ) node->template initChildren< ThreadSafe >( nodeAllocator , _NodeInitializer( *this ) );
+		int cIndex = FEMTreeNode::ChildIndex( center , p );
+		node = node->children + cIndex;
+		d++;
+		width /= 2;
+		for( int d=0 ; d<Dim ; d++ )
+			if( (cIndex>>d) & 1 ) center[d] += width/2;
+			else                  center[d] -= width/2;
+	}
+	return node;
+}
+#else // !THREAD_SAFE_CHILD_INIT
 template< unsigned int Dim , class Real >
 #ifdef NEW_CODE
 RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* FEMTree< Dim , Real >::_leaf( Allocator< FEMTreeNode > *nodeAllocator , Point< Real , Dim > p , LocalDepth maxDepth )
@@ -235,11 +276,7 @@ RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* FEMTree< Dim ,
 	LocalDepth d = _localDepth( node );
 	while( ( d<0 && node->children ) || ( d>=0 && d<maxDepth ) )
 	{
-#ifdef SECURE_INIT_ONLY
-		if( !node->children ) node->initChildren( nodeAllocator , _NodeInitializer( *this ) );
-#else // !SECURE_INIT_ONLY
 		if( !node->children ) node->initChildren_s( nodeAllocator , _NodeInitializer( *this ) );
-#endif // SECURE_INIT_ONLY
 		int cIndex = FEMTreeNode::ChildIndex( center , p );
 		node = node->children + cIndex;
 		d++;
@@ -251,6 +288,7 @@ RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* FEMTree< Dim ,
 	return node;
 }
 #endif // NEW_CODE
+#endif // THREAD_SAFE_CHILD_INIT
 
 template< unsigned int Dim , class Real > bool FEMTree< Dim , Real >::_InBounds( Point< Real , Dim > p ){ for( int d=0 ; d<Dim ; d++ ) if( p[d]<0 || p[d]>1 ) return false ; return true; }
 template< unsigned int Dim , class Real >
@@ -274,7 +312,11 @@ bool FEMTree< Dim , Real >::isValidSpaceNode( const FEMTreeNode* node ) const
 }
 
 template< unsigned int Dim , class Real >
+#ifdef THREAD_SAFE_CHILD_INIT
+template< bool ThreadSafe , unsigned int ... Degrees >
+#else // !THREAD_SAFE_CHILD_INIT
 template< unsigned int ... Degrees >
+#endif // THREAD_SAFE_CHILD_INIT
 #ifdef NEW_CODE
 void FEMTree< Dim , Real >::_setFullDepth( UIntPack< Degrees ... > , Allocator< FEMTreeNode > *nodeAllocator , FEMTreeNode* node , LocalDepth depth )
 #else // !NEW_CODE
@@ -286,27 +328,55 @@ void FEMTree< Dim , Real >::_setFullDepth( UIntPack< Degrees ... > , FEMTreeNode
 	bool refine = d<depth && ( d<0 || !FEMIntegrator::IsOutOfBounds( UIntPack< FEMDegreeAndBType< Degrees , BOUNDARY_FREE >::Signature ... >() , d , off ) );
 	if( refine )
 	{
+#ifdef THREAD_SAFE_CHILD_INIT
+		if( !node->children ) node->template initChildren< ThreadSafe >( nodeAllocator , _NodeInitializer( *this ) );
+#else // !THREAD_SAFE_CHILD_INIT
 		if( !node->children ) node->initChildren( nodeAllocator , _NodeInitializer( *this ) );
+#endif // THREAD_SAFE_CHILD_INIT
 #ifdef NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+		for( int c=0 ; c<(1<<Dim) ; c++ ) _setFullDepth< ThreadSafe >( UIntPack< Degrees ... >() , nodeAllocator , node->children+c , depth );
+#else // !THREAD_SAFE_CHILD_INIT
 		for( int c=0 ; c<(1<<Dim) ; c++ ) _setFullDepth( UIntPack< Degrees ... >() , nodeAllocator , node->children+c , depth );
+#endif // THREAD_SAFE_CHILD_INIT
 #else // !NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+		for( int c=0 ; c<(1<<Dim) ; c++ ) _setFullDepth< ThreadSafe >( UIntPack< Degrees ... >() , node->children+c , depth );
+#else // !THREAD_SAFE_CHILD_INIT
 		for( int c=0 ; c<(1<<Dim) ; c++ ) _setFullDepth( UIntPack< Degrees ... >() , node->children+c , depth );
+#endif // THREAD_SAFE_CHILD_INIT
 #endif // NEW_CODE
 	}
 }
 template< unsigned int Dim , class Real >
+#ifdef THREAD_SAFE_CHILD_INIT
+template< bool ThreadSafe , unsigned int ... Degrees >
+#else // !THREAD_SAFE_CHILD_INIT
 template< unsigned int ... Degrees >
+#endif // THREAD_SAFE_CHILD_INIT
 #ifdef NEW_CODE
 void FEMTree< Dim , Real >::_setFullDepth( UIntPack< Degrees ... > , Allocator< FEMTreeNode > *nodeAllocator , LocalDepth depth )
 #else // !NEW_CODE
 void FEMTree< Dim , Real >::_setFullDepth( UIntPack< Degrees ... > , LocalDepth depth )
 #endif // NEW_CODE
 {
+#ifdef THREAD_SAFE_CHILD_INIT
+	if( !_tree->children ) _tree->template initChildren< ThreadSafe >( nodeAllocator , _NodeInitializer( *this ) );
+#else // !THREAD_SAFE_CHILD_INIT
 	if( !_tree->children ) _tree->initChildren( nodeAllocator , _NodeInitializer( *this ) );
+#endif // THREAD_SAFE_CHILD_INIT
 #ifdef NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+	for( int c=0 ; c<(1<<Dim) ; c++ ) _setFullDepth< ThreadSafe >( UIntPack< Degrees ... >() , nodeAllocator , _tree->children+c , depth );
+#else // !THREAD_SAFE_CHILD_INIT
 	for( int c=0 ; c<(1<<Dim) ; c++ ) _setFullDepth( UIntPack< Degrees ... >() , nodeAllocator , _tree->children+c , depth );
+#endif // THREAD_SAFE_CHILD_INIT
 #else // !NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+	for( int c=0 ; c<(1<<Dim) ; c++ ) _setFullDepth< ThreadSafe >( UIntPack< Degrees ... >() , _tree->children+c , depth );
+#else // !THREAD_SAFE_CHILD_INIT
 	for( int c=0 ; c<(1<<Dim) ; c++ ) _setFullDepth( UIntPack< Degrees ... >() , _tree->children+c , depth );
+#endif // THREAD_SAFE_CHILD_INIT
 #endif // NEW_CODE
 }
 template< unsigned int Dim , class Real >
@@ -373,9 +443,17 @@ void FEMTree< Dim , Real >::thicken( FEMTreeNode **nodes , size_t nodeCount, Den
 #endif // NEW_CODE
 	neighborKey.set( _tree->maxDepth() );
 #ifdef NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+	for( size_t i=0 ; i<nodeCount ; i++ ) neighborKey.template getNeighbors< true , false >( nodes[i] , nodeAllocator , _NodeInitializer( *this ) );
+#else // !THREAD_SAFE_CHILD_INIT
 	for( size_t i=0 ; i<nodeCount ; i++ ) neighborKey.template getNeighbors< true >( nodes[i] , nodeAllocator , _NodeInitializer( *this ) );
+#endif // THREAD_SAFE_CHILD_INIT
 #else // !NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+	for( int i=0 ; i<nodeCount ; i++ ) neighborKey.template getNeighbors< true , false >( nodes[i] , nodeAllocator , _NodeInitializer( *this ) );
+#else // !THREAD_SAFE_CHILD_INIT
 	for( int i=0 ; i<nodeCount ; i++ ) neighborKey.template getNeighbors< true >( nodes[i] , nodeAllocator , _NodeInitializer( *this ) );
+#endif // THREAD_SAFE_CHILD_INIT
 #endif // NEW_CODE
 	{
 		int d=0 , off[Dim];
@@ -445,9 +523,17 @@ typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree >* FEMT
 					Point< Real , Dim > p = s.data / s.weight;
 					Real w = s.weight / samplesPerNode;
 #ifdef NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+					_addWeightContribution< true >( nodeAllocator , density , node , p , densityKey , w );
+#else // !THREAD_SAFE_CHILD_INIT
 					_addWeightContribution( nodeAllocator , density , node , p , densityKey , w );
+#endif // THREAD_SAFE_CHILD_INIT
 #else // !NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+					_addWeightContribution< true >( density , node , p , densityKey , w );
+#else // !THREAD_SAFE_CHILD_INIT
 					_addWeightContribution( density , node , p , densityKey , w );
+#endif // THREAD_SAFE_CHILD_INIT
 #endif // NEW_CODE
 				}
 				sample += s;
@@ -464,9 +550,17 @@ typename FEMTree< Dim , Real >::template DensityEstimator< DensityDegree >* FEMT
 				Point< Real , Dim > p = sample.data / sample.weight;
 				Real w = sample.weight / samplesPerNode;
 #ifdef NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+				_addWeightContribution< true >( nodeAllocator , density , node , p , densityKey , w );
+#else // !THREAD_SAFE_CHILD_INIT
 				_addWeightContribution( nodeAllocator , density , node , p , densityKey , w );
+#endif // THREAD_SAFE_CHILD_INIT
 #else // !NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+				_addWeightContribution< true >( density , node , p , densityKey , w );
+#else // !THREAD_SAFE_CHILD_INIT
 				_addWeightContribution( density , node , p , densityKey , w );
+#endif // THREAD_SAFE_CHILD_INIT
 #endif // NEW_CODE
 			}
 		}
@@ -570,25 +664,41 @@ SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim 
 #ifdef NEW_THREADS
 #if defined( __GNUC__ ) && __GNUC__ < 5
 #warning "you've got me gcc version<5"
+#ifdef THREAD_SAFE_CHILD_INIT
+			if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , true , DensityDegree , Point< Real , Dim > >( nodeAllocator , *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight );
+#else // !THREAD_SAFE_CHILD_INIT
 			if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , DensityDegree , Point< Real , Dim > >( nodeAllocator , *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight );
+#endif // THREAD_SAFE_CHILD_INIT
 #else // !__GNUC__ || __GNUC__ >=5
+#ifdef THREAD_SAFE_CHILD_INIT
+			if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , true , DensityDegree , Point< Real , Dim > , NormalSigs ... >( nodeAllocator , *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight );
+#else // !THREAD_SAFE_CHILD_INIT
 			if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , DensityDegree , Point< Real , Dim > , NormalSigs ... >( nodeAllocator , *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight );
+#endif // THREAD_SAFE_CHILD_INIT
 #endif // __GNUC__ || __GNUC__ < 4
 			else
 			{
 				Real width = (Real)( 1.0 / ( 1<<maxDepth ) );
 #if defined( __GNUC__ ) && __GNUC__ < 5
 #warning "you've got me gcc version<5"
+#ifdef THREAD_SAFE_CHILD_INIT
+				_splatPointData< true , true , Point< Real , Dim > >( nodeAllocator , _leaf< true >( nodeAllocator , p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+#else // !THREAD_SAFE_CHILD_INIT
 				_splatPointData< true , Point< Real , Dim > >( nodeAllocator , _leaf_s( nodeAllocator , p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+#endif // THREAD_SAFE_CHILD_INIT
 #else // !__GNUC__ || __GNUC__ >=5
+#ifdef THREAD_SAFE_CHILD_INIT
+				_splatPointData< true , true , Point< Real , Dim > , NormalSigs ... >( nodeAllocator , _leaf< true >( nodeAllocator , p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+#else // !THREAD_SAFE_CHILD_INIT
 				_splatPointData< true , Point< Real , Dim > , NormalSigs ... >( nodeAllocator , _leaf_s( nodeAllocator , p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+#endif // THREAD_SAFE_CHILD_INIT
 #endif // __GNUC__ || __GNUC__ < 4
 				AddAtomic( _pointWeightSum , sample.weight );
 			}
 #else // !NEW_THREADS
 #if defined( __GNUC__ ) && __GNUC__ < 5
 #warning "you've got me gcc version<5"
-			if( density ) _pointWeightSum += _splatPointData< true , DensityDegree , Point< Real , Dim > >( nodeAllocator , *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight;
+			if( density ) _pointWeightSum += _splatPointData< true , true , DensityDegree , Point< Real , Dim > >( nodeAllocator , *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight;
 #else // !__GNUC__ || __GNUC__ >=5
 			if( density ) _pointWeightSum += _splatPointData< true , DensityDegree , Point< Real , Dim > , NormalSigs ... >( nodeAllocator , *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight;
 #endif // __GNUC__ || __GNUC__ < 4
@@ -597,9 +707,17 @@ SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim 
 				Real width = (Real)( 1.0 / ( 1<<maxDepth ) );
 #if defined( __GNUC__ ) && __GNUC__ < 5
 #warning "you've got me gcc version<5"
+#ifdef THREAD_SAFE_CHILD_INIT
+				_splatPointData< true , true , Point< Real , Dim > >( nodeAllocator , _leaf< true >( nodeAllocator , p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+#else // !THREAD_SAFE_CHILD_INIT
 				_splatPointData< true , Point< Real , Dim > >( nodeAllocator , _leaf( nodeAllocator , p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+#endif // THREAD_SAFE_CHILD_INIT
 #else // !__GNUC__ || __GNUC__ >=5
+#ifdef THREAD_SAFE_CHILD_INIT
+				_splatPointData< true , true , Point< Real , Dim > , NormalSigs ... >( nodeAllocator , _leaf< true >( nodeAllocator , p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+#else // !THREAD_SAFE_CHILD_INIT
 				_splatPointData< true , Point< Real , Dim > , NormalSigs ... >( nodeAllocator , _leaf( nodeAllocator , p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+#endif // THREAD_SAFE_CHILD_INIT
 #endif // __GNUC__ || __GNUC__ < 4
 				_pointWeightSum += sample.weight;
 			}
@@ -608,36 +726,66 @@ SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim 
 #ifdef NEW_THREADS
 #if defined( __GNUC__ ) && __GNUC__ < 5
 #warning "you've got me gcc version<5"
+#ifdef THREAD_SAFE_CHILD_INIT
+#else // !THREAD_SAFE_CHILD_INIT
 			if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , DensityDegree , Point< Real , Dim > >( *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight );
+#endif // THREAD_SAFE_CHILD_INIT
 #else // !__GNUC__ || __GNUC__ >=5
+#ifdef THREAD_SAFE_CHILD_INIT
+#else // !THREAD_SAFE_CHILD_INIT
 			if( density ) AddAtomic( _pointWeightSum , _splatPointData< true , DensityDegree , Point< Real , Dim > , NormalSigs ... >( *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight );
+#endif // THREAD_SAFE_CHILD_INIT
 #endif // __GNUC__ || __GNUC__ < 4
 			else
 			{
 				Real width = (Real)( 1.0 / ( 1<<maxDepth ) );
 #if defined( __GNUC__ ) && __GNUC__ < 5
 #warning "you've got me gcc version<5"
+#ifdef THREAD_SAFE_CHILD_INIT
+				_splatPointData< true , true , Point< Real , Dim > >( leaf( p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+#else // !THREAD_SAFE_CHILD_INIT
 				_splatPointData< true , Point< Real , Dim > >( leaf( p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+#endif // THREAD_SAFE_CHILD_INIT
 #else // !__GNUC__ || __GNUC__ >=5
+#ifdef THREAD_SAFE_CHILD_INIT
+				_splatPointData< true , true , Point< Real , Dim > , NormalSigs ... >( leaf( p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+#else // !THREAD_SAFE_CHILD_INIT
 				_splatPointData< true , Point< Real , Dim > , NormalSigs ... >( leaf( p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+#endif // THREAD_SAFE_CHILD_INIT
 #endif // __GNUC__ || __GNUC__ < 4
 				AddAtomic( _pointWeightSum , sample.weight );
 			}
 #else // !NEW_THREADS
 #if defined( __GNUC__ ) && __GNUC__ < 5
 #warning "you've got me gcc version<5"
+#ifdef THREAD_SAFE_CHILD_INIT
+			if( density ) _pointWeightSum += _splatPointData< true , true , DensityDegree , Point< Real , Dim > >( *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight;
+#else // !THREAD_SAFE_CHILD_INIT
 			if( density ) _pointWeightSum += _splatPointData< true , DensityDegree , Point< Real , Dim > >( *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight;
+#endif // THREAD_SAFE_CHILD_INIT
 #else // !__GNUC__ || __GNUC__ >=5
+#ifdef THREAD_SAFE_CHILD_INIT
+			if( density ) _pointWeightSum += _splatPointData< true , true , DensityDegree , Point< Real , Dim > , NormalSigs ... >( *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight;
+#else // !THREAD_SAFE_CHILD_INIT
 			if( density ) _pointWeightSum += _splatPointData< true , DensityDegree , Point< Real , Dim > , NormalSigs ... >( *density , p , n , normalField , densityKey , oneKey ? *( (NormalKey*)&densityKey ) : normalKey , 0 , maxDepth , Dim , depthBias ) * sample.weight;
+#endif // THREAD_SAFE_CHILD_INIT
 #endif // __GNUC__ || __GNUC__ < 4
 			else
 			{
 				Real width = (Real)( 1.0 / ( 1<<maxDepth ) );
 #if defined( __GNUC__ ) && __GNUC__ < 5
 #warning "you've got me gcc version<5"
+#ifdef THREAD_SAFE_CHILD_INIT
+				_splatPointData< true , true , Point< Real , Dim > >( leaf( p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+#else // !THREAD_SAFE_CHILD_INIT
 				_splatPointData< true , Point< Real , Dim > >( leaf( p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+#endif // THREAD_SAFE_CHILD_INIT
 #else // !__GNUC__ || __GNUC__ >=5
+#ifdef THREAD_SAFE_CHILD_INIT
+				_splatPointData< true , true , Point< Real , Dim > , NormalSigs ... >( leaf( p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+#else // !THREAD_SAFE_CHILD_INIT
 				_splatPointData< true , Point< Real , Dim > , NormalSigs ... >( leaf( p , maxDepth ) , p , n / (Real)pow( width , Dim ) , normalField , oneKey ? *( (NormalKey*)&densityKey ) : normalKey );
+#endif // THREAD_SAFE_CHILD_INIT
 #endif // __GNUC__ || __GNUC__ < 4
 				_pointWeightSum += sample.weight;
 			}
@@ -676,8 +824,13 @@ SparseNodeData< Data , IsotropicUIntPack< Dim , DataSig > > FEMTree< Dim , Real 
 			WARN( "Point is out of bounds" );
 			continue;
 		}
+#ifdef THREAD_SAFE_CHILD_INIT
+		if( density ) _splatPointData< CreateNodes , false , DensityDegree , DataSig >( *density             , p , data * sample.weight , dataField , densityKey , dataKey , 0 , maxDepth , Dim );
+		else          _splatPointData< CreateNodes , false ,                 DataSig >( leaf( p , maxDepth ) , p , data * sample.weight , dataField , dataKey );
+#else // !THREAD_SAFE_CHILD_INIT
 		if( density ) _splatPointData< CreateNodes , DensityDegree , DataSig >( *density             , p , data * sample.weight , dataField , densityKey , dataKey , 0 , maxDepth , Dim );
 		else          _splatPointData< CreateNodes ,                 DataSig >( leaf( p , maxDepth ) , p , data * sample.weight , dataField , dataKey );
+#endif // THREAD_SAFE_CHILD_INIT
 	}
 	MemoryUsage();
 	return dataField;
@@ -711,9 +864,17 @@ SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig
 		}
 		if( nearest ) _nearestMultiSplatPointData< DensityDegree >( density , (FEMTreeNode*)samples[i].node , p , ProjectiveData< Data , Real >( data , sample.weight ) , dataField , densityKey , 2 );
 #ifdef NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+		else          _multiSplatPointData< CreateNodes , false , DensityDegree >( nodeAllocator , density , (FEMTreeNode*)samples[i].node , p , ProjectiveData< Data , Real >( data , sample.weight ) , dataField , densityKey , dataKey , 2 );
+#else // !THREAD_SAFE_CHILD_INIT
 		else          _multiSplatPointData< CreateNodes , DensityDegree >( nodeAllocator , density , (FEMTreeNode*)samples[i].node , p , ProjectiveData< Data , Real >( data , sample.weight ) , dataField , densityKey , dataKey , 2 );
+#endif // THREAD_SAFE_CHILD_INIT
 #else // !NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+		else          _multiSplatPointData< CreateNodes , false , DensityDegree >( density , (FEMTreeNode*)samples[i].node , p , ProjectiveData< Data , Real >( data , sample.weight ) , dataField , densityKey , dataKey , 2 );
+#else // !THREAD_SAFE_CHILD_INIT
 		else          _multiSplatPointData< CreateNodes , DensityDegree >( density , (FEMTreeNode*)samples[i].node , p , ProjectiveData< Data , Real >( data , sample.weight ) , dataField , densityKey , dataKey , 2 );
+#endif // THREAD_SAFE_CHILD_INIT
 #endif // NEW_CODE
 	}
 	MemoryUsage();
@@ -766,9 +927,17 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const H
 	// Make the low-resolution part of the tree be complete
 	fullDepth = std::max< LocalDepth >( 0 , std::min< LocalDepth >( _maxDepth , fullDepth ) );
 #ifdef NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+	_setFullDepth< false >( IsotropicUIntPack< Dim , MaxDegree >() , nodeAllocator , fullDepth );
+#else // !THREAD_SAFE_CHILD_INIT
 	_setFullDepth( IsotropicUIntPack< Dim , MaxDegree >() , nodeAllocator , fullDepth );
+#endif // THREAD_SAFE_CHILD_INIT
 #else // !NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+	_setFullDepth< false >( IsotropicUIntPack< Dim , MaxDegree >() , fullDepth );
+#else // !THREAD_SAFE_CHILD_INIT
 	_setFullDepth( IsotropicUIntPack< Dim , MaxDegree >() , fullDepth );
+#endif // THREAD_SAFE_CHILD_INIT
 #endif // NEW_CODE
 	// Clear all the flags and make everything that is not low-res a ghost node
 	for( FEMTreeNode* node=_tree->nextNode() ; node ; node=_tree->nextNode( node ) ) node->nodeData.flags = 0 , SetGhostFlag< Dim >( node , _localDepth( node )>fullDepth );
@@ -815,12 +984,24 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const H
 			FEMTreeNode* node = nodes[i];
 #ifdef NEW_CODE
 #ifdef NEW_THREADS
+#ifdef THREAD_SAFE_CHILD_INIT
+			neighborKey.template getNeighbors< true , true >( node , nodeAllocators.size() ? nodeAllocators[ thread ] : NULL , _NodeInitializer( *this ) );
+#else // !THREAD_SAFE_CHILD_INIT
 			neighborKey.template getNeighbors< true >( node , nodeAllocators.size() ? nodeAllocators[ thread ] : NULL , _NodeInitializer( *this ) );
+#endif // THREAD_SAFE_CHILD_INIT
 #else // !NEW_THREADS
+#ifdef THREAD_SAFE_CHILD_INIT
+			neighborKey.template getNeighbors< true , true >( node , nodeAllocators.size() ? nodeAllocators[ omp_get_thread_num() ] : NULL , _NodeInitializer( *this ) );
+#else // !THREAD_SAFE_CHILD_INIT
 			neighborKey.template getNeighbors< true >( node , nodeAllocators.size() ? nodeAllocators[ omp_get_thread_num() ] : NULL , _NodeInitializer( *this ) );
+#endif // THREAD_SAFE_CHILD_INIT
 #endif // NEW_THREADS
 #else // !NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+			neighborKey.template getNeighbors< true , true >( node , nodeAllocator , _NodeInitializer( *this ) );
+#else // !THREAD_SAFE_CHILD_INIT
 			neighborKey.template getNeighbors< true >( node , nodeAllocator , _NodeInitializer( *this ) );
+#endif // THREAD_SAFE_CHILD_INIT
 #endif // NEW_CODE
 			Pointer( FEMTreeNode* ) nodes = neighborKey.neighbors[ _localToGlobal(d) ].neighbors().data;
 			unsigned int size = neighborKey.neighbors[ _localToGlobal(d) ].neighbors.Size;
