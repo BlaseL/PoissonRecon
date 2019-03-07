@@ -397,7 +397,7 @@ void SparseMatrixInterface< T , const_iterator >::gsIteration( const std::vector
 		);                                                                                               \
 	}
 		if( forward ) for( size_t j=0 ; j<multiColorIndices.size()  ; j++ ){ ITERATE( multiColorIndices[j] ); }
-		else for( size_t j=multiColorIndices.size()-1 ; j>=0 ; j-- ){ ITERATE( multiColorIndices[j] ); }
+		else for( long long j=(long long)multiColorIndices.size()-1 ; j>=0 ; j-- ){ ITERATE( multiColorIndices[j] ); }
 #undef ITERATE
 	}
 #else // !NEW_THREADS

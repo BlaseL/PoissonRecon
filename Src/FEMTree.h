@@ -39,7 +39,6 @@ DAMAGE.
 //        1. Have the evaluator store stencils for all depths [DONE]
 //        2. When testing centers/corners, don't use generic evaluation
 
-// -- [TODO] Make thread pool static
 // -- [TODO] Support nested parallelism with thread pools
 
 #ifndef FEM_TREE_INCLUDED
@@ -1535,6 +1534,25 @@ struct WindowLoopData< UIntPack< Sizes ... > >
 	static const int Dim = sizeof ... ( Sizes );
 	unsigned int size[1<<Dim];
 	unsigned int indices[1<<Dim][ WindowSize< UIntPack< Sizes ... > >::Size ];
+#ifdef NEW_CODE
+	template< typename BoundsFunction >
+	WindowLoopData( const BoundsFunction &boundsFunction )
+	{
+		int start[Dim] , end[Dim];
+		for( int c=0 ; c<(1<<Dim) ; c++ )
+		{
+			size[c] = 0;
+			boundsFunction( c , start , end );
+			unsigned int idx[Dim];
+			WindowLoop< Dim >::Run
+			(
+				start , end ,
+				[&]( int d , int i ){ idx[d] = i; } ,
+				[&]( void ){ indices[c][ size[c]++ ] = GetWindowIndex( UIntPack< Sizes ... >() , idx ); }
+			);
+		}
+	}
+#else // !NEW_CODE
 	WindowLoopData( std::function< void ( int c , int* , int* ) > boundsFunction )
 	{
 		int start[Dim] , end[Dim];
@@ -1551,6 +1569,7 @@ struct WindowLoopData< UIntPack< Sizes ... > >
 			);
 		}
 	}
+#endif // NEW_CODE
 };
 
 template< class Real , unsigned int Dim >
@@ -1649,6 +1668,15 @@ protected:
 #else // !NEW_CODE
 	std::atomic< int > _nodeCount;
 #endif // NEW_CODE
+#ifdef TEMPLATED_INITIALIZER
+	struct _NodeInitializer
+	{
+		FEMTree& femTree;
+		_NodeInitializer( FEMTree& f ) : femTree(f){;}
+		void operator() ( FEMTreeNode& node ){ node.nodeData.nodeIndex = femTree._nodeCount++; }
+	};
+	_NodeInitializer _nodeInitializer;
+#else // !TEMPLATED_INITIALIZER
 	void _nodeInitializer( FEMTreeNode& node ){ node.nodeData.nodeIndex = _nodeCount++; }
 
 	struct _NodeInitializer
@@ -1657,6 +1685,7 @@ protected:
 		_NodeInitializer( FEMTree& f ) : femTree(f){;}
 		void operator() ( FEMTreeNode& node ){ femTree._nodeInitializer( node ); }
 	};
+#endif // TEMPLATED_INITIALIZER
 public:
 	typedef int LocalDepth;
 	typedef int LocalOffset[Dim];
@@ -2916,7 +2945,11 @@ public:
 		std::vector< ConstPointSupportKey< IsotropicUIntPack< Dim , DensityDegree > > > _neighborKeys;
 		const DensityEstimator< DensityDegree >& _density;
 	public:
+#ifdef NEW_THREADS
+		MultiThreadedWeightEvaluator( const FEMTree* tree , const DensityEstimator< DensityDegree >& density , int threads=std::thread::hardware_concurrency() );
+#else // !NEW_THREADS
 		MultiThreadedWeightEvaluator( const FEMTree* tree , const DensityEstimator< DensityDegree >& density , int threads=omp_get_max_threads() );
+#endif // NEW_THREADS
 		Real weight( Point< Real , Dim > p , int thread=0 );
 	};
 
@@ -3454,7 +3487,11 @@ public:
 
 	FEMTreeNode& spaceRoot( void ){ return *_spaceRoot; }
 	const FEMTreeNode& tree( void ) const { return *_tree; }
+#ifdef TEMPLATED_INITIALIZER
+	_NodeInitializer &initializer( void ){ return _nodeInitializer; }
+#else // !TEMPLATED_INITIALIZER
 	std::function< void ( FEMTreeNode& ) > initializer( void ){ return _NodeInitializer( *this ); }
+#endif // TEMPLATED_INITIALIZER
 	size_t leaves( void ) const { return _tree->leaves(); }
 	size_t nodes( void ) const { int count = 0 ; for( const FEMTreeNode* n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( IsActiveNode< Dim >( n ) ) count++ ; return count; }
 	size_t ghostNodes( void ) const { int count = 0 ; for( const FEMTreeNode* n=_tree->nextNode() ; n ; n=_tree->nextNode( n ) ) if( !IsActiveNode< Dim >( n ) ) count++ ; return count; }
@@ -3519,9 +3556,11 @@ struct IsoSurfaceExtractor
 	{
 		std::string toString( void ) const { return std::string( "Iso-surface extraction not supported for dimension %d" , Dim ); }
 	};
-#ifdef NEW_THREADS
-#endif // NEW_THREADS
+#ifdef NEW_CODE
+	template< typename Data , typename SetVertexFunction , unsigned int ... FEMSigs , unsigned int WeightDegree , unsigned int DataSig >
+#else // !NEW_CODE
 	template< typename Data , unsigned int ... FEMSigs , unsigned int WeightDegree , unsigned int DataSig >
+#endif // NEW_CODE
 	static IsoStats Extract
 	(
 		UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > ,							// Dummy variables for grouping the parameter
@@ -3532,10 +3571,11 @@ struct IsoSurfaceExtractor
 		Real isoValue ,																						// The value at which to extract the level-set
 #ifdef NEW_CODE
 		CoredMeshData< Vertex , node_index_type >& mesh ,													// The mesh in which to store the output
+		const SetVertexFunction &SetVertex ,																// A function for setting the depth and data of a vertex
 #else // !NEW_CODE
 		CoredMeshData< Vertex >& mesh ,																		// The mesh in which to store the output
-#endif // NEW_CODE
 		std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex ,					// A function for setting the depth and data of a vertex
+#endif // NEW_CODE
 		bool nonLinearFit ,																					// Should a linear interpolant be used
 		bool addBarycenter ,																				// Should we triangulate polygons by adding a mid-point
 		bool polygonMesh ,																					// Should we output triangles or polygons

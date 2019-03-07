@@ -4431,7 +4431,11 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 			F.init( d );
 			F.template setStencil< false >( stencil );
 
+#ifdef NEW_THREADS
+			std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
+#else // !NEW_THREADS
 			std::vector< ConstOneRingNeighborKey > neighborKeys( omp_get_max_threads() );
+#endif // NEW_THREADS
 			for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( d ) );
 
 #ifdef NEW_THREADS
@@ -4521,7 +4525,11 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 			F.init( d );
 			F.template setStencils< true >( stencils );
 
+#ifdef NEW_THREADS
+			std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
+#else // !NEW_THREADS
 			std::vector< ConstOneRingNeighborKey > neighborKeys( omp_get_max_threads() );
+#endif // NEW_THREADS
 			for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( d-1 ) );
 
 #ifdef NEW_THREADS
@@ -4609,7 +4617,11 @@ double FEMTree< Dim , Real >::_dot( UIntPack< FEMSigs1 ... > , UIntPack< FEMSigs
 			F.init( d );
 			F.template setStencils< false >( stencils );
 
+#ifdef NEW_THREADS
+			std::vector< ConstOneRingNeighborKey > neighborKeys( ThreadPool::NumThreads() );
+#else // !NEW_THREADS
 			std::vector< ConstOneRingNeighborKey > neighborKeys( omp_get_max_threads() );
+#endif // NEW_THREADS
 			for( size_t i=0 ; i<neighborKeys.size() ; i++ ) neighborKeys[i].set( _localToGlobal( d-1 ) );
 
 			// Update the cumulative constraints @(depth-1) from @(depth)

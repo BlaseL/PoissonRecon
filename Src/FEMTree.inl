@@ -51,9 +51,17 @@ double FEMTree< Dim , Real >::MemoryUsage( void )
 }
 
 #ifdef NEW_CODE
+#ifdef TEMPLATED_INITIALIZER
+template< unsigned int Dim , class Real > FEMTree< Dim , Real >::FEMTree( size_t blockSize ) : _nodeInitializer( *this )
+#else // !TEMPLATED_INITIALIZER
 template< unsigned int Dim , class Real > FEMTree< Dim , Real >::FEMTree( size_t blockSize )
+#endif // TEMPLATED_INITIALIZER
 #else // !NEW_CODE
+#ifdef TEMPLATED_INITIALIZER
+template< unsigned int Dim , class Real > FEMTree< Dim , Real >::FEMTree( int blockSize ) : _nodeInitializer( *this )
+#else // !TEMPLATED_INITIALIZER
 template< unsigned int Dim , class Real > FEMTree< Dim , Real >::FEMTree( int blockSize )
+#endif //TEMPLATED_INITIALIZER
 #endif // NEW_CODE
 {
 #ifdef NEW_CODE
@@ -83,6 +91,23 @@ template< unsigned int Dim , class Real > FEMTree< Dim , Real >::FEMTree( int bl
 	else nodeAllocator = NULL;
 #endif // NEW_CODE
 	_nodeCount = 0;
+#ifdef TEMPLATED_INITIALIZER
+#ifdef NEW_CODE
+	_tree = FEMTreeNode::NewBrood( nodeAllocators.size() ? nodeAllocators[0] : NULL , _nodeInitializer );
+#ifdef THREAD_SAFE_CHILD_INIT
+	_tree->template initChildren< false >( nodeAllocators.size() ? nodeAllocators[0] : NULL , _nodeInitializer ) , _spaceRoot = _tree->children;
+#else // !THREAD_SAFE_CHILD_INIT
+	_tree->initChildren( nodeAllocators.size() ? nodeAllocators[0] : NULL , _nodeInitializer ) , _spaceRoot = _tree->children;
+#endif // THREAD_SAFE_CHILD_INIT
+#else // !NEW_CODE
+	_tree = FEMTreeNode::NewBrood( nodeAllocator , _nodeInitializer );
+#ifdef THREAD_SAFE_CHILD_INIT
+	_tree->template initChildren< false >( nodeAllocator , _nodeInitializer ) , _spaceRoot = _tree->children;
+#else // !THREAD_SAFE_CHILD_INIT
+	_tree->initChildren( nodeAllocator , _nodeInitializer ) , _spaceRoot = _tree->children;
+#endif // THREAD_SAFE_CHILD_INIT
+#endif // NEW_CODE
+#else // !TEMPLATED_INITIALIZER
 #ifdef NEW_CODE
 	_tree = FEMTreeNode::NewBrood( nodeAllocators.size() ? nodeAllocators[0] : NULL , _NodeInitializer( *this ) );
 #ifdef THREAD_SAFE_CHILD_INIT
@@ -98,6 +123,7 @@ template< unsigned int Dim , class Real > FEMTree< Dim , Real >::FEMTree( int bl
 	_tree->initChildren( nodeAllocator , _NodeInitializer( *this ) ) , _spaceRoot = _tree->children;
 #endif // THREAD_SAFE_CHILD_INIT
 #endif // NEW_CODE
+#endif // TEMPLATED_INITIALIZER
 	int offset[Dim];
 	for( int d=0 ; d<Dim ; d++ ) offset[d] = 0;
 #ifdef NEW_CODE
@@ -112,9 +138,17 @@ template< unsigned int Dim , class Real > FEMTree< Dim , Real >::FEMTree( int bl
 }
 template< unsigned int Dim , class Real >
 #ifdef NEW_CODE
+#ifdef TEMPLATED_INITIALIZER
+FEMTree< Dim , Real >::FEMTree( FILE* fp , size_t blockSize ) : _nodeInitializer( *this )
+#else // !TEMPLATED_INITIALIZER
 FEMTree< Dim , Real >::FEMTree( FILE* fp , size_t blockSize )
+#endif // TEMPLATED_INITIALIZER
 #else // !NEW_CODE
+#ifdef TEMPLATED_INITIALIZER
+FEMTree< Dim , Real >::FEMTree( FILE* fp , int blockSize ) : _nodeInitializer( *this )
+#else // !TEMPLATED_INITIALIZER
 FEMTree< Dim , Real >::FEMTree( FILE* fp , int blockSize )
+#endif // TEMPLATED_INITIALIZER
 #endif // NEW_CODE
 {
 #ifdef NEW_CODE
@@ -147,8 +181,13 @@ FEMTree< Dim , Real >::FEMTree( FILE* fp , int blockSize )
 	if( fp )
 	{
 		if( fread( &_depthOffset , sizeof( int ) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read depth offset" );
+#ifdef TEMPLATED_INITIALIZER
+		_tree = FEMTreeNode::NewBrood( nodeAllocator , _nodeInitializer );
+		_tree->read( fp , nodeAllocator , _nodeInitializer );
+#else // !TEMPLATED_INITIALIZER
 		_tree = FEMTreeNode::NewBrood( nodeAllocator , _NodeInitializer( *this ) );
 		_tree->read( fp , nodeAllocator , _NodeInitializer( *this ) );
+#endif // TEMPLATED_INITIALIZER
 		_maxDepth = _tree->maxDepth() - _depthOffset;
 
 		_spaceRoot = _tree->children;
@@ -164,12 +203,21 @@ FEMTree< Dim , Real >::FEMTree( FILE* fp , int blockSize )
 	}
 	else
 	{
+#ifdef TEMPLATED_INITIALIZER
+		_tree = FEMTreeNode::NewBrood( nodeAllocator , _nodeInitializer );
+#ifdef THREAD_SAFE_CHILD_INIT
+		_tree->template initChildren< false >( nodeAllocator , _nodeInitializer ) , _spaceRoot = _tree->children;
+#else // !THREAD_SAFE_CHILD_INIT
+		_tree->initChildren( nodeAllocator , _nodeInitializer ) , _spaceRoot = _tree->children;
+#endif // THREAD_SAFE_CHILD_INIT
+#else // !TEMPLATED_INITIALIZER
 		_tree = FEMTreeNode::NewBrood( nodeAllocator , _NodeInitializer( *this ) );
 #ifdef THREAD_SAFE_CHILD_INIT
 		_tree->template initChildren< false >( nodeAllocator , _NodeInitializer( *this ) ) , _spaceRoot = _tree->children;
 #else // !THREAD_SAFE_CHILD_INIT
 		_tree->initChildren( nodeAllocator , _NodeInitializer( *this ) ) , _spaceRoot = _tree->children;
 #endif // THREAD_SAFE_CHILD_INIT
+#endif // TEMPLATED_INITIALIZER
 		int offset[Dim];
 		for( int d=0 ; d<Dim ; d++ ) offset[d] = 0;
 #ifdef NEW_CODE
@@ -226,7 +274,11 @@ RegularTreeNode< Dim , FEMTreeNodeData >* FEMTree< Dim , Real >::leaf( Point< Re
 	LocalDepth d = _localDepth( node );
 	while( ( d<0 && node->children ) || ( d>=0 && d<maxDepth ) )
 	{
+#ifdef TEMPLATED_INITIALIZER
+		if( !node->children ) node->template initChildren< ThreadSafe >( nodeAllocator , _nodeInitializer );
+#else // !TEMPLATED_INITIALIZER
 		if( !node->children ) node->template initChildren< ThreadSafe >( nodeAllocator , _NodeInitializer( *this ) );
+#endif // TEMPLATED_INITIALIZER
 		int cIndex = FEMTreeNode::ChildIndex( center , p );
 		node = node->children + cIndex;
 		d++;
@@ -253,7 +305,11 @@ RegularTreeNode< Dim , FEMTreeNodeData >* FEMTree< Dim , Real >::leaf( Point< Re
 	LocalDepth d = _localDepth( node );
 	while( ( d<0 && node->children ) || ( d>=0 && d<maxDepth ) )
 	{
+#ifdef THREAD_SAFE_CHILD_INIT
+		if( !node->children ) node->initChildren( nodeAllocator , _nodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
 		if( !node->children ) node->initChildren( nodeAllocator , _NodeInitializer( *this ) );
+#endif // THREAD_SAFE_CHILD_INIT
 		int cIndex = FEMTreeNode::ChildIndex( center , p );
 		node = node->children + cIndex;
 		d++;
@@ -276,7 +332,11 @@ RegularTreeNode< Dim , FEMTreeNodeData , depth_and_offset_type >* FEMTree< Dim ,
 	LocalDepth d = _localDepth( node );
 	while( ( d<0 && node->children ) || ( d>=0 && d<maxDepth ) )
 	{
+#ifdef THREAD_SAFE_CHILD_INIT
+		if( !node->children ) node->initChildren_s( nodeAllocator , _nodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
 		if( !node->children ) node->initChildren_s( nodeAllocator , _NodeInitializer( *this ) );
+#endif // THREAD_SAFE_CHILD_INIT
 		int cIndex = FEMTreeNode::ChildIndex( center , p );
 		node = node->children + cIndex;
 		d++;
@@ -328,11 +388,19 @@ void FEMTree< Dim , Real >::_setFullDepth( UIntPack< Degrees ... > , FEMTreeNode
 	bool refine = d<depth && ( d<0 || !FEMIntegrator::IsOutOfBounds( UIntPack< FEMDegreeAndBType< Degrees , BOUNDARY_FREE >::Signature ... >() , d , off ) );
 	if( refine )
 	{
+#ifdef TEMPLATED_INITIALIZER
+#ifdef THREAD_SAFE_CHILD_INIT
+		if( !node->children ) node->template initChildren< ThreadSafe >( nodeAllocator , _nodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
+		if( !node->children ) node->initChildren( nodeAllocator , _nodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
+#else // !TEMPLATED_INITIALIZER
 #ifdef THREAD_SAFE_CHILD_INIT
 		if( !node->children ) node->template initChildren< ThreadSafe >( nodeAllocator , _NodeInitializer( *this ) );
 #else // !THREAD_SAFE_CHILD_INIT
 		if( !node->children ) node->initChildren( nodeAllocator , _NodeInitializer( *this ) );
 #endif // THREAD_SAFE_CHILD_INIT
+#endif // TEMPLATED_INITIALIZER
 #ifdef NEW_CODE
 #ifdef THREAD_SAFE_CHILD_INIT
 		for( int c=0 ; c<(1<<Dim) ; c++ ) _setFullDepth< ThreadSafe >( UIntPack< Degrees ... >() , nodeAllocator , node->children+c , depth );
@@ -360,11 +428,19 @@ void FEMTree< Dim , Real >::_setFullDepth( UIntPack< Degrees ... > , Allocator< 
 void FEMTree< Dim , Real >::_setFullDepth( UIntPack< Degrees ... > , LocalDepth depth )
 #endif // NEW_CODE
 {
+#ifdef TEMPLATED_INITIALIZER
+#ifdef THREAD_SAFE_CHILD_INIT
+	if( !_tree->children ) _tree->template initChildren< ThreadSafe >( nodeAllocator , _nodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
+	if( !_tree->children ) _tree->initChildren( nodeAllocator , _nodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
+#else // !TEMPLATED_INITIALIZER
 #ifdef THREAD_SAFE_CHILD_INIT
 	if( !_tree->children ) _tree->template initChildren< ThreadSafe >( nodeAllocator , _NodeInitializer( *this ) );
 #else // !THREAD_SAFE_CHILD_INIT
 	if( !_tree->children ) _tree->initChildren( nodeAllocator , _NodeInitializer( *this ) );
 #endif // THREAD_SAFE_CHILD_INIT
+#endif // TEMPLATED_INITIALIZER
 #ifdef NEW_CODE
 #ifdef THREAD_SAFE_CHILD_INIT
 	for( int c=0 ; c<(1<<Dim) ; c++ ) _setFullDepth< ThreadSafe >( UIntPack< Degrees ... >() , nodeAllocator , _tree->children+c , depth );
@@ -442,6 +518,21 @@ void FEMTree< Dim , Real >::thicken( FEMTreeNode **nodes , size_t nodeCount, Den
 	typename RegularTreeNode< Dim , FEMTreeNodeData >::template NeighborKey< IsotropicUIntPack< Dim , LeftRadius > , IsotropicUIntPack< Dim , RightRadius > > neighborKey;
 #endif // NEW_CODE
 	neighborKey.set( _tree->maxDepth() );
+#ifdef TEMPLATED_INITIALIZER
+#ifdef NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+	for( size_t i=0 ; i<nodeCount ; i++ ) neighborKey.template getNeighbors< true , false >( nodes[i] , nodeAllocator , _nodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
+	for( size_t i=0 ; i<nodeCount ; i++ ) neighborKey.template getNeighbors< true >( nodes[i] , nodeAllocator , _nodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
+#else // !NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+	for( int i=0 ; i<nodeCount ; i++ ) neighborKey.template getNeighbors< true , false >( nodes[i] , nodeAllocator , _nodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
+	for( int i=0 ; i<nodeCount ; i++ ) neighborKey.template getNeighbors< true >( nodes[i] , nodeAllocator , _nodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
+#endif // NEW_CODE
+#else // !TEMPLATED_INITIALIZER
 #ifdef NEW_CODE
 #ifdef THREAD_SAFE_CHILD_INIT
 	for( size_t i=0 ; i<nodeCount ; i++ ) neighborKey.template getNeighbors< true , false >( nodes[i] , nodeAllocator , _NodeInitializer( *this ) );
@@ -455,6 +546,7 @@ void FEMTree< Dim , Real >::thicken( FEMTreeNode **nodes , size_t nodeCount, Den
 	for( int i=0 ; i<nodeCount ; i++ ) neighborKey.template getNeighbors< true >( nodes[i] , nodeAllocator , _NodeInitializer( *this ) );
 #endif // THREAD_SAFE_CHILD_INIT
 #endif // NEW_CODE
+#endif // TEMPLATED_INITIALIZER
 	{
 		int d=0 , off[Dim];
 		for( int d=0 ; d<Dim ; d++ ) off[d] = 0;
@@ -912,7 +1004,11 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const H
 		//                       | | | | | | | | |
 		//                       +-+-+-+-+-+-+-+-+
 
+#ifdef TEMPLATED_INITIALIZER
+		FEMTreeNode* newSpaceRootParent = FEMTreeNode::NewBrood( nodeAllocator , _nodeInitializer );
+#else // !TEMPLATED_INITIALIZER
 		FEMTreeNode* newSpaceRootParent = FEMTreeNode::NewBrood( nodeAllocator , _NodeInitializer( *this ) );
+#endif // TEMPLATED_INITIALIZER
 		FEMTreeNode* oldSpaceRootParent = _spaceRoot->parent;
 		int corner = _depthOffset<=1 ? (1<<Dim)-1 : 0;
 		newSpaceRootParent[corner].children = _spaceRoot;
@@ -982,6 +1078,29 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const H
 			NeighborKey& neighborKey = neighborKeys[ omp_get_thread_num() ];
 #endif // NEW_THREADS
 			FEMTreeNode* node = nodes[i];
+#ifdef TEMPLATED_INITIALIZER
+#ifdef NEW_CODE
+#ifdef NEW_THREADS
+#ifdef THREAD_SAFE_CHILD_INIT
+			neighborKey.template getNeighbors< true , true >( node , nodeAllocators.size() ? nodeAllocators[ thread ] : NULL , _nodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
+			neighborKey.template getNeighbors< true >( node , nodeAllocators.size() ? nodeAllocators[ thread ] : NULL , _nodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
+#else // !NEW_THREADS
+#ifdef THREAD_SAFE_CHILD_INIT
+			neighborKey.template getNeighbors< true , true >( node , nodeAllocators.size() ? nodeAllocators[ omp_get_thread_num() ] : NULL , _nodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
+			neighborKey.template getNeighbors< true >( node , nodeAllocators.size() ? nodeAllocators[ omp_get_thread_num() ] : NULL , _nodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
+#endif // NEW_THREADS
+#else // !NEW_CODE
+#ifdef THREAD_SAFE_CHILD_INIT
+			neighborKey.template getNeighbors< true , true >( node , nodeAllocator , _nodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
+			neighborKey.template getNeighbors< true >( node , nodeAllocator , _nodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
+#endif // NEW_CODE
+#else // !TEMPLATED_INITIALIZER
 #ifdef NEW_CODE
 #ifdef NEW_THREADS
 #ifdef THREAD_SAFE_CHILD_INIT
@@ -1003,6 +1122,7 @@ void FEMTree< Dim , Real >::finalizeForMultigrid( LocalDepth fullDepth , const H
 			neighborKey.template getNeighbors< true >( node , nodeAllocator , _NodeInitializer( *this ) );
 #endif // THREAD_SAFE_CHILD_INIT
 #endif // NEW_CODE
+#endif // TEMPLATED_INITIALIZER
 			Pointer( FEMTreeNode* ) nodes = neighborKey.neighbors[ _localToGlobal(d) ].neighbors().data;
 			unsigned int size = neighborKey.neighbors[ _localToGlobal(d) ].neighbors.Size;
 			for( unsigned int i=0 ; i<size ; i++ ) SetGhostFlag< Dim >( nodes[i] , false );

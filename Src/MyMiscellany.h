@@ -297,7 +297,7 @@ struct StackTracer
 
 			char syscom[1024];
 			sprintf( syscom , "addr2line %p -e %s" , trace[i] , exec ); //last parameter is the name of this app
-			if( !system( syscom ) ) ;
+			if( !system( syscom ) ){}
 
 			// find parantheses and +address offset surrounding mangled name
 			for( char *p=messages[i] ; *p ; ++p )
@@ -562,7 +562,7 @@ struct ThreadPool
 				for( int c=0 ; c<chunks ; c++ ) _ChunkFunction( omp_get_thread_num() , c );
 		}
 #endif // _OPENMP
-		else if( _ParallelType=THREAD_POOL_HH )
+		else if( _ParallelType==THREAD_POOL_HH )
 		{
 #ifdef USE_FEWER_THREADS
 #else // !USE_FEWER_THREADS
@@ -685,7 +685,7 @@ struct ThreadPool
 	}
 private:
 	ThreadPool( const ThreadPool & ){}
-	ThreadPool &operator = ( const ThreadPool & ){}
+	ThreadPool &operator = ( const ThreadPool & ){ return *this; }
 
 	template< typename Function >
 	static void _ParallelSections( std::future< void > *futures , const Function &function ){ *futures = std::async( std::launch::async , function ); }

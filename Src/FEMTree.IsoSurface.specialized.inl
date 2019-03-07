@@ -2663,10 +2663,11 @@ public:
 			return stream.str();
 		}
 	};
-	template< typename Data , unsigned int ... FEMSigs , unsigned int WeightDegree , unsigned int DataSig >
 #ifdef NEW_CODE
-	static IsoStats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , CoredMeshData< Vertex , node_index_type >& mesh , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex , bool nonLinearFit , bool addBarycenter , bool polygonMesh , bool flipOrientation )
+	template< typename Data , typename SetVertexFunction , unsigned int ... FEMSigs , unsigned int WeightDegree , unsigned int DataSig >
+	static IsoStats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , CoredMeshData< Vertex , node_index_type >& mesh , const SetVertexFunction &SetVertex , bool nonLinearFit , bool addBarycenter , bool polygonMesh , bool flipOrientation )
 #else // !NEW_CODE
+	template< typename Data , unsigned int ... FEMSigs , unsigned int WeightDegree , unsigned int DataSig >
 	static IsoStats Extract( UIntPack< FEMSigs ... > , UIntPack< WeightDegree > , UIntPack< DataSig > , const FEMTree< Dim , Real >& tree , const DensityEstimator< WeightDegree >* densityWeights , const SparseNodeData< ProjectiveData< Data , Real > , IsotropicUIntPack< Dim , DataSig > >* data , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& coefficients , Real isoValue , CoredMeshData< Vertex >& mesh , std::function< void ( Vertex& , Point< Real , Dim > , Real , Data ) > SetVertex , bool nonLinearFit , bool addBarycenter , bool polygonMesh , bool flipOrientation )
 #endif // NEW_CODE
 	{

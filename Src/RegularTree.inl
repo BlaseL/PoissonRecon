@@ -36,6 +36,18 @@ DAMAGE.
 /////////////////////
 // RegularTreeNode //
 /////////////////////
+#ifdef TEMPLATED_INITIALIZER
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::RegularTreeNode( void )
+{
+	parent = children = NULL;
+	_depth = 0;
+	memset( _offset , 0 , sizeof(_offset ) );
+}
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+template< typename Initializer >
+RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::RegularTreeNode( Initializer &initializer ) : RegularTreeNode() { initializer( *this ); }
+#else // !TEMPLATED_INITIALIZER
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::RegularTreeNode( std::function< void ( RegularTreeNode& ) > Initializer )
 {
@@ -44,6 +56,8 @@ RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::RegularTreeNode( std::fu
 	memset( _offset , 0 , sizeof(_offset ) );
 	if( Initializer ) Initializer( *this );
 }
+#endif // TEMPLATED_INITIALIZER
+
 #ifdef NEW_CODE
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::cleanChildren( bool deleteChildren )
@@ -76,14 +90,23 @@ RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::~RegularTreeNode(void)
 	parent = children = NULL;
 }
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+#ifdef TEMPLATED_INITIALIZER
+template< typename Initializer >
+RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NewBrood( Allocator< RegularTreeNode >* nodeAllocator , Initializer &initializer )
+#else // !TEMPLATED_INITIALIZER
 RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NewBrood( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
+#endif // TEMPLATED_INITIALIZER
 {
 	RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* brood;
 	if( nodeAllocator ) brood = nodeAllocator->newElements( 1<<Dim );
 	else                brood = new RegularTreeNode[ 1<<Dim ];
 	for( int idx=0 ; idx<(1<<Dim) ; idx++ )
 	{
+#ifdef TEMPLATED_INITIALIZER
+		initializer( brood[idx] );
+#else // !TEMPLATED_INITIALIZER
 		if( Initializer ) Initializer( brood[idx] );
+#endif // TEMPLATED_INITIALIZER
 		brood[idx]._depth = 0;
 		for( int d=0 ; d<Dim ; d++ ) brood[idx]._offset[d] = (idx>>d) & 1;
 	}
@@ -132,22 +155,41 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::ResetDepthAndOffset
 }
 
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+#ifdef TEMPLATED_INITIALIZER
+template< typename Initializer >
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::setFullDepth( int maxDepth , Allocator< RegularTreeNode >* nodeAllocator , Initializer &initializer )
+#else // !TEMPLATED_INITIALIZER
 void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::setFullDepth( int maxDepth , Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
+#endif // TEMPLATED_INITIALIZER
 {
 	if( maxDepth>0 )
 	{
+#ifdef TEMPLATED_INITIALIZER
+#ifdef THREAD_SAFE_CHILD_INIT
+		if( !children ) initChildren< false >( nodeAllocator , initializer );
+#else // !THREAD_SAFE_CHILD_INIT
+		if( !children ) initChildren( nodeAllocator , initializer );
+#endif // THREAD_SAFE_CHILD_INIT
+		for( int i=0 ; i<(1<<Dim) ; i++ ) children[i].setFullDepth( maxDepth-1 , nodeAllocator , initializer );
+#else // !TEMPLATED_INITIALIZER
 #ifdef THREAD_SAFE_CHILD_INIT
 		if( !children ) initChildren< false >( nodeAllocator , Initializer );
 #else // !THREAD_SAFE_CHILD_INIT
 		if( !children ) initChildren( nodeAllocator , Initializer );
 #endif // THREAD_SAFE_CHILD_INIT
 		for( int i=0 ; i<(1<<Dim) ; i++ ) children[i].setFullDepth( maxDepth-1 , nodeAllocator , Initializer );
+#endif // TEMPLATED_INITIALIZER
 	}
 }
 
 #ifdef THREAD_SAFE_CHILD_INIT
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+#ifdef TEMPLATED_INITIALIZER
+template< typename Initializer >
+bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::_initChildren( Allocator< RegularTreeNode >* nodeAllocator , Initializer &initializer )
+#else // !TEMPLATED_INITIALIZER
 bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::_initChildren( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
+#endif // TEMPLATED_INITIALIZER
 {
 	if( nodeAllocator ) children = nodeAllocator->newElements( 1<<Dim );
 	else
@@ -160,14 +202,23 @@ bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::_initChildren( Allo
 	{
 		children[idx].parent = this;
 		children[idx].children = NULL;
+#ifdef TEMPLATED_INITIALIZER
+		initializer( children[idx] );
+#else // !TEMPLATED_INITIALIZER
 		if( Initializer ) Initializer( children[idx] );
+#endif // TEMPLATED_INITIALIZER
 		children[idx]._depth = _depth+1;
 		for( int d=0 ; d<Dim ; d++ ) children[idx]._offset[d] = (_offset[d]<<1) | ( (idx>>d) & 1 );
 	}
 	return true;
 }
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+#ifdef TEMPLATED_INITIALIZER
+template< typename Initializer >
+bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::_initChildren_s( Allocator< RegularTreeNode >* nodeAllocator , Initializer &initializer )
+#else // !TEMPLATED_INITIALIZER
 bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::_initChildren_s( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
+#endif // TEMPLATED_INITIALIZER
 {
 	RegularTreeNode * volatile & children = this->children;
 	RegularTreeNode *_children;
@@ -183,7 +234,11 @@ bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::_initChildren_s( Al
 		_children[idx]._depth = _depth+1;
 		for( int d=0 ; d<Dim ; d++ ) _children[idx]._offset[d] = (_offset[d]<<1) | ( (idx>>d) & 1 );
 		// [WARNING] We are assuming that it's OK to initialize nodes that may not be used.
+#ifdef TEMPLATED_INITIALIZER
+		for( int idx=0 ; idx<(1<<Dim) ; idx++ ) initializer( _children[idx] );
+#else // !TEMPLATED_INITIALIZER
 		if( Initializer ) for( int idx=0 ; idx<(1<<Dim) ; idx++ ) Initializer( _children[idx] );
+#endif // TEMPLATED_INITIALIZER
 	}
 
 #ifdef NEW_THREADS
@@ -218,7 +273,12 @@ bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::_initChildren_s( Al
 #else // !THREAD_SAFE_CHILD_INIT
 #ifdef NEW_CODE
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+#ifdef TEMPLATED_INITIALIZER
+template< typename Initializer >
+bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren_s( Allocator< RegularTreeNode >* nodeAllocator , Initializer &initializer )
+#else // !TEMPLATED_INITIALIZER
 bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren_s( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
+#endif // TEMPLATED_INITIALIZER
 {
 	RegularTreeNode * volatile & children = this->children;
 	RegularTreeNode *_children;
@@ -234,7 +294,11 @@ bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren_s( All
 		_children[idx]._depth = _depth+1;
 		for( int d=0 ; d<Dim ; d++ ) _children[idx]._offset[d] = (_offset[d]<<1) | ( (idx>>d) & 1 );
 		// [WARNING] We are assuming that it's OK to initialize nodes that may not be used.
+#ifdef TEMPLATED_INITIALIZER
+		for( int idx=0 ; idx<(1<<Dim) ; idx++ ) initializer( _children[idx] );
+#else // !TEMPLATED_INITIALIZER
 		if( Initializer ) for( int idx=0 ; idx<(1<<Dim) ; idx++ ) Initializer( _children[idx] );
+#endif // TEMPLATED_INITIALIZER
 	}
 
 #ifdef NEW_THREADS
@@ -267,7 +331,12 @@ bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren_s( All
 }
 #endif // NEW_CODE
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+#ifdef TEMPLATED_INITIALIZER
+template< typename Initializer >
+int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren( Allocator< RegularTreeNode >* nodeAllocator , Initializer &initializer )
+#else // !TEMPLATED_INITIALIZER
 int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren( Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
+#endif // TEMPLATED_INITIALIZER
 {
 	if( nodeAllocator ) children = nodeAllocator->newElements( 1<<Dim );
 	else
@@ -280,7 +349,11 @@ int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::initChildren( Alloca
 	{
 		children[idx].parent = this;
 		children[idx].children = NULL;
+#ifdef TEMPLATED_INITIALIZER
+		initializer( children[idx] );
+#else // !TEMPLATED_INITIALIZER
 		if( Initializer ) Initializer( children[idx] );
+#endif // TEMPLATED_INITIALIZER
 		children[idx]._depth = _depth+1;
 		for( int d=0 ; d<Dim ; d++ ) children[idx]._offset[d] = (_offset[d]<<1) | ( (idx>>d) & 1 );
 	}
@@ -522,28 +595,51 @@ bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::write( FILE* fp ) c
 	return true;
 }
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+#ifdef TEMPLATED_INITIALIZER
+template< typename Initializer >
+bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::read( const char* fileName , Allocator< RegularTreeNode >* nodeAllocator , Initializer &initializer )
+#else // !TEMPLATED_INITIALIZER
 bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::read( const char* fileName , Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
+#endif // TEMPLATED_INITIALIZER
 {
 	FILE* fp = fopen( fileName , "rb" );
 	if( !fp ) return false;
+#ifdef TEMPLATED_INITIALIZER
+	bool ret = read( fp , nodeAllocator , initializer );
+#else // !TEMPLATED_INITIALIZER
 	bool ret = read( fp , nodeAllocator , Initializer );
+#endif // TEMPLATED_INITIALIZER
 	fclose( fp );
 	return ret;
 }
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+#ifdef TEMPLATED_INITIALIZER
+template< typename Initializer >
+bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::read( FILE* fp , Allocator< RegularTreeNode >* nodeAllocator , Initializer &initializer )
+#else // !TEMPLATED_INITIALIZER
 bool RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::read( FILE* fp , Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
+#endif // TEMPLATED_INITIALIZER
 {
 	if( fread( this , sizeof( RegularTreeNode< Dim , NodeData , DepthAndOffsetType > ) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read node" );
 	parent = NULL;
 	if( children )
 	{
 		children = NULL;
+#ifdef TEMPLATED_INITIALIZER
+#ifdef THREAD_SAFE_CHILD_INIT
+		initChildren< false >( nodeAllocator , initializer );
+#else // !THREAD_SAFE_CHILD_INIT
+		initChildren( nodeAllocator , initializer );
+#endif // THREAD_SAFE_CHILD_INIT
+		for( int i=0 ; i<(1<<Dim) ; i++ ) children[i].read( fp , nodeAllocator , initializer ) , children[i].parent = this;
+#else // !TEMPLATED_INITIALIZER
 #ifdef THREAD_SAFE_CHILD_INIT
 		initChildren< false >( nodeAllocator , Initializer );
 #else // !THREAD_SAFE_CHILD_INIT
 		initChildren( nodeAllocator , Initializer );
 #endif // THREAD_SAFE_CHILD_INIT
 		for( int i=0 ; i<(1<<Dim) ; i++ ) children[i].read( fp , nodeAllocator , Initializer ) , children[i].parent = this;
+#endif // TEMPLATED_INITIALIZER
 	}
 	return true;
 }
@@ -605,6 +701,65 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPa
 	if( d<0 ) return;
 	neighbors = new NeighborType[d+1];
 }
+#ifdef TEMPLATED_INITIALIZER
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
+#ifdef THREAD_SAFE_CHILD_INIT
+template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer , unsigned int ... _PLeftRadii , unsigned int ... _PRightRadii , unsigned int ... _CLeftRadii , unsigned int ... _CRightRadii >
+#else // !THREAD_SAFE_CHILD_INIT
+template< bool CreateNodes , typename NodeInitializer , unsigned int ... _PLeftRadii , unsigned int ... _PRightRadii , unsigned int ... _CLeftRadii , unsigned int ... _CRightRadii >
+#endif // THREAD_SAFE_CHILD_INIT
+unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_NeighborsLoop( UIntPack< _PLeftRadii ... > pLeftRadii , UIntPack< _PRightRadii ... > pRightRadii , UIntPack< _CLeftRadii ... > cLeftRadii , UIntPack< _CRightRadii ... > cRightRadii , ConstWindowSlice< RegularTreeNode* , UIntPack< ( _PLeftRadii + _PRightRadii + 1 ) ... > > pNeighbors , WindowSlice< RegularTreeNode* , UIntPack< ( _CLeftRadii + _CRightRadii + 1 ) ... > > cNeighbors , int cIdx , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer )
+{
+	static_assert( Dim==sizeof ... ( _PLeftRadii ) && Dim==sizeof ... ( _PRightRadii ) && Dim==sizeof ... ( _CLeftRadii ) && Dim==sizeof ... ( _CRightRadii ) , "[ERROR] Dimensions don't match" );
+	int c[Dim];
+	for( int d=0 ; d<Dim ; d++ ) c[d] = ( cIdx>>d ) & 1;
+#ifdef THREAD_SAFE_CHILD_INIT
+	return _Run< CreateNodes , ThreadSafe , NodeInitializer , UIntPack< _PLeftRadii ... > , UIntPack< _PRightRadii ... > , UIntPack< _CLeftRadii ... > , UIntPack< _CRightRadii ... > >::Run( pNeighbors , cNeighbors , c , 0 , nodeAllocator , initializer );
+#else // !THREAD_SAFE_CHILD_INIT
+	return _Run< CreateNodes , NodeInitializer , UIntPack< _PLeftRadii ... > , UIntPack< _PRightRadii ... > , UIntPack< _CLeftRadii ... > , UIntPack< _CRightRadii ... > >::Run( pNeighbors , cNeighbors , c , 0 , nodeAllocator , initializer );
+#endif // THREAD_SAFE_CHILD_INIT
+}
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
+#ifdef THREAD_SAFE_CHILD_INIT
+template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer , unsigned int ... _PLeftRadii , unsigned int ... _PRightRadii , unsigned int ... _CLeftRadii , unsigned int ... _CRightRadii >
+#else // !THREAD_SAFE_CHILD_INIT
+template< bool CreateNodes , typename NodeInitializer , unsigned int ... _PLeftRadii , unsigned int ... _PRightRadii , unsigned int ... _CLeftRadii , unsigned int ... _CRightRadii >
+#endif // THREAD_SAFE_CHILD_INIT
+unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_NeighborsLoop( UIntPack< _PLeftRadii ... > pLeftRadii , UIntPack< _PRightRadii ... > pRightRadii , UIntPack< _CLeftRadii ... > cLeftRadii , UIntPack< _CRightRadii ... > cRightRadii , WindowSlice< RegularTreeNode* , UIntPack< ( _PLeftRadii + _PRightRadii + 1 ) ... > > pNeighbors , WindowSlice< RegularTreeNode* , UIntPack< ( _CLeftRadii + _CRightRadii + 1 ) ... > > cNeighbors , int cIdx , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer )
+{
+#ifdef THREAD_SAFE_CHILD_INIT
+	return _NeighborsLoop< CreateNodes , ThreadSafe , NodeInitializer >( UIntPack< _PLeftRadii ... >() , UIntPack< _PRightRadii ... >() , UIntPack< _CLeftRadii ... >() , UIntPack< _CRightRadii ... >() , ( ConstWindowSlice< RegularTreeNode* , UIntPack< ( _PLeftRadii + _PRightRadii + 1 ) ... > > )pNeighbors , cNeighbors , cIdx , nodeAllocator , initializer );
+#else // !THREAD_SAFE_CHILD_INIT
+	return _NeighborsLoop< CreateNodes , NodeInitializer >( UIntPack< _PLeftRadii ... >() , UIntPack< _PRightRadii ... >() , UIntPack< _CLeftRadii ... >() , UIntPack< _CRightRadii ... >() , ( ConstWindowSlice< RegularTreeNode* , UIntPack< ( _PLeftRadii + _PRightRadii + 1 ) ... > > )pNeighbors , cNeighbors , cIdx , nodeAllocator , initializer );
+#endif // THREAD_SAFE_CHILD_INIT
+}
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
+#ifdef THREAD_SAFE_CHILD_INIT
+template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer , unsigned int _PLeftRadius , unsigned int ... _PLeftRadii , unsigned int _PRightRadius , unsigned int ... _PRightRadii , unsigned int _CLeftRadius , unsigned int ... _CLeftRadii , unsigned int _CRightRadius , unsigned int ... _CRightRadii >
+unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_Run< CreateNodes , ThreadSafe , NodeInitializer , UIntPack< _PLeftRadius , _PLeftRadii ... > , UIntPack< _PRightRadius , _PRightRadii ... > , UIntPack< _CLeftRadius , _CLeftRadii ... > , UIntPack< _CRightRadius , _CRightRadii ... > >::Run( ConstWindowSlice< RegularTreeNode* , UIntPack< _PLeftRadius + _PRightRadius + 1 , ( _PLeftRadii + _PRightRadii + 1 ) ... > > pNeighbors , WindowSlice< RegularTreeNode* , UIntPack< _CLeftRadius + _CRightRadius + 1 , ( _CLeftRadii + _CRightRadii + 1 ) ... > > cNeighbors , int* c , int cornerIndex , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer )
+#else // !THREAD_SAFE_CHILD_INIT
+template< bool CreateNodes , typename NodeInitializer , unsigned int _PLeftRadius , unsigned int ... _PLeftRadii , unsigned int _PRightRadius , unsigned int ... _PRightRadii , unsigned int _CLeftRadius , unsigned int ... _CLeftRadii , unsigned int _CRightRadius , unsigned int ... _CRightRadii >
+unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_Run< CreateNodes , NodeInitializer , UIntPack< _PLeftRadius , _PLeftRadii ... > , UIntPack< _PRightRadius , _PRightRadii ... > , UIntPack< _CLeftRadius , _CLeftRadii ... > , UIntPack< _CRightRadius , _CRightRadii ... > >::Run( ConstWindowSlice< RegularTreeNode* , UIntPack< _PLeftRadius + _PRightRadius + 1 , ( _PLeftRadii + _PRightRadii + 1 ) ... > > pNeighbors , WindowSlice< RegularTreeNode* , UIntPack< _CLeftRadius + _CRightRadius + 1 , ( _CLeftRadii + _CRightRadii + 1 ) ... > > cNeighbors , int* c , int cornerIndex , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer )
+#endif // THREAD_SAFE_CHILD_INIT
+{
+	static const int D = sizeof ... ( _PLeftRadii ) + 1;
+	unsigned int count=0;
+	for( int i=-(int)_CLeftRadius ; i<=(int)_CRightRadius ; i++ )
+	{
+		int _i = (i+c[Dim-D]) + ( _CLeftRadius<<1 ) , pi = ( _i>>1 ) - _CLeftRadius + _PLeftRadius  , ci = i + _CLeftRadius;
+#ifdef THREAD_SAFE_CHILD_INIT
+		count += _Run< CreateNodes , ThreadSafe , NodeInitializer , UIntPack< _PLeftRadii ... > , UIntPack< _PRightRadii ... > , UIntPack< _CLeftRadii ... > , UIntPack< _CRightRadii ... > >::Run( pNeighbors[pi] , cNeighbors[ci] , c , cornerIndex | ( ( _i&1)<<(Dim-D) ) , nodeAllocator , initializer );
+#else // !THREAD_SAFE_CHILD_INIT
+		count += _Run< CreateNodes , NodeInitializer , UIntPack< _PLeftRadii ... > , UIntPack< _PRightRadii ... > , UIntPack< _CLeftRadii ... > , UIntPack< _CRightRadii ... > >::Run( pNeighbors[pi] , cNeighbors[ci] , c , cornerIndex | ( ( _i&1)<<(Dim-D) ) , nodeAllocator , initializer );
+#endif // THREAD_SAFE_CHILD_INIT
+	}
+	return count;
+}
+
+#else // !TEMPLATED_INITIALIZER
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 #ifdef THREAD_SAFE_CHILD_INIT
@@ -661,8 +816,19 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey
 	}
 	return count;
 }
+#endif // TEMPLATED_INITIALIZER
+
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
+#ifdef TEMPLATED_INITIALIZER
+#ifdef THREAD_SAFE_CHILD_INIT
+template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer , unsigned int _PLeftRadius , unsigned int _PRightRadius , unsigned int _CLeftRadius , unsigned int _CRightRadius >
+unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_Run< CreateNodes , ThreadSafe , NodeInitializer , UIntPack< _PLeftRadius > , UIntPack< _PRightRadius > , UIntPack< _CLeftRadius > , UIntPack< _CRightRadius > >::Run( ConstWindowSlice< RegularTreeNode* , UIntPack< _PLeftRadius+_PRightRadius+1 > > pNeighbors , WindowSlice< RegularTreeNode* , UIntPack< _CLeftRadius+_CRightRadius+1 > > cNeighbors , int* c , int cornerIndex , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer )
+#else // !THREAD_SAFE_CHILD_INIT
+template< bool CreateNodes , typename NodeInitializer , unsigned int _PLeftRadius , unsigned int _PRightRadius , unsigned int _CLeftRadius , unsigned int _CRightRadius >
+unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_Run< CreateNodes , NodeInitializer , UIntPack< _PLeftRadius > , UIntPack< _PRightRadius > , UIntPack< _CLeftRadius > , UIntPack< _CRightRadius > >::Run( ConstWindowSlice< RegularTreeNode* , UIntPack< _PLeftRadius+_PRightRadius+1 > > pNeighbors , WindowSlice< RegularTreeNode* , UIntPack< _CLeftRadius+_CRightRadius+1 > > cNeighbors , int* c , int cornerIndex , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer )
+#endif // THREAD_SAFE_CHILD_INIT
+#else // !TEMPLATED_INITIALIZER
 #ifdef THREAD_SAFE_CHILD_INIT
 template< bool CreateNodes , bool ThreadSafe , unsigned int _PLeftRadius , unsigned int _PRightRadius , unsigned int _CLeftRadius , unsigned int _CRightRadius >
 unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_Run< CreateNodes , ThreadSafe , UIntPack< _PLeftRadius > , UIntPack< _PRightRadius > , UIntPack< _CLeftRadius > , UIntPack< _CRightRadius > >::Run( ConstWindowSlice< RegularTreeNode* , UIntPack< _PLeftRadius+_PRightRadius+1 > > pNeighbors , WindowSlice< RegularTreeNode* , UIntPack< _CLeftRadius+_CRightRadius+1 > > cNeighbors , int* c , int cornerIndex , Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
@@ -670,6 +836,7 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey
 template< bool CreateNodes , unsigned int _PLeftRadius , unsigned int _PRightRadius , unsigned int _CLeftRadius , unsigned int _CRightRadius >
 unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::_Run< CreateNodes , UIntPack< _PLeftRadius > , UIntPack< _PRightRadius > , UIntPack< _CLeftRadius > , UIntPack< _CRightRadius > >::Run( ConstWindowSlice< RegularTreeNode* , UIntPack< _PLeftRadius+_PRightRadius+1 > > pNeighbors , WindowSlice< RegularTreeNode* , UIntPack< _CLeftRadius+_CRightRadius+1 > > cNeighbors , int* c , int cornerIndex , Allocator< RegularTreeNode >* nodeAllocator , std::function< void ( RegularTreeNode& ) > Initializer )
 #endif // THREAD_SAFE_CHILD_INIT
+#endif // TEMPLATED_INITIALIZER
 {
 	static const int D = 1;
 	unsigned int count=0;
@@ -681,25 +848,41 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey
 			if( pNeighbors[pi] )
 			{
 #ifdef THREAD_SAFE_CHILD_INIT
+#ifdef TEMPLATED_INITIALIZER
+				if( !pNeighbors[pi]->children ) pNeighbors[pi]->template initChildren< ThreadSafe >( nodeAllocator , initializer );
+#else // !TEMPLATED_INITIALIZER
 				if( !pNeighbors[pi]->children ) pNeighbors[pi]->template initChildren< ThreadSafe >( nodeAllocator , Initializer );
+#endif // TEMPLATED_INITIALIZER
 #else // !THREAD_SAFE_CHILD_INIT
 				if( !pNeighbors[pi]->children )
 #ifdef NEW_THREADS
 #ifdef NEW_CODE
 				{
+#ifdef TEMPLATED_INITIALIZER
+					pNeighbors[pi]->initChildren_s( nodeAllocator , initializer );
+#else // !TEMPLATED_INITIALIZER
 					pNeighbors[pi]->initChildren_s( nodeAllocator , Initializer );
+#endif // TEMPLATED_INITIALIZER
 				}
 #else // !NEW_CODE
 				{
 					static std::mutex m;
 					std::lock_guard< std::mutex > lock(m);
+#ifdef TEMPLATED_INITIALIZER
+					if( !pNeighbors[pi]->children ) pNeighbors[pi]->initChildren( nodeAllocator , initializer );
+#else // !TEMPLATED_INITIALIZER
 					if( !pNeighbors[pi]->children ) pNeighbors[pi]->initChildren( nodeAllocator , Initializer );
+#endif // TEMPLATED_INITIALIZER
 				}
 #endif // NEW_CODE
 #else // !NEW_THREADS
 #pragma omp critical ( RegularTreeNode__NeighborKey__Run )
 				{
+#ifdef TEMPLATED_INITIALIZER
+					if( !pNeighbors[pi]->children ) pNeighbors[pi]->initChildren( nodeAllocator , initializer );
+#else // !TEMPLATED_INITIALIZER
 					if( !pNeighbors[pi]->children ) pNeighbors[pi]->initChildren( nodeAllocator , Initializer );
+#endif // TEMPLATED_INITIALIZER
 				}
 #endif // NEW_THREADS
 #endif // THREAD_SAFE_CHILD_INIT
@@ -716,6 +899,28 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey
 	}
 	return count;
 }
+
+#ifdef TEMPLATED_INITIALIZER
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
+#ifdef THREAD_SAFE_CHILD_INIT
+template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer >
+#else // !THREAD_SAFE_CHILD_INIT
+template< bool CreateNodes , typename NodeInitializer >
+#endif // THREAD_SAFE_CHILD_INIT
+unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getChildNeighbors( int cIdx , int d , NeighborType& cNeighbors , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer ) const
+{
+	NeighborType& pNeighbors = neighbors[d];
+	// Check that we actually have a center node
+	if( !pNeighbors.neighbors.data[ CenterIndex ] ) return 0;
+#ifdef THREAD_SAFE_CHILD_INIT
+	return _NeighborsLoop< CreateNodes , ThreadSafe >( UIntPack< LeftRadii ... >() , UIntPack< RightRadii ... >() , UIntPack< LeftRadii ... >() , UIntPack< RightRadii ... >() , pNeighbors.neighbors() , cNeighbors.neighbors() , cIdx , nodeAllocator , initializer );
+#else // !THREAD_SAFE_CHILD_INIT
+	return _NeighborsLoop< CreateNodes >( UIntPack< LeftRadii ... >() , UIntPack< RightRadii ... >() , UIntPack< LeftRadii ... >() , UIntPack< RightRadii ... >() , pNeighbors.neighbors() , cNeighbors.neighbors() , cIdx , nodeAllocator , initializer );
+#endif // THREAD_SAFE_CHILD_INIT
+}
+
+#else // !TEMPLATED_INITIALIZER
 
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
@@ -735,6 +940,33 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey
 	return _NeighborsLoop< CreateNodes >( UIntPack< LeftRadii ... >() , UIntPack< RightRadii ... >() , UIntPack< LeftRadii ... >() , UIntPack< RightRadii ... >() , pNeighbors.neighbors() , cNeighbors.neighbors() , cIdx , nodeAllocator , Initializer );
 #endif // THREAD_SAFE_CHILD_INIT
 }
+#endif // TEMPLATED_INITIALIZER
+
+#ifdef TEMPLATED_INITIALIZER
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
+#ifdef THREAD_SAFE_CHILD_INIT
+template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer , class Real >
+#else // !THREAD_SAFE_CHILD_INIT
+template< bool CreateNodes , typename NodeInitializer , class Real >
+#endif // THREAD_SAFE_CHILD_INIT
+unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getChildNeighbors( Point< Real , Dim > p , int d , NeighborType& cNeighbors , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer ) const
+{
+	NeighborType& pNeighbors = neighbors[d];
+	// Check that we actually have a center node
+	if( !pNeighbors.neighbors.data[ CenterIndex ] ) return 0;
+	Point< Real , Dim > c;
+	Real w;
+	pNeighbors.neighbors.data[ CenterIndex ]->centerAndWidth( c , w );
+#ifdef THREAD_SAFE_CHILD_INIT
+	return getChildNeighbors< CreateNodes , ThreadSafe >( CornerIndex( c , p ) , d , cNeighbors , nodeAllocator , initializer );
+#else // !THREAD_SAFE_CHILD_INIT
+	return getChildNeighbors< CreateNodes >( CornerIndex( c , p ) , d , cNeighbors , nodeAllocator , initializer );
+#endif // THREAD_SAFE_CHILD_INIT
+}
+
+#else // !TEMPLATED_INITIALIZER
+
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 #ifdef THREAD_SAFE_CHILD_INIT
@@ -756,6 +988,41 @@ unsigned int RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey
 	return getChildNeighbors< CreateNodes >( CornerIndex( c , p ) , d , cNeighbors , nodeAllocator , Initializer );
 #endif // THREAD_SAFE_CHILD_INIT
 }
+#endif // TEMPLATED_INITIALIZER
+
+#ifdef TEMPLATED_INITIALIZER
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
+#ifdef THREAD_SAFE_CHILD_INIT
+template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer >
+#else // !THREAD_SAFE_CHILD_INIT
+template< bool CreateNodes , typename NodeInitializer >
+#endif // THREAD_SAFE_CHILD_INIT
+typename RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::template Neighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getNeighbors( RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* node , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer )
+{
+	NeighborType& neighbors = this->neighbors[node->depth()];
+	// This is required in case the neighbors have been constructed between the last call to getNeighbors and this one
+	if( node==neighbors.neighbors.data[ CenterIndex ] )
+	{
+		bool reset = false;
+		for( int i=0 ; i<WindowSize< UIntPack< ( LeftRadii+RightRadii+1 ) ... > >::Size ; i++ ) if( !neighbors.neighbors.data[i] ) reset = true;
+		if( reset ) neighbors.neighbors.data[ CenterIndex ] = NULL;
+	}
+	if( node!=neighbors.neighbors.data[ CenterIndex ] )
+	{
+		for( int d=node->depth()+1 ; d<=_depth && this->neighbors[d].neighbors.data[ CenterIndex ] ; d++ ) this->neighbors[d].neighbors.data[ CenterIndex ] = NULL;
+		neighbors.clear();
+		if( !node->parent ) neighbors.neighbors.data[ CenterIndex ] = node;
+#ifdef THREAD_SAFE_CHILD_INIT
+		else _NeighborsLoop< CreateNodes , ThreadSafe >( UIntPack< LeftRadii ... >() , UIntPack< RightRadii ... >() , UIntPack< LeftRadii ... >() , UIntPack< RightRadii ... >() , getNeighbors< CreateNodes , ThreadSafe >( node->parent , nodeAllocator , initializer ).neighbors() , neighbors.neighbors() , (int)( node - node->parent->children ) , nodeAllocator , initializer );
+#else // !THREAD_SAFE_CHILD_INIT
+		else _NeighborsLoop< CreateNodes >( UIntPack< LeftRadii ... >() , UIntPack< RightRadii ... >() , UIntPack< LeftRadii ... >() , UIntPack< RightRadii ... >() , getNeighbors< CreateNodes >( node->parent , nodeAllocator , initializer ).neighbors() , neighbors.neighbors() , (int)( node - node->parent->children ) , nodeAllocator , initializer );
+#endif // THREAD_SAFE_CHILD_INIT
+	}
+	return neighbors;
+}
+
+#else // !TEMPLATED_INITIALIZER
 
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
@@ -787,6 +1054,62 @@ typename RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::template Neighb
 	}
 	return neighbors;
 }
+#endif // TEMPLATED_INITIALIZER
+
+#ifdef TEMPLATED_INITIALIZER
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
+#ifdef THREAD_SAFE_CHILD_INIT
+template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer , unsigned int ... _LeftRadii , unsigned int ... _RightRadii >
+#else // !THREAD_SAFE_CHILD_INIT
+template< bool CreateNodes , typename NodeInitializer , unsigned int ... _LeftRadii , unsigned int ... _RightRadii >
+#endif // THREAD_SAFE_CHILD_INIT
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getNeighbors( UIntPack< _LeftRadii ... > , UIntPack< _RightRadii ... > , RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* node , Neighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer )
+{
+	static const unsigned int _CenterIndex = WindowIndex< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > , UIntPack< _LeftRadii ... > >::Index;
+	neighbors.clear();
+	if( !node ) return;
+
+	// [WARNING] This estimate of the required radius is somewhat conservative if the readius is odd (depending on where the node is relative to its parent)
+	UIntPack<  LeftRadii ... >  leftRadii;
+	UIntPack< RightRadii ... > rightRadii;
+	UIntPack< (  _LeftRadii+1 )/2 ... >  pLeftRadii;
+	UIntPack< ( _RightRadii+1 )/2 ... > pRightRadii;
+	UIntPack<  _LeftRadii ... >  cLeftRadii;
+	UIntPack< _RightRadii ... > cRightRadii;
+
+	// If we are at the root of the tree, we are done
+	if( !node->parent ) neighbors.neighbors.data[ _CenterIndex ] = node;
+	// If we can get the data from the the key for the parent node, do that
+	else if( pLeftRadii<=leftRadii && pRightRadii<=rightRadii )
+	{
+#ifdef THREAD_SAFE_CHILD_INIT
+		getNeighbors< CreateNodes , ThreadSafe >( node->parent , nodeAllocator , initializer );
+#else // !THREAD_SAFE_CHILD_INIT
+		getNeighbors< CreateNodes >( node->parent , nodeAllocator , initializer );
+#endif // THREAD_SAFE_CHILD_INIT
+		const Neighbors< UIntPack< ( LeftRadii + RightRadii + 1 ) ... > >& pNeighbors = this->neighbors[ node->depth()-1 ];
+#ifdef THREAD_SAFE_CHILD_INIT
+		_NeighborsLoop< CreateNodes , ThreadSafe >( leftRadii , rightRadii , cLeftRadii , cRightRadii , pNeighbors.neighbors() , neighbors.neighbors() , (int)( node - node->parent->children ) , nodeAllocator , initializer );
+#else // !THREAD_SAFE_CHILD_INIT
+		_NeighborsLoop< CreateNodes >( leftRadii , rightRadii , cLeftRadii , cRightRadii , pNeighbors.neighbors() , neighbors.neighbors() , (int)( node - node->parent->children ) , nodeAllocator , initializer );
+#endif // THREAD_SAFE_CHILD_INIT
+	}
+	// Otherwise recurse
+	else
+	{
+		Neighbors< UIntPack< ( ( _LeftRadii+1 )/2  + ( _RightRadii+1 )/2 + 1 ) ... > > pNeighbors;
+#ifdef THREAD_SAFE_CHILD_INIT
+		getNeighbors< CreateNodes , ThreadSafe >( pLeftRadii , pRightRadii , node->parent , pNeighbors , nodeAllocator , initializer );
+		_NeighborsLoop< CreateNodes , ThreadSafe >( pLeftRadii , pRightRadii , cLeftRadii , cRightRadii , pNeighbors.neighbors() , neighbors.neighbors() , (int)( node - node->parent->children ) , nodeAllocator , initializer );
+#else // !THREAD_SAFE_CHILD_INIT
+		getNeighbors< CreateNodes >( pLeftRadii , pRightRadii , node->parent , pNeighbors , nodeAllocator , initializer );
+		_NeighborsLoop< CreateNodes >( pLeftRadii , pRightRadii , cLeftRadii , cRightRadii , pNeighbors.neighbors() , neighbors.neighbors() , (int)( node - node->parent->children ) , nodeAllocator , initializer );
+#endif // THREAD_SAFE_CHILD_INIT
+	}
+}
+
+#else // !TEMPLATED_INITIALIZER
 
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
@@ -839,6 +1162,38 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPa
 #endif // THREAD_SAFE_CHILD_INIT
 	}
 }
+#endif // TEMPLATED_INITIALIZER
+
+#ifdef TEMPLATED_INITIALIZER
+template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
+template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
+#ifdef THREAD_SAFE_CHILD_INIT
+template< bool CreateNodes , bool ThreadSafe , typename NodeInitializer , unsigned int ... _LeftRadii , unsigned int ... _RightRadii >
+#else // !THREAD_SAFE_CHILD_INIT
+template< bool CreateNodes , typename NodeInitializer , unsigned int ... _LeftRadii , unsigned int ... _RightRadii >
+#endif // THREAD_SAFE_CHILD_INIT
+void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPack< LeftRadii ... > , UIntPack< RightRadii ... > >::getNeighbors( UIntPack< _LeftRadii ... > , UIntPack< _RightRadii ... > , RegularTreeNode< Dim , NodeData , DepthAndOffsetType >* node , Neighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& pNeighbors , Neighbors< UIntPack< ( _LeftRadii + _RightRadii + 1 ) ... > >& neighbors , Allocator< RegularTreeNode >* nodeAllocator , NodeInitializer &initializer )
+{
+	UIntPack<  _LeftRadii ... >  leftRadii;
+	UIntPack< _RightRadii ... > rightRadii;
+#ifdef THREAD_SAFE_CHILD_INIT
+	if( !node->parent ) getNeighbors< CreateNodes , ThreadSafe >( leftRadii , rightRadii , node , neighbors , nodeAllocator , initializer );
+	else
+	{
+		getNeighbors< CreateNodes , ThreadSafe >( leftRadii , rightRadii , node->parent , pNeighbors , nodeAllocator , initializer );
+		_NeighborsLoop< CreateNodes , ThreadSafe >( leftRadii , rightRadii , leftRadii , rightRadii , pNeighbors.neighbors() , neighbors.neighbors() , (int)( node - node->parent->children ) , nodeAllocator , initializer );
+	}
+#else // !THREAD_SAFE_CHILD_INIT
+	if( !node->parent ) getNeighbors< CreateNodes >( leftRadii , rightRadii , node , neighbors , nodeAllocator , initializer );
+	else
+	{
+		getNeighbors< CreateNodes >( leftRadii , rightRadii , node->parent , pNeighbors , nodeAllocator , initializer );
+		_NeighborsLoop< CreateNodes >( leftRadii , rightRadii , leftRadii , rightRadii , pNeighbors.neighbors() , neighbors.neighbors() , (int)( node - node->parent->children ) , nodeAllocator , initializer );
+	}
+#endif // THREAD_SAFE_CHILD_INIT
+}
+#else // !TEMPLATED_INITIALIZER
+
 template< unsigned int Dim , class NodeData , class DepthAndOffsetType >
 template< unsigned int ... LeftRadii , unsigned int ... RightRadii >
 #ifdef THREAD_SAFE_CHILD_INIT
@@ -866,6 +1221,7 @@ void RegularTreeNode< Dim , NodeData , DepthAndOffsetType >::NeighborKey< UIntPa
 	}
 #endif // THREAD_SAFE_CHILD_INIT
 }
+#endif // TEMPLATED_INITIALIZER
 
 ///////////////////////////////////////
 // RegularTreeNode::ConstNeighborKey //

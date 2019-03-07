@@ -322,9 +322,17 @@ struct SystemDual< Dim , double >
 	CumulativeDerivativeValues< Real , Dim , 0 > operator()( const Point< Real , Dim >& p , const CumulativeDerivativeValues< Real , Dim , 0 >& dValues ) const { return dValues * weight; };
 };
 
+#ifdef NEW_CODE
+template< typename Vertex , typename Real , typename SetVertexFunction , unsigned int ... FEMSigs , typename ... SampleData >
+#else // !NEW_CODE
 template< typename Vertex , typename Real , unsigned int ... FEMSigs , typename ... SampleData >
+#endif // NEW_CODE
 #ifdef NEW_THREADS
+#ifdef NEW_CODE
+void ExtractMesh( UIntPack< FEMSigs ... > , std::tuple< SampleData ... > , FEMTree< sizeof ... ( FEMSigs ) , Real >& tree , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& solution , Real isoValue , const std::vector< typename FEMTree< sizeof ... ( FEMSigs ) , Real >::PointSample >* samples , std::vector< MultiPointStreamData< Real , PointStreamNormal< Real , DIMENSION > , MultiPointStreamData< Real , SampleData ... > > >* sampleData , const typename FEMTree< sizeof ... ( FEMSigs ) , Real >::template DensityEstimator< WEIGHT_DEGREE >* density , const SetVertexFunction &SetVertex , std::vector< std::string > &comments , XForm< Real , sizeof...(FEMSigs)+1 > iXForm )
+#else // !NEW_CODE
 void ExtractMesh( UIntPack< FEMSigs ... > , std::tuple< SampleData ... > , FEMTree< sizeof ... ( FEMSigs ) , Real >& tree , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& solution , Real isoValue , const std::vector< typename FEMTree< sizeof ... ( FEMSigs ) , Real >::PointSample >* samples , std::vector< MultiPointStreamData< Real , PointStreamNormal< Real , DIMENSION > , MultiPointStreamData< Real , SampleData ... > > >* sampleData , const typename FEMTree< sizeof ... ( FEMSigs ) , Real >::template DensityEstimator< WEIGHT_DEGREE >* density , std::function< void ( Vertex& , Point< Real , DIMENSION > , Real , MultiPointStreamData< Real , PointStreamNormal< Real , DIMENSION > , MultiPointStreamData< Real , SampleData ... > > ) > SetVertex , std::vector< std::string > &comments , XForm< Real , sizeof...(FEMSigs)+1 > iXForm )
+#endif // NEW_CODE
 #else // !NEW_THREADS
 void ExtractMesh( UIntPack< FEMSigs ... > , std::tuple< SampleData ... > , FEMTree< sizeof ... ( FEMSigs ) , Real >& tree , const DenseNodeData< Real , UIntPack< FEMSigs ... > >& solution , Real isoValue , const std::vector< typename FEMTree< sizeof ... ( FEMSigs ) , Real >::PointSample >* samples , std::vector< MultiPointStreamData< Real , PointStreamNormal< Real , DIMENSION > , MultiPointStreamData< Real , SampleData ... > > >* sampleData , const typename FEMTree< sizeof ... ( FEMSigs ) , Real >::template DensityEstimator< WEIGHT_DEGREE >* density , std::function< void ( Vertex& , Point< Real , DIMENSION > , Real , MultiPointStreamData< Real , PointStreamNormal< Real , DIMENSION > , MultiPointStreamData< Real , SampleData ... > > ) > SetVertex , std::vector< std::string > &comments , XForm< Real , sizeof...(FEMSigs)+1 > iXForm )
 #endif // NEW_THREADS
@@ -816,9 +824,17 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 			{
 				typedef PlyVertexWithData< Real , Dim , MultiPointStreamData< Real , PointStreamNormal< Real , Dim > , PointStreamValue< Real > , AdditionalPointSampleData > > Vertex;
 #ifdef NEW_POINT_STREAM
+#ifdef NEW_CODE
+				auto SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , v.data.template data<0>() = d.template data<0>() , v.data.template data<1>() = w , v.data.template data<2>() = d.template data<1>(); };
+#else // !NEW_CODE
 				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , v.data.template data<0>() = d.template data<0>() , v.data.template data<1>() = w , v.data.template data<2>() = d.template data<1>(); };
+#endif // NEW_CODE
 #else // !NEW_POINT_STREAM
+#ifdef ENW_CODE
+				auto SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , std::get< 0 >( v.data.data ) = std::get< 0 >( d.data ) , std::get< 1 >( v.data.data ).data = w , std::get< 2 >( v.data.data ) = std::get< 1 >( d.data ); };
+#else // !NEW_CODE
 				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , std::get< 0 >( v.data.data ) = std::get< 0 >( d.data ) , std::get< 1 >( v.data.data ).data = w , std::get< 2 >( v.data.data ) = std::get< 1 >( d.data ); };
+#endif // NEW_CODE
 #endif // NEW_POINT_STREAM
 				ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , std::tuple< SampleData ... >() , tree , solution , isoValue , samples , sampleData , density , SetVertex , comments , iXForm );
 			}
@@ -826,9 +842,17 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 			{
 				typedef PlyVertexWithData< Real , Dim , MultiPointStreamData< Real , PointStreamNormal< Real , Dim > , AdditionalPointSampleData > > Vertex;
 #ifdef NEW_POINT_STREAM
+#ifdef NEW_CODE
+				auto SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , v.data.template data<0>() = d.template data<0>() , v.data.template data<1>() = d.template data<1>(); };
+#else // !NEW_CODE
 				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , v.data.template data<0>() = d.template data<0>() , v.data.template data<1>() = d.template data<1>(); };
+#endif // NEW_CODE
 #else // !NEW_POINT_STREAM
+#ifdef NEW_CODE
+				auto SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , std::get< 0 >( v.data.data ) = std::get< 0 >( d.data ) , std::get< 1 >( v.data.data ) = std::get< 1 >( d.data ); };
+#else // !NEW_CODE
 				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , std::get< 0 >( v.data.data ) = std::get< 0 >( d.data ) , std::get< 1 >( v.data.data ) = std::get< 1 >( d.data ); };
+#endif // NEW_CODE
 #endif // NEW_POINT_STREAM
 				ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , std::tuple< SampleData ... >() , tree , solution , isoValue , samples , sampleData , density , SetVertex , comments , iXForm );
 			}
@@ -849,9 +873,17 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 			{
 				typedef PlyVertexWithData< Real , Dim , MultiPointStreamData< Real , AdditionalPointSampleData > > Vertex;
 #ifdef NEW_POINT_STREAM
+#ifdef NEW_CODE
+				auto SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , v.data.template data<0>() = d.template data<1>(); };
+#else // !NEW_CODE
 				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , v.data.template data<0>() = d.template data<1>(); };
+#endif // NEW_CODE
 #else // !NEW_POINT_STREAM
+#ifdef NEW_CODE
+				auto SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , std::get< 0 >( v.data.data ) = std::get< 1 >( d.data ); };
+#else // !NEW_CODE
 				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , std::get< 0 >( v.data.data ) = std::get< 1 >( d.data ); };
+#endif // NEW_CODE
 #endif // NEW_POINT_STREAM
 				ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , std::tuple< SampleData ... >() , tree , solution , isoValue , samples , sampleData , density , SetVertex , comments , iXForm );
 			}

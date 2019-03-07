@@ -60,11 +60,19 @@ void FEMTree< Dim , Real >::_addWeightContribution( DensityEstimator< WeightDegr
 {
 	static const double ScaleValue = GetScaleValue< WeightDegree >();
 	double values[ Dim ][ BSplineSupportSizes< WeightDegree >::SupportSize ];
+#ifdef TEMPLATED_INITIALIZER
+#ifdef THREAD_SAFE_CHILD_INIT
+	typename FEMTreeNode::template Neighbors< IsotropicUIntPack< Dim , BSplineSupportSizes< WeightDegree >::SupportSize > >& neighbors = weightKey.template getNeighbors< true , ThreadSafe >( node , nodeAllocator , _nodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
+	typename FEMTreeNode::template Neighbors< IsotropicUIntPack< Dim , BSplineSupportSizes< WeightDegree >::SupportSize > >& neighbors = weightKey.template getNeighbors< true >( node , nodeAllocator , _nodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
+#else // !TEMPLATED_INITIALIZER
 #ifdef THREAD_SAFE_CHILD_INIT
 	typename FEMTreeNode::template Neighbors< IsotropicUIntPack< Dim , BSplineSupportSizes< WeightDegree >::SupportSize > >& neighbors = weightKey.template getNeighbors< true , ThreadSafe >( node , nodeAllocator , _NodeInitializer( *this ) );
 #else // !THREAD_SAFE_CHILD_INIT
 	typename FEMTreeNode::template Neighbors< IsotropicUIntPack< Dim , BSplineSupportSizes< WeightDegree >::SupportSize > >& neighbors = weightKey.template getNeighbors< true >( node , nodeAllocator , _NodeInitializer( *this ) );
 #endif // THREAD_SAFE_CHILD_INIT
+#endif // TEMPLATED_INITIALIZER
 
 	densityWeights.reserve( nodeCount() );
 
@@ -176,11 +184,19 @@ void FEMTree< Dim , Real >::_splatPointData( FEMTreeNode* node , Point< Real , D
 {
 	typedef UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > SupportSizes;
 	double values[ Dim ][ SupportSizes::Max() ];
+#ifdef TEMPLATED_INITIALIZER
+#ifdef THREAD_SAFE_CHILD_INIT
+	typename FEMTreeNode::template Neighbors< UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > >& neighbors = dataKey.template getNeighbors< CreateNodes , ThreadSafe >( node , nodeAllocator , _nodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
+	typename FEMTreeNode::template Neighbors< UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > >& neighbors = dataKey.template getNeighbors< CreateNodes >( node , nodeAllocator , _nodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
+#else // !TEMPLATED_INITIALIZER
 #ifdef THREAD_SAFE_CHILD_INIT
 	typename FEMTreeNode::template Neighbors< UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > >& neighbors = dataKey.template getNeighbors< CreateNodes , ThreadSafe >( node , nodeAllocator , _NodeInitializer( *this ) );
 #else // !THREAD_SAFE_CHILD_INIT
 	typename FEMTreeNode::template Neighbors< UIntPack< BSplineSupportSizes< FEMSignature< DataSigs >::Degree >::SupportSize ... > >& neighbors = dataKey.template getNeighbors< CreateNodes >( node , nodeAllocator , _NodeInitializer( *this ) );
 #endif // THREAD_SAFE_CHILD_INIT
+#endif // TEMPLATED_INITIALIZER
 	Point< Real , Dim > start;
 	Real w;
 	_startAndWidth( node , start , w );
@@ -250,11 +266,19 @@ Real FEMTree< Dim , Real >::_splatPointData( const DensityEstimator< WeightDegre
 	while( _localDepth( temp )>topDepth ) temp=temp->parent;
 	while( _localDepth( temp )<topDepth )
 	{
+#ifdef TEMPLATED_INITIALIZER
+#ifdef THREAD_SAFE_CHILD_INIT
+		if( !temp->children ) temp->template initChildren< ThreadSafe >( nodeAllocator , _nodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
+		if( !temp->children ) temp->initChildren_s( nodeAllocator , _nodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
+#else // !TEMPLATED_INITIALIZER
 #ifdef THREAD_SAFE_CHILD_INIT
 		if( !temp->children ) temp->template initChildren< ThreadSafe >( nodeAllocator , _NodeInitializer( *this ) );
 #else // !THREAD_SAFE_CHILD_INIT
 		if( !temp->children ) temp->initChildren_s( nodeAllocator , _NodeInitializer( *this ) );
 #endif // THREAD_SAFE_CHILD_INIT
+#endif // TEMPLATED_INITIALIZER
 		int cIndex = FEMTreeNode::ChildIndex( myCenter , position );
 		temp = &temp->children[cIndex];
 		myWidth/=2;
@@ -356,11 +380,19 @@ Real FEMTree< Dim , Real >::_multiSplatPointData( const DensityEstimator< Weight
 	V _v = v * weight;
 
 	double values[ Dim ][ SupportSizes::Max() ];
+#ifdef TEMPLATED_INITIALIZER
+#ifdef THREAD_SAFE_CHILD_INIT
+	dataKey.template getNeighbors< CreateNodes , ThreadSafe >( node , nodeAllocator , _nodeInitializer );
+#else // !THREAD_SAFE_CHILD_INIT
+	dataKey.template getNeighbors< CreateNodes >( node , nodeAllocator , _nodeInitializer );
+#endif // THREAD_SAFE_CHILD_INIT
+#else // !TEMPLATED_INITIALIZER
 #ifdef THREAD_SAFE_CHILD_INIT
 	dataKey.template getNeighbors< CreateNodes , ThreadSafe >( node , nodeAllocator , _NodeInitializer( *this ) );
 #else // !THREAD_SAFE_CHILD_INIT
 	dataKey.template getNeighbors< CreateNodes >( node , nodeAllocator , _NodeInitializer( *this ) );
 #endif // THREAD_SAFE_CHILD_INIT
+#endif // TEMPLATED_INITIALIZER
 
 	for( FEMTreeNode* _node=node ; _localDepth( _node )>=0 ; _node=_node->parent )
 	{
