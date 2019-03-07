@@ -598,15 +598,27 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 			XInputPointStream _pointStream( [&]( Point< Real , Dim >& p , TotalPointSampleData& d ){ p = xForm*p , d = _xForm(d); } , *pointStream );
 			auto ProcessDataWithConfidence = [&]( const Point< Real , Dim >& p , TotalPointSampleData& d )
 			{
+#ifdef NEW_POINT_STREAM
+				Real l = (Real)Length( d.data<0>() );
+#else // !NEW_POINT_STREAM
 				Real l = (Real)Length( std::get< 0 >( d.data ).data );
+#endif // NEW_POINT_STREAM
 				if( !l || l!=l ) return (Real)-1.;
 				return (Real)pow( l , Confidence.value );
 			};
 			auto ProcessData = []( const Point< Real , Dim >& p , TotalPointSampleData& d )
 			{
+#ifdef NEW_POINT_STREAM
+				Real l = (Real)Length( d.data<0>() );
+#else // !NEW_POINT_STREAM
 				Real l = (Real)Length( std::get< 0 >( d.data ).data );
+#endif // NEW_POINT_STREAM
 				if( !l || l!=l ) return (Real)-1.;
+#ifdef NEW_POINT_STREAM
+				d.data<0>() /= l;
+#else // !NEW_POINT_STREAM
 				std::get< 0 >( d.data ).data /= l;
+#endif // NEW_POINT_STREAM
 				return (Real)1.;
 			};
 #ifdef NEW_CODE
@@ -803,13 +815,21 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 			if( Density.set )
 			{
 				typedef PlyVertexWithData< Real , Dim , MultiPointStreamData< Real , PointStreamNormal< Real , Dim > , PointStreamValue< Real > , AdditionalPointSampleData > > Vertex;
+#ifdef NEW_POINT_STREAM
+				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , v.data.data<0>() = d.data<0>() , v.data.data<1>() = w , v.data.data<2>() = d.data<1>(); };
+#else // !NEW_POINT_STREAM
 				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , std::get< 0 >( v.data.data ) = std::get< 0 >( d.data ) , std::get< 1 >( v.data.data ).data = w , std::get< 2 >( v.data.data ) = std::get< 1 >( d.data ); };
+#endif // NEW_POINT_STREAM
 				ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , std::tuple< SampleData ... >() , tree , solution , isoValue , samples , sampleData , density , SetVertex , comments , iXForm );
 			}
 			else
 			{
 				typedef PlyVertexWithData< Real , Dim , MultiPointStreamData< Real , PointStreamNormal< Real , Dim > , AdditionalPointSampleData > > Vertex;
+#ifdef NEW_POINT_STREAM
+				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , v.data.data<0>() = d.data<0>() , v.data.data<1>() = d.data<1>(); };
+#else // !NEW_POINT_STREAM
 				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , std::get< 0 >( v.data.data ) = std::get< 0 >( d.data ) , std::get< 1 >( v.data.data ) = std::get< 1 >( d.data ); };
+#endif // NEW_POINT_STREAM
 				ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , std::tuple< SampleData ... >() , tree , solution , isoValue , samples , sampleData , density , SetVertex , comments , iXForm );
 			}
 		}
@@ -818,13 +838,21 @@ void Execute( int argc , char* argv[] , UIntPack< FEMSigs ... > )
 			if( Density.set )
 			{
 				typedef PlyVertexWithData< Real , Dim , MultiPointStreamData< Real , PointStreamValue< Real > , AdditionalPointSampleData > > Vertex;
+#ifdef NEW_POINT_STREAM
+				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , v.data.data<0>() = w , v.data.data<1>() = d.data<1>(); };
+#else // !NEW_POINT_STREAM
 				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , std::get< 0 >( v.data.data ).data = w , std::get< 1 >( v.data.data ) = std::get< 1 >( d.data ); };
+#endif // NEW_POINT_STREAM
 				ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , std::tuple< SampleData ... >() , tree , solution , isoValue , samples , sampleData , density , SetVertex , comments , iXForm );
 			}
 			else
 			{
 				typedef PlyVertexWithData< Real , Dim , MultiPointStreamData< Real , AdditionalPointSampleData > > Vertex;
+#ifdef NEW_POINT_STREAM
+				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , v.data.data<0>() = d.data<1>(); };
+#else // !NEW_POINT_STREAM
 				std::function< void ( Vertex& , Point< Real , Dim > , Real , TotalPointSampleData ) > SetVertex = []( Vertex& v , Point< Real , Dim > p , Real w , TotalPointSampleData d ){ v.point = p , std::get< 0 >( v.data.data ) = std::get< 1 >( d.data ); };
+#endif // NEW_POINT_STREAM
 				ExtractMesh< Vertex >( UIntPack< FEMSigs ... >() , std::tuple< SampleData ... >() , tree , solution , isoValue , samples , sampleData , density , SetVertex , comments , iXForm );
 			}
 		}

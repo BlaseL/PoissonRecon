@@ -107,6 +107,11 @@ cmdLineReadable* params[] =
 	&Performance ,
 	&ExactInterpolation ,
 	&MaxMemoryGB ,
+#ifdef NEW_THREADS
+	&ParallelType , 
+	&ScheduleType , 
+	&ThreadChunkSize ,
+#endif // NEW_THREADS
 	NULL
 };
 

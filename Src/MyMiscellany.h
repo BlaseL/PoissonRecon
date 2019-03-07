@@ -394,7 +394,6 @@ namespace hh
 		}
 		~ThreadPoolIndexedTask( void )
 		{
-printf( "ThreadPoolIndexedTask dtor called\n" );
 #ifdef USE_THREAD_MINUS_ONE
 			if( _threads.size() )
 #endif // USE_THREAD_MINUS_ONE

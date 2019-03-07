@@ -51,6 +51,29 @@ template< class Real > void SetColorValues( const Color< Real >& color , RGBColo
 template< typename Real , typename Data >
 struct PointStreamData
 {
+	static const int PlyReadNum;
+	static const int PlyWriteNum;
+	static const PlyProperty* PlyReadProperties( void );
+	static const PlyProperty* PlyWriteProperties( void );
+	static bool ValidPlyReadProperties( const bool* flags );
+
+#ifdef NEW_POINT_STREAM
+	typedef Data type;
+	Data psData;
+
+	PointStreamData& operator += ( const PointStreamData& p ){ psData += p.psData ; return *this; }
+	PointStreamData& operator -= ( const PointStreamData& p ){ psData -= p.psData ; return *this; }
+	PointStreamData& operator *= ( Real s )                  { psData *= s ; return *this; }
+	PointStreamData& operator /= ( Real s )                  { psData /= s ; return *this; }
+	PointStreamData  operator +  ( const PointStreamData& p ) const { PointStreamData _p = *this ; _p += p ; return _p; }
+	PointStreamData  operator -  ( const PointStreamData& p ) const { PointStreamData _p = *this ; _p -= p ; return _p; }
+	PointStreamData  operator *  ( Real s )                   const { PointStreamData _p = *this ; _p *= s ; return _p; }
+	PointStreamData  operator /  ( Real s )                   const { PointStreamData _p = *this ; _p /= s ; return _p; }
+
+	// Returns access to the data
+	Data &data( void ){ return psData; }
+	const Data &data( void ) const { return psData; }
+#else // !NEW_POINT_STREAM
 	Data data;
 
 	PointStreamData& operator += ( const PointStreamData& p ){ data += p.data ; return *this; }
@@ -62,15 +85,49 @@ struct PointStreamData
 	PointStreamData  operator *  ( Real s )                   const { PointStreamData _p = *this ; _p *= s ; return _p; }
 	PointStreamData  operator /  ( Real s )                   const { PointStreamData _p = *this ; _p /= s ; return _p; }
 
-	static const int PlyReadNum;
-	static const int PlyWriteNum;
-	static const PlyProperty* PlyReadProperties( void );
-	static const PlyProperty* PlyWriteProperties( void );
-	static bool ValidPlyReadProperties( const bool* flags );
+#endif // NEW_POINT_STREAM
 };
 template< class Real , unsigned int Dim >
 struct PointStreamPosition : public PointStreamData< Real , Point< Real , Dim > >
 {
+#ifdef NEW_POINT_STREAM
+	struct Transform
+	{
+		Transform( void ){}
+		Transform( const XForm< Real , Dim+1 >& xForm ) : _xForm(xForm) { }
+		PointStreamPosition operator() ( const PointStreamPosition& p ) const
+		{
+			PointStreamPosition _p;
+			_p.psData = _xForm * p.psData;
+			return _p;
+		}
+	protected:
+		XForm< Real , Dim+1 > _xForm;
+	};
+	static void readASCII( FILE* fp , PointStreamPosition& p )
+	{
+		float f;
+		for( int i=0 ; i<Dim ; i++ )
+			if( fscanf( fp , " %f " , &f )!=1 ) ERROR_OUT( "Failed to read color" );
+			else p.psData[i] = (Real)f;
+	};
+	static void ReadBinary( FILE* fp , PointStreamPosition& p )
+	{
+		float f;
+		for( int i=0 ; i<Dim ; i++ )
+			if( fread( &f , sizeof(float) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read color" );
+			else p.psData[i] = (Real)f;
+	}
+	static void WriteASCII( FILE* fp , const PointStreamPosition& p ){ for( int i=0 ; i<Dim ; i++ ) fprintf( fp , " %f" , (float)p.psData[i] ); };
+	static void WriteBinary( FILE* fp , const PointStreamPosition& p )
+	{
+		for( int i=0 ; i<Dim ; i++ )
+		{
+			float f = (float)p.psData[i];
+			fwrite( &f , sizeof(float) , 1 , fp );
+		}
+	}
+#else // !NEW_POINT_STREAM
 	struct Transform
 	{
 		Transform( void ){}
@@ -107,6 +164,7 @@ struct PointStreamPosition : public PointStreamData< Real , Point< Real , Dim > 
 			fwrite( &f , sizeof(float) , 1 , fp );
 		}
 	}
+#endif // NEW_POINT_STREAM
 
 	static const int PlyReadNum = Dim;
 	static const int PlyWriteNum = Dim;
@@ -116,6 +174,50 @@ struct PointStreamPosition : public PointStreamData< Real , Point< Real , Dim > 
 protected:
 	static const PlyProperty _PlyProperties[];
 };
+#ifdef NEW_POINT_STREAM
+template<>
+const PlyProperty PointStreamPosition< float , 2 >::_PlyProperties[] =
+{
+	PlyProperty( "x" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , psData.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "y" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , psData.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+};
+template<>
+const PlyProperty PointStreamPosition< double , 2 >::_PlyProperties[] =
+{
+	PlyProperty( "x" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , psData.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "y" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , psData.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+};
+template<>
+const PlyProperty PointStreamPosition< float , 3 >::_PlyProperties[] =
+{
+	PlyProperty( "x" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , psData.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "y" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , psData.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "z" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , psData.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
+};
+template<>
+const PlyProperty PointStreamPosition< double , 3 >::_PlyProperties[] =
+{
+	PlyProperty( "x" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , psData.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "y" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , psData.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "z" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , psData.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
+};
+template<>
+const PlyProperty PointStreamPosition< float , 4 >::_PlyProperties[] =
+{
+	PlyProperty( "x" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , psData.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "y" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , psData.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "z" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , psData.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "w" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamPosition , psData.coords[3] ) ) , 0 , 0 , 0 , 0 ) ,
+};
+template<>
+const PlyProperty PointStreamPosition< double , 4 >::_PlyProperties[] =
+{
+	PlyProperty( "x" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , psData.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "y" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , psData.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "z" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , psData.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "w" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , psData.coords[3] ) ) , 0 , 0 , 0 , 0 ) ,
+};
+#else // !NEW_POINT_STREAM
 template<>
 const PlyProperty PointStreamPosition< float , 2 >::_PlyProperties[] =
 {
@@ -158,10 +260,54 @@ const PlyProperty PointStreamPosition< double , 4 >::_PlyProperties[] =
 	PlyProperty( "z" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , data.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
 	PlyProperty( "w" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamPosition , data.coords[3] ) ) , 0 , 0 , 0 , 0 ) ,
 };
+#endif // NEW_POINT_STREAM
 
 template< class Real , unsigned int Dim >
 struct PointStreamNormal : public PointStreamData< Real , Point< Real , Dim > >
 {
+#ifdef NEW_POINT_STREAM
+	struct Transform
+	{
+		Transform( void ){}
+		Transform( const XForm< Real , Dim+1 >& xForm )
+		{
+			for( int i=0 ; i<Dim ; i++ ) for( int j=0 ; j<Dim ; j++ ) _xForm(i,j) = xForm(i,j);
+			_xForm = _xForm.transpose().inverse();
+			_xForm /= (Real)pow( fabs( _xForm.determinant() ) , 1./Dim );
+		}
+		PointStreamNormal operator() ( const PointStreamNormal& n ) const
+		{
+			PointStreamNormal _n;
+			_n.psData = _xForm * n.psData;
+			return _n;
+		}
+	protected:
+		XForm< Real , Dim > _xForm;
+	};
+	static void ReadASCII( FILE* fp , PointStreamNormal& p )
+	{
+		float f;
+		for( int i=0 ; i<Dim ; i++ )
+			if( fscanf( fp , " %f " , &f )!=1 ) ERROR_OUT( "Failed to read normal" );
+			else p.psData[i] = (Real)f;
+	};
+	static void ReadBinary( FILE* fp , PointStreamNormal& p )
+	{
+		float f;
+		for( int i=0 ; i<Dim ; i++ )
+			if( fread( &f , sizeof(float) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read normal" );
+			else p.psData[i] = (Real)f;
+	}
+	static void WriteASCII( FILE* fp , const PointStreamNormal& p ){ for( int i=0 ; i<Dim ; i++ ) fprintf( fp , " %f" , (float)p.psData[i] ); };
+	static void WriteBinary( FILE* fp , const PointStreamNormal& p )
+	{
+		for( int i=0 ; i<Dim ; i++ )
+		{
+			float f = (float)p.psData[i];
+			fwrite( &f , sizeof( float) , 1 , fp );
+		}
+	}
+#else // !NEW_POINT_STREAM
 	struct Transform
 	{
 		Transform( void ){}
@@ -203,6 +349,8 @@ struct PointStreamNormal : public PointStreamData< Real , Point< Real , Dim > >
 			fwrite( &f , sizeof( float) , 1 , fp );
 		}
 	}
+#endif // NEW_POINT_STREAM
+
 	static const int PlyReadNum = Dim;
 	static const int PlyWriteNum = Dim;
 	static const PlyProperty* PlyReadProperties( void ){ return _PlyProperties; }
@@ -211,6 +359,50 @@ struct PointStreamNormal : public PointStreamData< Real , Point< Real , Dim > >
 protected:
 	static const PlyProperty _PlyProperties[];
 };
+#ifdef NEW_POINT_STREAM
+template<>
+const PlyProperty PointStreamNormal< float , 2 >::_PlyProperties[] =
+{
+	PlyProperty( "nx" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , psData.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "ny" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , psData.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+};
+template<>
+const PlyProperty PointStreamNormal< double , 2 >::_PlyProperties[] =
+{
+	PlyProperty( "nx" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , psData.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "ny" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , psData.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+};
+template<>
+const PlyProperty PointStreamNormal< float , 3 >::_PlyProperties[] =
+{
+	PlyProperty( "nx" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , psData.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "ny" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , psData.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "nz" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , psData.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
+};
+template<>
+const PlyProperty PointStreamNormal< double , 3 >::_PlyProperties[] =
+{
+	PlyProperty( "nx" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , psData.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "ny" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , psData.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "nz" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , psData.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
+};
+template<>
+const PlyProperty PointStreamNormal< float , 4 >::_PlyProperties[] =
+{
+	PlyProperty( "nx" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , psData.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "ny" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , psData.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "nz" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , psData.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "nw" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamNormal , psData.coords[3] ) ) , 0 , 0 , 0 , 0 ) ,
+};
+template<>
+const PlyProperty PointStreamNormal< double , 4 >::_PlyProperties[] =
+{
+	PlyProperty( "nx" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , psData.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "ny" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , psData.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "nz" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , psData.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "nw" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , psData.coords[3] ) ) , 0 , 0 , 0 , 0 ) ,
+};
+#else // !NEW_POINT_STREAM
 template<>
 const PlyProperty PointStreamNormal< float , 2 >::_PlyProperties[] =
 {
@@ -253,6 +445,7 @@ const PlyProperty PointStreamNormal< double , 4 >::_PlyProperties[] =
 	PlyProperty( "nz" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , data.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
 	PlyProperty( "nw" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamNormal , data.coords[3] ) ) , 0 , 0 , 0 , 0 ) ,
 };
+#endif // NEW_POINT_STREAM
 
 template< class Real >
 struct PointStreamColor : public PointStreamData< Real , Color< Real > >
@@ -263,6 +456,32 @@ struct PointStreamColor : public PointStreamData< Real , Color< Real > >
 		template< typename X > Transform( const X& ){}
 		PointStreamColor operator() ( const PointStreamColor& c ) const { return c; }
 	};
+#ifdef NEW_POINT_STREAM
+	static void ReadASCII( FILE* fp , PointStreamColor& p )
+	{
+		unsigned char c[3];
+		if( fscanf( fp , " %c %c %c " , &c[0] , &c[1] , &c[2] )!=3 ) ERROR_OUT( "Failed to read color" );
+		p.psData[0] = (Real)c[0] , p.psData[1] = (Real)c[1] , p.psData[2] = (Real)c[2];
+	};
+	static void ReadBinary( FILE* fp , PointStreamColor& p )
+	{
+		unsigned char c[3];
+		if( fread( c , sizeof(unsigned char) , 3 , fp )!=3 ) ERROR_OUT( "Failed to read color" );
+		p.psData[0] = (Real)c[0] , p.psData[1] = (Real)c[1] , p.psData[2] = (Real)c[2];
+	}
+	static void WriteASCII( FILE* fp , const PointStreamColor& p )
+	{
+		unsigned char c[3];
+		SetColorValues( p.psData , c );
+		fprintf( fp , " %d %d %d " , c[0] , c[1] , c[2] );
+	};
+	static void WriteBinary( FILE* fp , const PointStreamColor& p )
+	{
+		unsigned char c[3];
+		SetColorValues( p.psData , c );
+		fwrite( c , sizeof(unsigned char) , 3 , fp );
+	}
+#else // !NEW_POINT_STREAM
 	static void ReadASCII( FILE* fp , PointStreamColor& p )
 	{
 		unsigned char c[3];
@@ -287,6 +506,8 @@ struct PointStreamColor : public PointStreamData< Real , Color< Real > >
 		SetColorValues( p.data , c );
 		fwrite( c , sizeof(unsigned char) , 3 , fp );
 	}
+#endif // NEW_POINT_STREAM
+
 	static const int PlyReadNum = 6;
 	static const int PlyWriteNum = 3;
 	static const PlyProperty* PlyReadProperties( void ){ return _PlyProperties; }
@@ -295,6 +516,28 @@ struct PointStreamColor : public PointStreamData< Real , Color< Real > >
 protected:
 	static const PlyProperty _PlyProperties[];
 };
+#ifdef NEW_POINT_STREAM
+template<>
+const PlyProperty PointStreamColor< float >::_PlyProperties[] =
+{
+	PlyProperty( "red"   , PLY_UCHAR , PLY_FLOAT , int( offsetof( PointStreamColor , psData.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "green" , PLY_UCHAR , PLY_FLOAT , int( offsetof( PointStreamColor , psData.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "blue"  , PLY_UCHAR , PLY_FLOAT , int( offsetof( PointStreamColor , psData.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "r"     , PLY_UCHAR , PLY_FLOAT , int( offsetof( PointStreamColor , psData.coords[0] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "g"     , PLY_UCHAR , PLY_FLOAT , int( offsetof( PointStreamColor , psData.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "b"     , PLY_UCHAR , PLY_FLOAT , int( offsetof( PointStreamColor , psData.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
+};
+template<>
+const PlyProperty PointStreamColor< double >::_PlyProperties[] =
+{
+	PlyProperty( "red"   , PLY_UCHAR , PLY_DOUBLE , int( offsetof( PointStreamColor , psData.coords[0] ) ) , 0 , 0 , 0 , 0 ) , 
+	PlyProperty( "green" , PLY_UCHAR , PLY_DOUBLE , int( offsetof( PointStreamColor , psData.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "blue"  , PLY_UCHAR , PLY_DOUBLE , int( offsetof( PointStreamColor , psData.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "r"     , PLY_UCHAR , PLY_DOUBLE , int( offsetof( PointStreamColor , psData.coords[0] ) ) , 0 , 0 , 0 , 0 ) , 
+	PlyProperty( "g"     , PLY_UCHAR , PLY_DOUBLE , int( offsetof( PointStreamColor , psData.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
+	PlyProperty( "b"     , PLY_UCHAR , PLY_DOUBLE , int( offsetof( PointStreamColor , psData.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
+};
+#else // !NEW_POINT_STREAM
 template<>
 const PlyProperty PointStreamColor< float >::_PlyProperties[] =
 {
@@ -315,6 +558,7 @@ const PlyProperty PointStreamColor< double >::_PlyProperties[] =
 	PlyProperty( "g"     , PLY_UCHAR , PLY_DOUBLE , int( offsetof( PointStreamColor , data.coords[1] ) ) , 0 , 0 , 0 , 0 ) ,
 	PlyProperty( "b"     , PLY_UCHAR , PLY_DOUBLE , int( offsetof( PointStreamColor , data.coords[2] ) ) , 0 , 0 , 0 , 0 ) ,
 };
+#endif // NEW_POINT_STREAM
 
 template< class Real >
 struct PointStreamValue : public PointStreamData< Real , Real >
@@ -325,10 +569,17 @@ struct PointStreamValue : public PointStreamData< Real , Real >
 		template< typename X > Transform( const X& ){}
 		PointStreamValue operator() ( const PointStreamValue& r ) const { return r; }
 	};
+#ifdef NEW_POINT_STREAM
+	static void  ReadASCII ( FILE* fp , PointStreamValue& p ){ float f ; if( fscanf( fp , " %f " , &f )!=1 ) ERROR_OUT( "Failed to read color" ) ; p.psData = (Real)f; }
+	static void  ReadBinary( FILE* fp , PointStreamValue& p ){ float f ; if( fread( &f , sizeof(float) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read color" ) ; p.psData = (Real)f; }
+	static void WriteASCII ( FILE* fp , const PointStreamValue& p ){ float f = (float)p.psData ; fprintf( fp , " %f " , f ); }
+	static void WriteBinary( FILE* fp , const PointStreamValue& p ){ float f = (float)p.psData ; fwrite( &f , sizeof(Real) , 1 , fp ); }
+#else // !NEW_POINT_STREAM
 	static void  ReadASCII ( FILE* fp , PointStreamValue& p ){ float f ; if( fscanf( fp , " %f " , &f )!=1 ) ERROR_OUT( "Failed to read color" ) ; p.data = (Real)f; }
 	static void  ReadBinary( FILE* fp , PointStreamValue& p ){ float f ; if( fread( &f , sizeof(float) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read color" ) ; p.data = (Real)f; }
 	static void WriteASCII ( FILE* fp , const PointStreamValue& p ){ float f = (float)p.data ; fprintf( fp , " %f " , f ); }
 	static void WriteBinary( FILE* fp , const PointStreamValue& p ){ float f = (float)p.data ; fwrite( &f , sizeof(Real) , 1 , fp ); }
+#endif // NEW_POINT_STREAM
 	static const int PlyReadNum = 1;
 	static const int PlyWriteNum = 1;
 	static const PlyProperty* PlyReadProperties( void ){ return _PlyProperties; }
@@ -337,6 +588,18 @@ struct PointStreamValue : public PointStreamData< Real , Real >
 public:
 	static const PlyProperty _PlyProperties[];
 };
+#ifdef NEW_POINT_STREAM
+template<>
+const PlyProperty PointStreamValue< float >::_PlyProperties[] =
+{
+	PlyProperty( "value" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamValue , psData ) ) , 0 , 0 , 0 , 0 ) , 
+};
+template<>
+const PlyProperty PointStreamValue< double >::_PlyProperties[] =
+{
+	PlyProperty( "value" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamValue , psData ) ) , 0 , 0 , 0 , 0 ) , 
+};
+#else // !NEW_POINT_STREAM
 template<>
 const PlyProperty PointStreamValue< float >::_PlyProperties[] =
 {
@@ -347,6 +610,7 @@ const PlyProperty PointStreamValue< double >::_PlyProperties[] =
 {
 	PlyProperty( "value" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamValue , data ) ) , 0 , 0 , 0 , 0 ) , 
 };
+#endif // NEW_POINT_STREAM
 
 template< class Real >
 struct PointStreamRoughness : public PointStreamData< Real , Real >
@@ -357,10 +621,17 @@ struct PointStreamRoughness : public PointStreamData< Real , Real >
 		template< typename X > Transform( const X& ){}
 		PointStreamRoughness operator() ( const PointStreamRoughness& r ) const { return r; }
 	};
+#ifdef NEW_POINT_STREAM
+	static void  ReadASCII ( FILE* fp , PointStreamRoughness& p ){ float f ; if( fscanf( fp , " %f " , &f )!=1 ) ERROR_OUT( "Failed to read color" ) ; p.psData = (Real)f; }
+	static void  ReadBinary( FILE* fp , PointStreamRoughness& p ){ float f ; if( fread( &f , sizeof(float) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read color" ) ; p.psData = (Real)f; }
+	static void WriteASCII ( FILE* fp , const PointStreamRoughness& p ){ float f = (float)p.psData ; fprintf( fp , " %f " , f ); }
+	static void WriteBinary( FILE* fp , const PointStreamRoughness& p ){ float f = (float)p.psData ; fwrite( &f , sizeof(Real) , 1 , fp ); }
+#else // !NEW_POINT_STREAM
 	static void  ReadASCII ( FILE* fp , PointStreamRoughness& p ){ float f ; if( fscanf( fp , " %f " , &f )!=1 ) ERROR_OUT( "Failed to read color" ) ; p.data = (Real)f; }
 	static void  ReadBinary( FILE* fp , PointStreamRoughness& p ){ float f ; if( fread( &f , sizeof(float) , 1 , fp )!=1 ) ERROR_OUT( "Failed to read color" ) ; p.data = (Real)f; }
 	static void WriteASCII ( FILE* fp , const PointStreamRoughness& p ){ float f = (float)p.data ; fprintf( fp , " %f " , f ); }
 	static void WriteBinary( FILE* fp , const PointStreamRoughness& p ){ float f = (float)p.data ; fwrite( &f , sizeof(Real) , 1 , fp ); }
+#endif // NEW_POINT_STREAM
 	static const int PlyReadNum = 1;
 	static const int PlyWriteNum = 1;
 	static const PlyProperty* PlyReadProperties( void ){ return _PlyProperties; }
@@ -369,6 +640,18 @@ struct PointStreamRoughness : public PointStreamData< Real , Real >
 public:
 	static const PlyProperty _PlyProperties[];
 };
+#ifdef NEW_POINT_STREAM
+template<>
+const PlyProperty PointStreamRoughness< float >::_PlyProperties[] =
+{
+	PlyProperty( "rg" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PointStreamRoughness , psData ) ) , 0 , 0 , 0 , 0 ) , 
+};
+template<>
+const PlyProperty PointStreamRoughness< double >::_PlyProperties[] =
+{
+	PlyProperty( "rg" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamRoughness , psData ) ) , 0 , 0 , 0 , 0 ) , 
+};
+#else // !NEW_POINT_STREAM
 template<>
 const PlyProperty PointStreamRoughness< float >::_PlyProperties[] =
 {
@@ -379,12 +662,17 @@ const PlyProperty PointStreamRoughness< double >::_PlyProperties[] =
 {
 	PlyProperty( "rg" , PLY_FLOAT , PLY_DOUBLE , int( offsetof( PointStreamRoughness , data ) ) , 0 , 0 , 0 , 0 ) , 
 };
+#endif // NEW_POINT_STREAM
 
 template< typename Real , typename ... Data >
 struct MultiPointStreamData : public PointStreamData< Real , std::tuple< Data ... > >
 {
 	typedef std::tuple< Data ... > MultiData;
+#ifdef NEW_POINT_STREAM
+	using PointStreamData< Real , MultiData >::psData;
+#else // !NEW_POINT_STREAM
 	using PointStreamData< Real , MultiData >::data;
+#endif // NEW_POINT_STREAM
 	template< unsigned int I > using DataType = typename std::tuple_element< I , MultiData >::type;
 
 	struct Transform
@@ -408,7 +696,11 @@ struct MultiPointStreamData : public PointStreamData< Real , std::tuple< Data ..
 		template< unsigned int I , typename X >
 		typename std::enable_if< I==sizeof...(Data) >::type _initTransforms( const X& x ){ }
 		template< unsigned int I >
+#ifdef NEW_POINT_STREAM
+		typename std::enable_if< I!=sizeof...(Data) >::type _transform( const MultiPointStreamData& in , MultiPointStreamData& out ) const { std::get< I >( out.psData ) = std::get< I >( _xForms )( std::get< I >( in.psData ) ) ; _transform< I+1 >( in , out ); }
+#else // !NEW_POINT_STREAM
 		typename std::enable_if< I!=sizeof...(Data) >::type _transform( const MultiPointStreamData& in , MultiPointStreamData& out ) const { std::get< I >( out.data ) = std::get< I >( _xForms )( std::get< I >( in.data ) ) ; _transform< I+1 >( in , out ); }
+#endif // NEW_POINT_STREAM
 		template< unsigned int I >
 		typename std::enable_if< I==sizeof...(Data) >::type _transform( const MultiPointStreamData& in , MultiPointStreamData& out ) const { }
 	};
@@ -427,6 +719,14 @@ struct MultiPointStreamData : public PointStreamData< Real , std::tuple< Data ..
 	MultiPointStreamData  operator *  ( Real s )                        const { MultiPointStreamData _p = *this ; _p *= s ; return _p; }
 	MultiPointStreamData  operator /  ( Real s )                        const { MultiPointStreamData _p = *this ; _p /= s ; return _p; }
 
+#ifdef NEW_POINT_STREAM
+	template< unsigned int I > using _DataType = typename std::tuple_element< I , MultiData >::type::type;
+
+	MultiData &data( void ){ return psData; }
+	const MultiData &data( void ) const { return psData; }
+	template< unsigned int I >       _DataType< I > &data( void )       { return std::get< I >( psData ).psData; }
+	template< unsigned int I > const _DataType< I > &data( void ) const { return std::get< I >( psData ).psData; }
+#endif // NEW_POINT_STREAM
 private:
 	template< unsigned int I > static constexpr typename std::enable_if< I!=sizeof...(Data) , int >::type _PlyTotalReadNum( void ){ return DataType< I >::PlyReadNum + _PlyTotalReadNum< I+1 >(); }
 	template< unsigned int I > static constexpr typename std::enable_if< I==sizeof...(Data) , int >::type _PlyTotalReadNum( void ){ return 0; }
@@ -448,6 +748,25 @@ private:
 	template< unsigned int I > static typename std::enable_if< I==0 , unsigned int >::type _PlyReadOffset( void ){ return 0; }
 	template< unsigned int I > static typename std::enable_if< I!=0 , unsigned int >::type _PlyReadOffset( void ){ return DataType< I-1 >::PlyReadNum + _PlyReadOffset< I-1 >(); }
 
+#ifdef NEW_POINT_STREAM
+	template< unsigned int I > typename std::enable_if< I!=sizeof...(Data) >::type  _readASCII ( FILE* fp )       { DataType< I >:: ReadASCII ( fp , std::get< I >( psData ) ) ;  _readASCII < I+1 >( fp ); }
+	template< unsigned int I > typename std::enable_if< I==sizeof...(Data) >::type  _readASCII ( FILE* fp )       { }
+	template< unsigned int I > typename std::enable_if< I!=sizeof...(Data) >::type  _readBinary( FILE* fp )       { DataType< I >:: ReadBinary( fp , std::get< I >( psData ) ) ;  _readBinary< I+1 >( fp ); }
+	template< unsigned int I > typename std::enable_if< I==sizeof...(Data) >::type  _readBinary( FILE* fp )       { }
+	template< unsigned int I > typename std::enable_if< I!=sizeof...(Data) >::type _writeASCII ( FILE* fp ) const { DataType< I >::WriteASCII ( fp , std::get< I >( psData ) ) ; _writeASCII < I+1 >( fp ); }
+	template< unsigned int I > typename std::enable_if< I==sizeof...(Data) >::type _writeASCII ( FILE* fp ) const { }
+	template< unsigned int I > typename std::enable_if< I!=sizeof...(Data) >::type _writeBinary( FILE* fp ) const { DataType< I >::WriteBinary( fp , std::get< I >( psData ) ) ; _writeBinary< I+1 >( fp ); }
+	template< unsigned int I > typename std::enable_if< I==sizeof...(Data) >::type _writeBinary( FILE* fp ) const { }
+
+	template< unsigned int I > typename std::enable_if< I!=sizeof...(Data) >::type _add( const MultiPointStreamData& p ){ std::get< I >( psData ) += std::get< I >( p.psData ) ; _add< I+1 >( p ); }
+	template< unsigned int I > typename std::enable_if< I==sizeof...(Data) >::type _add( const MultiPointStreamData& p ){ }
+	template< unsigned int I > typename std::enable_if< I!=sizeof...(Data) >::type _sub( const MultiPointStreamData& p ){ std::get< I >( psData ) -= std::get< I >( p.psData ) ; _sub< I+1 >( p ); }
+	template< unsigned int I > typename std::enable_if< I==sizeof...(Data) >::type _sub( const MultiPointStreamData& p ){ }
+	template< unsigned int I > typename std::enable_if< I!=sizeof...(Data) >::type _mul( Real s ){ std::get< I >( psData ) *= s ; _mul< I+1 >( s ); }
+	template< unsigned int I > typename std::enable_if< I==sizeof...(Data) >::type _mul( Real s ){ }
+	template< unsigned int I > typename std::enable_if< I!=sizeof...(Data) >::type _div( Real s ){ std::get< I >( psData ) /= s ; _div< I+1 >( s ); }
+	template< unsigned int I > typename std::enable_if< I==sizeof...(Data) >::type _div( Real s ){ }
+#else // !NEW_POINT_STREAM
 	template< unsigned int I > typename std::enable_if< I!=sizeof...(Data) >::type  _readASCII ( FILE* fp )       { DataType< I >:: ReadASCII ( fp , std::get< I >( data ) ) ;  _readASCII < I+1 >( fp ); }
 	template< unsigned int I > typename std::enable_if< I==sizeof...(Data) >::type  _readASCII ( FILE* fp )       { }
 	template< unsigned int I > typename std::enable_if< I!=sizeof...(Data) >::type  _readBinary( FILE* fp )       { DataType< I >:: ReadBinary( fp , std::get< I >( data ) ) ;  _readBinary< I+1 >( fp ); }
@@ -465,6 +784,7 @@ private:
 	template< unsigned int I > typename std::enable_if< I==sizeof...(Data) >::type _mul( Real s ){ }
 	template< unsigned int I > typename std::enable_if< I!=sizeof...(Data) >::type _div( Real s ){ std::get< I >( data ) /= s ; _div< I+1 >( s ); }
 	template< unsigned int I > typename std::enable_if< I==sizeof...(Data) >::type _div( Real s ){ }
+#endif // NEW_POINT_STREAM
 
 	template< unsigned int I > static typename std::enable_if< I!=sizeof...(Data) >::type _SetPlyReadProperties( PlyProperty* PlyReadProperties )
 	{
@@ -472,7 +792,11 @@ private:
 		{
 			PlyReadProperties[d] = DataType< I >::PlyReadProperties()[d];
 			MultiPointStreamData temp;
+#ifdef NEW_POINT_STREAM
+			const typename std::tuple_element< I , MultiData >::type& temp_data = std::get< I >( temp.psData );
+#else // !NEW_POINT_STREAM
 			const typename std::tuple_element< I , MultiData >::type& temp_data = std::get< I >( temp.data );
+#endif // NEW_POINT_STREAM
 			PlyReadProperties[d].offset += (int)( (size_t)&temp_data - (size_t)&temp );
 		}
 		_SetPlyReadProperties< I+1 >( PlyReadProperties + DataType< I >::PlyReadNum );
@@ -484,7 +808,11 @@ private:
 		{
 			PlyWriteProperties[d] = DataType< I >::PlyWriteProperties()[d];
 			MultiPointStreamData temp;
+#ifdef NEW_POINT_STREAM
+			const typename std::tuple_element< I , MultiData >::type& temp_data = std::get< I >( temp.psData );
+#else // !NEW_POINT_STREAM
 			const typename std::tuple_element< I , MultiData >::type& temp_data = std::get< I >( temp.data );
+#endif // NEW_POINT_STREAM
 			PlyWriteProperties[d].offset += (int)( (size_t)&temp_data - (size_t)&temp );
 		}
 		_SetPlyWriteProperties< I+1 >( PlyWriteProperties + DataType< I >::PlyWriteNum );

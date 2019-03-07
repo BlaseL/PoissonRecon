@@ -28,7 +28,7 @@ DAMAGE.
 
 #ifndef PRE_PROCESSOR_INCLUDED
 #define PRE_PROCESSOR_INCLUDED
-#define BIG_DATA								// Supports processing requiring more than 32-bit integers for indexing
+#undef BIG_DATA								// Supports processing requiring more than 32-bit integers for indexing
 												// Note: enabling BIG_DATA can generate .ply files using "longlong" for face indices instead of "int".
 												// These are not standardly supported by .ply reading/writing applications.
 												// The executable ChunkPLY can help by partitioning the mesh into more manageable chunks
@@ -44,6 +44,8 @@ DAMAGE.
 #define USE_FEWER_THREADS						// Use fewer threads if necessary
 #define USE_THREAD_MINUS_ONE					// Do some of the processing the current thread
 #define PARALLEL_TREE_CONSTRUCTION				// Enabling this flag supports thread safe initializing of child nodes in the tree
+
+#define NEW_POINT_STREAM
 
 #define SECURE_INIT_ONLY
 

@@ -529,7 +529,11 @@ SparseNodeData< Point< Real , Dim > , UIntPack< NormalSigs ... > > FEMTree< Dim 
 		const ProjectiveData< Point< Real , Dim > , Real >& sample = samples[i].sample;
 		if( sample.weight>0 )
 		{
+#ifdef NEW_POINT_STREAM
+			Point< Real , Dim > p = sample.data / sample.weight , n = normalData[i].data<0>();
+#else // !NEW_POINT_STREAM
 			Point< Real , Dim > p = sample.data / sample.weight , n = std::get< 0 >( normalData[i].data ).data;
+#endif // NEW_POINT_STREAM
 			Real l = (Real)Length( n );
 			// It is possible that the samples have non-zero normals but there are two co-located samples with negative normals...
 #ifdef NEW_THREADS
